@@ -1,0 +1,4452 @@
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="CB App - A browser-based notepad and productivity tool">
+    <meta name="theme-color" content="#007bff">
+    <!-- Add CSP for security -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data:;">
+    <title>CB App</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
+    />
+    <!-- Version 1.05 web (minimize when the window is locked)-->
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        height: 100vh;
+        overflow: hidden;
+        transition: background 0.5s ease;
+      }
+      .light-mode {
+        background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+        color: #000;
+      }
+      .dark-mode {
+        background: linear-gradient(135deg, #2c3e50, #1a252f);
+        color: #ccc;
+      }
+      .whiteboard {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .window,
+      .calculator,
+      .task-window,
+      .clock-window,
+      .log-window,
+      .help-window {
+        position: absolute;
+        min-width: 350px;
+        min-height: 150px;
+        background: rgba(255, 255, 255, 0.3);
+        backdrop-filter: blur(5px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+        transition: opacity 0.3s ease;
+        transform: translate(0, 0);
+      }
+      .window.dragging,
+      .calculator.dragging,
+      .task-window.dragging,
+      .clock-window.dragging,
+      .log-window.dragging {
+        opacity: 0.8;
+      }
+      .dark-mode .window,
+      .dark-mode .calculator,
+      .dark-mode .task-window,
+      .dark-mode .clock-window,
+      .dark-mode .log-window {
+        background: rgba(0, 0, 0, 0.3);
+        border: 1px solid rgba(200, 200, 200, 0.3);
+      }
+      .window-header,
+      .calculator-header,
+      .task-header,
+      .clock-header,
+      .log-header,
+      .help-header {
+        background: rgba(200, 200, 200, 0.5);
+        padding: 5px 10px;
+        cursor: default;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      .dark-mode .window-header,
+      .dark-mode .calculator-header,
+      .dark-mode .task-header,
+      .dark-mode .clock-header,
+      .dark-mode .log-header {
+        background: rgba(100, 100, 100, 0.5);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .window-title,
+      .calculator-title,
+      .task-title,
+      .clock-title,
+      .log-title,
+      .help-title {
+        font-size: 14px;
+        font-weight: bold;
+      }
+      .window-controls,
+      .calculator-controls,
+      .task-controls,
+      .clock-controls,
+      .log-controls {
+        display: flex;
+        gap: 5px;
+      }
+      .edit-window {
+        color: #0c0;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .edit-window:hover {
+        color: #0a0;
+      }
+      .lock-window {
+        color: #fa0;
+        font-size: 12px;
+        cursor: pointer;
+      }
+      .lock-window.locked {
+        color: #f50;
+      }
+      .lock-window:hover {
+        color: #c80;
+      }
+      .close-window,
+      .close-calculator,
+      .close-task,
+      .close-clock,
+      .close-log {
+        color: #f55;
+        font-size: 12px;
+        cursor: default;
+      }
+      .close-window:hover,
+      .close-calculator:hover,
+      .close-task:hover,
+      .close-clock:hover,
+      .close-log:hover {
+        color: #f00;
+      }
+      .window-content {
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .textarea-container {
+        position: relative;
+        display: flex;
+        border: 1px solid;
+        border-radius: 5px;
+        overflow: hidden;
+        transition: border-color 0.5s ease;
+        resize: both;
+        min-width: 350px;
+        min-height: 200px;
+        width: 350px;
+      }
+      .light-mode .textarea-container {
+        border-color: #ccc;
+      }
+      .dark-mode .textarea-container {
+        border-color: #555;
+      }
+      .line-numbers {
+        width: 30px;
+        background: rgba(200, 200, 200, 0.5);
+        color: #333;
+        text-align: right;
+        padding: 5px;
+        font-family: monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        user-select: none;
+        border-right: 1px solid #ccc;
+        transition: background 0.5s ease;
+      }
+      .dark-mode .line-numbers {
+        background: rgba(80, 80, 80, 0.5);
+        color: #aaa;
+        border-right-color: #555;
+      }
+      textarea {
+        flex: 1;
+        min-height: 100px;
+        min-width: 150px;
+        padding: 5px;
+        font-family: monospace;
+        font-size: 14px;
+        line-height: 1.5;
+        border: none;
+        resize: none;
+        outline: none;
+        background: transparent;
+        transition: color 0.5s ease;
+        overflow: auto;
+      }
+      textarea[readonly] {
+        background: rgba(0, 0, 0, 0.1);
+      }
+      .dark-mode textarea[readonly] {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .light-mode textarea {
+        color: #000;
+      }
+      .dark-mode textarea {
+        color: #fff;
+      }
+      .note-log-input-container {
+        display: flex;
+        gap: 5px;
+      }
+      .note-log-input {
+        flex: 1;
+        padding: 5px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        outline: none;
+      }
+      .dark-mode .note-log-input {
+        border-color: #555;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+      .note-log-button {
+        padding: 5px 10px;
+        font-size: 14px;
+        border-radius: 5px;
+        cursor: pointer;
+        background: rgba(255, 165, 0, 0.5);
+        transition: background 0.3s ease;
+      }
+      .note-log-button:hover {
+        background: rgba(255, 165, 0, 0.7);
+      }
+      .format-buttons {
+        display: flex;
+        justify-content: center;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .counts {
+        font-size: 12px;
+      }
+      .calculator-content,
+      .clock-content,
+      .log-content {
+        padding: 10px;
+      }
+      .calculator-input,
+      .calculator-display,
+      .log-input {
+        width: 100%;
+        padding: 10px;
+        font-size: 18px;
+        text-align: left;
+        border: none;
+        background: rgba(255, 255, 255, 0.3);
+        color: #000;
+        border-radius: 5px;
+        margin-bottom: 10px;
+        box-sizing: border-box;
+      }
+      .dark-mode .calculator-input,
+      .dark-mode .calculator-display,
+      .dark-mode .log-input {
+        background: rgba(0, 0, 0, 0.3);
+        color: #fff;
+      }
+      .calculator-display {
+        background: rgba(255, 255, 255, 0.4);
+        text-align: right;
+      }
+      .dark-mode .calculator-display {
+        background: rgba(0, 0, 0, 0.4);
+      }
+      .calculator-buttons {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 5px;
+      }
+      .calculator-buttons button,
+      .log-input-container button {
+        padding: 15px;
+        font-size: 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        transition: background 0.3s ease;
+      }
+      .calculator-buttons .number {
+        background: rgba(200, 200, 200, 0.5);
+      }
+      .light-mode .calculator-buttons .number:hover {
+        background: rgba(180, 180, 180, 0.5);
+      }
+      .dark-mode .calculator-buttons .number {
+        background: rgba(100, 100, 100, 0.5);
+      }
+      .dark-mode .calculator-buttons .number:hover {
+        background: rgba(120, 120, 120, 0.5);
+      }
+      .calculator-buttons .operation,
+      .log-input-container button {
+        background: rgba(255, 165, 0, 0.5);
+      }
+      .calculator-buttons .operation:hover,
+      .log-input-container button:hover {
+        background: rgba(255, 165, 0, 0.7);
+      }
+      .calculator-buttons .special {
+        background: rgba(255, 0, 0, 0.5);
+      }
+      .calculator-buttons .special:hover {
+        background: rgba(255, 0, 0, 0.7);
+      }
+      .calculator-history,
+      .log-list {
+        max-height: 100px;
+        overflow-y: auto;
+        margin-top: 10px;
+        padding: 5px;
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 5px;
+        font-size: 12px;
+      }
+      .dark-mode .calculator-history,
+      .dark-mode .log-list {
+        background: rgba(0, 0, 0, 0.2);
+      }
+      .calculator-history p,
+      .log-item {
+        margin: 2px 0;
+      }
+      .nav-menu {
+        position: fixed;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 8px 15px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        z-index: 1000;
+        transition: all 0.3s ease;
+        width: max-content;
+        max-width: none;
+        flex-wrap: nowrap;
+      }
+
+      .nav-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .dark-mode .nav-menu {
+        background: rgba(0, 0, 0, 0.3);
+        box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
+      }
+      .nav-menu.collapsed {
+        width: 40px;
+        padding: 8px;
+      }
+      .nav-menu button,
+      .nav-menu a {
+        position: relative;
+        padding: 0 14px;
+        height: 36px;
+        font-size: 12px;
+        border-radius: 8px;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        text-decoration: none;
+        color: #fff;
+        white-space: nowrap;
+      }
+
+      .nav-menu .nav-sticky {
+        min-width: 140px;
+        padding: 0 18px;
+      }
+      .light-mode .nav-menu button,
+      .light-mode .nav-menu a {
+        background: #007bff;
+      }
+      .light-mode .nav-menu button:hover,
+      .light-mode .nav-menu a:hover {
+        background: #0056b3;
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.5);
+      }
+      .dark-mode .nav-menu button,
+      .dark-mode .nav-menu a {
+        background: #4a90e2;
+      }
+      .dark-mode .nav-menu button:hover,
+      .dark-mode .nav-menu a:hover {
+        background: #357abd;
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(74, 144, 226, 0.5);
+      }
+      #theme-toggle,
+      #log-toggle {
+        background: #6c757d;
+      }
+      .dark-mode #theme-toggle,
+      .dark-mode #log-toggle {
+        background: #6c757d;
+      }
+      #theme-toggle:hover,
+      #log-toggle:hover {
+        background: #5a6268;
+        box-shadow: 0 2px 8px rgba(108, 117, 125, 0.5);
+      }
+      .nav-menu button.active {
+        background: #28a745;
+      }
+      .nav-menu button.active:hover {
+        background: #218838;
+      }
+      .nav-menu button::after,
+      .nav-menu a::after {
+        display: none;
+      }
+
+      #nav-tooltip {
+        position: fixed;
+        background: rgba(12, 15, 22, 0.92);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 11px;
+        line-height: 1.2;
+        min-height: 24px;
+        min-width: 120px;
+        text-align: center;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+        z-index: 3000;
+      }
+
+      #nav-tooltip.visible {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .nav-menu button:hover::after,
+      .nav-menu a:hover::after {
+        opacity: 1;
+      }
+      .nav-group {
+        display: flex;
+        gap: 5px;
+        padding: 0 10px;
+        border-right: 1px solid rgba(255, 255, 255, 0.2);
+      }
+      .nav-group:last-child {
+        border-right: none;
+      }
+      .nav-toggle {
+        display: none;
+        font-size: 18px;
+        padding: 5px 10px;
+      }
+      .nav-menu.collapsed .nav-group,
+      .nav-menu.collapsed button:not(.nav-toggle),
+      .nav-menu.collapsed a {
+        display: none;
+      }
+      .nav-menu.collapsed .nav-toggle {
+        display: block;
+      }
+      @media (max-width: 600px) {
+        .nav-menu {
+          top: 5px;
+          bottom: auto;
+          padding: 5px;
+        }
+        .nav-menu button,
+        .nav-menu a {
+          padding: 6px 10px;
+          font-size: 11px;
+        }
+      }
+      #status {
+        position: fixed;
+        bottom: 50px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        padding: 5px 10px;
+        background: rgba(0, 0, 0, 0.5);
+        color: #fff;
+        border-radius: 5px;
+        display: none;
+        z-index: 2000;
+      }
+      #search-replace {
+        margin-top: 5px;
+        display: none;
+      }
+      #search-replace.active {
+        display: block;
+      }
+      .task-content {
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .task-input-container {
+        display: flex;
+        gap: 5px;
+      }
+      .task-input {
+        flex: 1;
+        padding: 5px;
+        font-size: 14px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        outline: none;
+      }
+      .dark-mode .task-input {
+        border-color: #555;
+        background: rgba(255, 255, 255, 0.1);
+        color: #fff;
+      }
+      .task-list {
+        max-height: 200px;
+        overflow-y: auto;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+      .dark-mode .task-list {
+        border-color: #555;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .task-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 5px;
+        font-size: 14px;
+      }
+      .task-item.completed {
+        text-decoration: line-through;
+        color: #888;
+      }
+      .task-item input[type="checkbox"] {
+        cursor: pointer;
+      }
+      .color-palette {
+        display: flex;
+        gap: 5px;
+        margin-top: 5px;
+      }
+      .color-swatch {
+        width: 20px;
+        height: 20px;
+        border-radius: 3px;
+        cursor: pointer;
+        border: 1px solid #ccc;
+      }
+      .color-swatch:hover {
+        transform: scale(1.1);
+      }
+      .clock-content {
+        padding: 10px;
+        text-align: center;
+        font-family: monospace;
+      }
+      .clock-time {
+        font-size: 24px;
+        margin-bottom: 5px;
+      }
+      .clock-date {
+        font-size: 14px;
+      }
+      .log-content {
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .log-input-container {
+        display: flex;
+        gap: 5px;
+      }
+      .log-item {
+        padding: 5px;
+        font-size: 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .dark-mode .log-item {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .log-item:last-child {
+        border-bottom: none;
+      }
+      .log-item span {
+        font-family: monospace;
+      }
+
+      .help-content {
+        padding: 12px;
+        height: calc(100% - 34px);
+        overflow: auto;
+      }
+
+      .help-content {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 212, 170, 0.6) rgba(20, 24, 32, 0.7);
+      }
+
+      .help-content::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      .help-content::-webkit-scrollbar-track {
+        background: rgba(20, 24, 32, 0.7);
+        border-radius: 10px;
+      }
+
+      .help-content::-webkit-scrollbar-thumb {
+        background: rgba(0, 212, 170, 0.6);
+        border-radius: 10px;
+        border: 2px solid rgba(20, 24, 32, 0.8);
+      }
+
+      .help-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 212, 170, 0.8);
+      }
+
+      .light-mode .help-content {
+        scrollbar-color: rgba(14, 165, 163, 0.6) rgba(226, 232, 240, 0.9);
+      }
+
+      .light-mode .help-content::-webkit-scrollbar-track {
+        background: rgba(226, 232, 240, 0.9);
+      }
+
+      .light-mode .help-content::-webkit-scrollbar-thumb {
+        background: rgba(14, 165, 163, 0.6);
+        border: 2px solid rgba(226, 232, 240, 0.9);
+      }
+
+      .light-mode .help-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(14, 165, 163, 0.85);
+      }
+
+      .help-text {
+        margin: 0;
+        font-family: monospace;
+        font-size: 13px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+
+      .t2-window .window-content {
+        padding-bottom: 12px;
+      }
+
+      .t2-window .t2-textarea {
+        width: 100%;
+        min-height: 240px;
+        padding: 10px;
+        border: none;
+        border-radius: 10px;
+        background: transparent;
+        color: var(--text);
+        font-family: var(--mono);
+        resize: none;
+        outline: none;
+        overflow: auto;
+        display: block;
+      }
+
+      .t2-window .textarea-container {
+        width: 100% !important;
+        min-height: 240px;
+        resize: both;
+        overflow: auto;
+      }
+
+      .t2-window .line-numbers {
+        display: none;
+      }
+
+      .t2-window .note-log-input-container {
+        margin-top: 10px;
+      }
+      #log-toggle {
+        background: #007bff;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        transition: all 0.2s ease;
+      }
+
+      #log-toggle:hover {
+        background: #0056b3;
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.5);
+      }
+
+      .dark-mode #log-toggle {
+        background: #4a90e2;
+      }
+
+      .dark-mode #log-toggle:hover {
+        background: #357abd;
+        transform: translateY(-2px);
+        box-shadow: 0 2px 8px rgba(74, 144, 226, 0.5);
+      }
+
+      #log-toggle.active {
+        background: #28a745;
+      }
+
+      #log-toggle.active:hover {
+        background: #218838;
+      }
+
+      .drawing-window {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        overflow: hidden;
+        resize: both;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        transition: background 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .dark-mode .drawing-window {
+        background: rgba(0, 0, 0, 0.8);
+        border: 1px solid #555;
+        box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+      }
+
+      .drawing-header {
+        background: rgba(200, 200, 200, 0.5);
+        padding: 5px 10px;
+        cursor: default;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+        transition: background 0.3s ease;
+      }
+
+      .dark-mode .drawing-header {
+        background: rgba(80, 80, 80, 0.5);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .drawing-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px;
+        background: rgba(240, 240, 240, 0.9);
+        border-bottom: 1px solid #ccc;
+        transition: background 0.3s ease;
+      }
+
+      .dark-mode .drawing-toolbar {
+        background: rgba(50, 50, 50, 0.9);
+        border-bottom: 1px solid #555;
+      }
+
+      .drawing-canvas {
+        display: block;
+        width: 100%;
+        height: calc(100% - 80px);
+        cursor: crosshair;
+        background: transparent;
+      }
+
+      .sticky-note-window {
+        position: absolute;
+        background: #ffff88;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+        resize: both;
+        transition: background 0.3s ease, box-shadow 0.3s ease;
+      }
+
+      .dark-mode .sticky-note-window {
+        background: #444444;
+        border: 1px solid #555;
+        box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+      }
+
+      .sticky-note-header {
+        background: rgba(200, 200, 200, 0.5);
+        padding: 5px 10px;
+        cursor: default;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      }
+
+      .dark-mode .sticky-note-header {
+        background: rgba(80, 80, 80, 0.5);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .sticky-note-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 5px 10px;
+        background: rgba(240, 240, 240, 0.9);
+        border-bottom: 1px solid #ccc;
+      }
+
+      .dark-mode .sticky-note-toolbar {
+        background: rgba(50, 50, 50, 0.9);
+        border-bottom: 1px solid #555;
+      }
+
+      .sticky-note-content {
+        width: 100%;
+        height: calc(100% - 60px);
+        padding: 10px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        border: none;
+        outline: none;
+        resize: none;
+        background: transparent;
+        color: #000;
+      }
+
+      .dark-mode .sticky-note-content {
+        color: #fff;
+      }
+      .task-window {
+        resize: both;
+        overflow: hidden;
+      }
+
+      .task-list {
+        max-height: calc(100% - 100px);
+        overflow-y: auto;
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+      }
+
+      .dark-mode .task-list {
+        border-color: #555;
+        background: rgba(255, 255, 255, 0.1);
+      }
+      .countdown-timer-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin-top: 15px;
+        gap: 8px;
+      }
+      .countdown-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .countdown-display {
+        font-family: monospace;
+        font-size: 20px;
+        margin-top: 5px;
+      }
+      .clear-note-container {
+        position: absolute;
+        left: 18px;
+        bottom: 18px;
+        z-index: 10;
+      }
+      .clear-note-button {
+        padding: 2px 2px;
+        font-size: 8px;
+        border-radius: 2px;
+        background: #f55;
+        color: #fff;
+        border: 1px solid #f55;
+        cursor: pointer;
+        box-shadow: none;
+        transition: background 0.2s;
+      }
+      .clear-note-button--mini {
+        height: 16px;
+        padding: 0 6px;
+        font-size: 8px;
+        line-height: 1;
+        align-self: center;
+        background: #f55;
+        color: #fff;
+        border: 1px solid #f55;
+        box-shadow: none;
+      }
+      .clear-note-button:hover {
+        background: #d22;
+        border-color: #d22;
+      }
+      .note-dropdown {
+        display: none;
+        position: absolute;
+        left: 0;
+        bottom: calc(100% + 28px);
+        min-width: 180px;
+        background: #fff;
+        color: #222;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        z-index: 2000;
+        padding: 5px 0;
+      }
+      .dark-mode .note-dropdown {
+        background: #222;
+        color: #fff;
+      }
+      .note-dropdown .note-dropdown-item {
+        padding: 8px 16px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .nav-tooltip-title {
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.8;
+      }
+      .nav-tooltip-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .nav-tooltip-link,
+      .nav-tooltip-empty {
+        background: transparent;
+        border: 0;
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 11px;
+        text-align: left;
+        padding: 0;
+        cursor: pointer;
+      }
+      .nav-tooltip-link:hover {
+        color: var(--accent);
+      }
+      .note-dropdown .note-dropdown-item:hover {
+        background: #007bff;
+        color: #fff;
+      }
+      .nav-group {
+        position: relative; /* Needed for dropdown positioning */
+      }
+      .minimize-window {
+        color: #888;
+        font-size: 12px;
+        cursor: pointer;
+        margin-right: 4px;
+      }
+      .minimize-window:hover {
+        color: #007bff;
+      }
+      .sticky-dropdown {
+        display: none;
+        position: absolute;
+        left: 0;
+        bottom: calc(100% + 28px);
+        min-width: 180px;
+        background: #fff;
+        color: #222;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        z-index: 2000;
+        padding: 5px 0;
+      }
+      .dark-mode .sticky-dropdown {
+        background: #222;
+        color: #fff;
+      }
+      .sticky-dropdown .note-dropdown-item {
+        padding: 8px 16px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .sticky-dropdown .note-dropdown-item:hover {
+        background: #007bff;
+        color: #fff;
+      }
+      .nav-btn-dropdown {
+        position: relative;
+        display: inline-block;
+      }
+      .lock-window,
+      .sticky-lock-window {
+        color: #fa0;
+        font-size: 12px;
+        cursor: pointer;
+        transition: color 0.2s;
+      }
+
+      .lock-window:hover,
+      .sticky-lock-window:hover {
+        color: #c80;
+      }
+
+      .lock-window.locked,
+      .sticky-lock-window.locked {
+        color: #f50;
+      }
+
+      .calendar-window .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 5px;
+        margin-top: 10px;
+      }
+
+      .calendar-window .day-name {
+        text-align: center;
+        font-weight: bold;
+        padding: 5px;
+      }
+
+      .calendar-window .day {
+        text-align: center;
+        padding: 10px;
+        border: 1px solid #ccc;
+        cursor: pointer;
+        background-color: rgba(255, 255, 255, 0.7);
+        transition: background-color 0.3s;
+      }
+
+      .calendar-window .day.has-events {
+        background-color: #e0f7fa;
+      }
+
+      .calendar-window .day.today {
+        background-color: #ffeb3b;
+      }
+
+      .calendar-window .day.empty {
+        background-color: rgba(245, 245, 245, 0.5);
+      }
+
+      .dark-mode .calendar-window .day {
+        border-color: #555;
+        background-color: rgba(51, 51, 51, 0.7);
+        color: #fff;
+      }
+
+      .dark-mode .calendar-window .day.has-events {
+        background-color: #004d40;
+      }
+
+      .dark-mode .calendar-window .day.today {
+        background-color: #ffc107;
+        color: #000;
+      }
+
+      .dark-mode .calendar-window .day.empty {
+        background-color: rgba(34, 34, 34, 0.5);
+      }
+
+      .calendar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+      }
+
+      .today-events,
+      .events-section {
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 5px;
+        margin-top: 10px;
+      }
+
+      /* Phbeks.com visual system overrides */
+      *, *::before, *::after {
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg: #0c0f16;
+        --bg-card: #141820;
+        --bg-card-hover: #1a1f2b;
+        --border: #1e2530;
+        --accent: #00d4aa;
+        --accent-dim: rgba(0, 212, 170, 0.12);
+        --blue: #3b82f6;
+        --purple: #a855f7;
+        --orange: #f59e0b;
+        --text: #e2e8f0;
+        --text-dim: #8492a6;
+        --text-muted: #4a5568;
+        --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --mono: "JetBrains Mono", "Consolas", monospace;
+      }
+
+      .light-mode {
+        --bg: #f4f6fb;
+        --bg-card: #ffffff;
+        --bg-card-hover: #f1f5f9;
+        --border: #d7dee8;
+        --accent: #0ea5a3;
+        --accent-dim: rgba(14, 165, 163, 0.14);
+        --blue: #2563eb;
+        --purple: #7c3aed;
+        --orange: #f59e0b;
+        --text: #0f172a;
+        --text-dim: #475569;
+        --text-muted: #64748b;
+      }
+
+      body,
+      .light-mode,
+      .dark-mode {
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--font);
+      }
+
+      a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      .window,
+      .calculator,
+      .task-window,
+      .clock-window,
+      .log-window,
+      .drawing-window,
+      .sticky-note-window {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+        color: var(--text);
+      }
+
+      .window:hover,
+      .calculator:hover,
+      .task-window:hover,
+      .clock-window:hover,
+      .log-window:hover,
+      .drawing-window:hover,
+      .sticky-note-window:hover {
+        border-color: var(--accent);
+      }
+
+      .window-header,
+      .calculator-header,
+      .task-header,
+      .clock-header,
+      .log-header,
+      .drawing-header,
+      .sticky-note-header {
+        background: var(--bg-card-hover);
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--mono);
+        padding: 8px 12px;
+      }
+
+      .window-title,
+      .calculator-title,
+      .task-title,
+      .clock-title,
+      .log-title {
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
+      .textarea-container {
+        border-color: var(--border);
+        background: var(--bg-card);
+        border-radius: 12px;
+      }
+
+      .line-numbers {
+        background: var(--bg-card-hover);
+        border-right-color: var(--border);
+        color: var(--text-muted);
+        font-family: var(--mono);
+      }
+
+      textarea,
+      .sticky-note-content {
+        color: var(--text);
+        font-family: var(--mono);
+      }
+
+      textarea[readonly] {
+        background: rgba(0, 0, 0, 0.2);
+      }
+
+      .note-log-input,
+      .task-input,
+      .calculator-input,
+      .calculator-display,
+      .log-input,
+      #search-replace input {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--mono);
+      }
+
+      .calculator-display {
+        background: var(--bg-card-hover);
+      }
+
+      .calculator-history,
+      .log-list,
+      .task-list,
+      .today-events,
+      .events-section {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+      }
+
+      .nav-menu {
+        background: rgba(20, 24, 32, 0.92);
+        border: 1px solid var(--border);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        backdrop-filter: blur(12px);
+        border-radius: 14px;
+      }
+
+      .light-mode .nav-menu {
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+      }
+
+      .light-mode .nav-menu button,
+      .light-mode .nav-menu a,
+      .dark-mode .nav-menu button,
+      .dark-mode .nav-menu a {
+        background: var(--bg-card);
+        color: var(--text);
+      }
+
+      button,
+      .nav-menu button,
+      .nav-menu a,
+      .calculator-buttons button,
+      .log-input-container button,
+      .note-log-button,
+      .format-buttons button,
+      #search-replace button,
+      .clear-note-button {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 0.78rem;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        border-radius: 999px;
+        padding: 8px 14px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: border-color 0.2s, color 0.2s, background 0.2s, transform 0.2s;
+      }
+
+      .nav-menu button:hover,
+      .nav-menu a:hover,
+      .calculator-buttons button:hover,
+      .log-input-container button:hover,
+      .note-log-button:hover,
+      .format-buttons button:hover,
+      #search-replace button:hover,
+      .clear-note-button:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--bg-card-hover);
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        transform: translateY(-1px);
+      }
+
+      .calculator-buttons .operation,
+      .log-input-container button,
+      .note-log-button,
+      #log-toggle {
+        background: var(--accent-dim);
+        color: var(--accent);
+        border-color: rgba(0, 212, 170, 0.35);
+      }
+
+      #theme-toggle,
+      #log-toggle,
+      #calculator-toggle,
+      #clock-toggle,
+      #search-btn {
+        background: var(--bg-card);
+        color: var(--text);
+        border-color: var(--border);
+      }
+
+      .calculator-buttons .special,
+      .clear-note-button {
+        background: rgba(239, 68, 68, 0.16);
+        color: #ef4444;
+        border-color: rgba(239, 68, 68, 0.35);
+        text-transform: none;
+        font-size: 0.7rem;
+        padding: 6px 12px;
+      }
+
+      .clear-note-button,
+      .clear-note-button.clear-note-button--mini {
+        background: #f55;
+        color: #fff;
+        border-color: #f55;
+        box-shadow: none;
+      }
+
+      .clear-note-button:hover,
+      .clear-note-button.clear-note-button--mini:hover {
+        background: #d22;
+        border-color: #d22;
+        color: #fff;
+        transform: none;
+      }
+
+      .nav-menu button.active,
+      #log-toggle.active {
+        background: rgba(0, 212, 170, 0.2);
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .nav-menu button::after,
+      .nav-menu a::after {
+        font-family: var(--mono);
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+      }
+
+      .nav-group {
+        border-right-color: var(--border);
+      }
+
+      #status {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--mono);
+      }
+
+      .note-dropdown,
+      .sticky-dropdown {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 12px;
+      }
+
+      .note-dropdown .note-dropdown-item:hover,
+      .sticky-dropdown .note-dropdown-item:hover {
+        background: var(--accent-dim);
+        color: var(--accent);
+      }
+
+
+      .sticky-note-window {
+        background: var(--bg-card);
+        border-color: var(--border);
+      }
+
+      .sticky-note-header {
+        background: var(--bg-card-hover);
+        border-bottom-color: var(--border);
+        color: var(--text);
+      }
+
+      .sticky-note-toolbar {
+        background: var(--bg-card);
+        border-bottom-color: var(--border);
+        color: var(--text-dim);
+      }
+
+      .sticky-note-toolbar label {
+        color: var(--text-dim);
+      }
+
+      .sticky-note-toolbar input[type="color"],
+      .drawing-toolbar input[type="color"],
+      .clock-window input[type="number"],
+      .clock-window select {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 8px;
+        padding: 4px 6px;
+        font-family: var(--mono);
+      }
+
+      .dark-mode .sticky-note-toolbar input[type="color"],
+      .dark-mode .drawing-toolbar input[type="color"] {
+        background: #0f131a;
+      }
+
+      .light-mode .sticky-note-toolbar input[type="color"],
+      .light-mode .drawing-toolbar input[type="color"] {
+        background: #ffffff;
+      }
+
+      .window-content {
+        position: relative;
+        padding-bottom: 32px;
+      }
+
+      .clear-note-container {
+        position: static;
+        margin-top: 8px;
+        align-self: flex-start;
+      }
+
+      .clock-window {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .clock-content {
+        flex: 1;
+        overflow: auto;
+        padding: 20px;
+        margin: 0 10px;
+      }
+
+      .clock-content > * {
+        margin-bottom: 12px;
+      }
+
+      .clock-content > *:last-child {
+        margin-bottom: 0;
+      }
+
+      .clock-content .timezone-times {
+        margin: 12px 0 16px;
+      }
+
+      .clock-content .format-buttons {
+        margin-bottom: 16px;
+      }
+
+      .clock-content .countdown-controls {
+        margin-top: 12px;
+        gap: 12px;
+        padding-bottom: 6px;
+      }
+
+      .clock-content .countdown-controls input[type="number"],
+      .clock-content select {
+        margin: 0 8px;
+      }
+
+      .countdown-timer-container {
+        padding: 0 20px 16px;
+      }
+
+      .clock-content {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(0, 212, 170, 0.6) rgba(20, 24, 32, 0.7);
+      }
+
+      .clock-content::-webkit-scrollbar {
+        width: 10px;
+      }
+
+      .clock-content::-webkit-scrollbar-track {
+        background: rgba(20, 24, 32, 0.7);
+        border-radius: 10px;
+      }
+
+      .clock-content::-webkit-scrollbar-thumb {
+        background: rgba(0, 212, 170, 0.6);
+        border-radius: 10px;
+        border: 2px solid rgba(20, 24, 32, 0.8);
+      }
+
+      .clock-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 212, 170, 0.8);
+      }
+
+      .light-mode .clock-content {
+        scrollbar-color: rgba(14, 165, 163, 0.6) rgba(226, 232, 240, 0.9);
+      }
+
+      .light-mode .clock-content::-webkit-scrollbar-track {
+        background: rgba(226, 232, 240, 0.9);
+      }
+
+      .light-mode .clock-content::-webkit-scrollbar-thumb {
+        background: rgba(14, 165, 163, 0.6);
+        border: 2px solid rgba(226, 232, 240, 0.9);
+      }
+
+      .light-mode .clock-content::-webkit-scrollbar-thumb:hover {
+        background: rgba(14, 165, 163, 0.85);
+      }
+
+      .task-list:empty {
+        border-color: transparent;
+        background: transparent;
+        padding: 0;
+      }
+
+      .calculator-history:empty {
+        border-color: transparent;
+        background: transparent;
+        padding: 0;
+      }
+
+      .minimize-window:hover,
+      .edit-window:hover,
+      .close-window:hover,
+      .close-calculator:hover,
+      .close-task:hover,
+      .close-clock:hover,
+      .close-log:hover {
+        color: var(--accent);
+      }
+
+      .minimize-window,
+      .edit-window,
+      .close-window,
+      .close-calculator,
+      .close-task,
+      .close-clock,
+      .close-log {
+        color: var(--text-muted);
+      }
+
+      .lock-window,
+      .sticky-lock-window {
+        color: var(--orange);
+      }
+
+      .lock-window.locked,
+      .sticky-lock-window.locked {
+        color: #ef4444;
+      }
+
+      .clock-content,
+      .log-item span,
+      .countdown-display {
+        font-family: var(--mono);
+      }
+
+      .calendar-window .day {
+        background-color: var(--bg-card);
+        border-color: var(--border);
+        color: var(--text);
+      }
+
+      .calendar-window .day.has-events {
+        background-color: rgba(59, 130, 246, 0.2);
+      }
+
+      .calendar-window .day.today {
+        background-color: rgba(0, 212, 170, 0.2);
+        color: var(--text);
+      }
+
+      .calendar-window .day.empty {
+        background-color: rgba(20, 24, 32, 0.6);
+      }
+
+      .help-window {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+        color: var(--text);
+      }
+
+      .help-header {
+        background: var(--bg-card-hover);
+        border-bottom: 1px solid var(--border);
+        color: var(--text);
+        font-family: var(--mono);
+        padding: 8px 12px;
+      }
+
+      .help-content {
+        background: var(--bg-card);
+        color: var(--text);
+      }
+
+      .help-text {
+        color: var(--text-dim);
+      }
+
+    </style>
+  </head>
+  <body class="dark-mode">
+    <div class="whiteboard">
+      <div id="windows"></div>
+      <div class="nav-menu">
+        <div class="nav-row">
+          <button class="nav-toggle" onclick="toggleNavMenu()">☰</button>
+          <div class="nav-group">
+            <div class="nav-btn-dropdown">
+              <button onclick="addWindow()" data-tooltip="New Note" data-tooltip-type="note">
+                Note
+              </button>
+              <div class="note-dropdown" id="note-dropdown"></div>
+            </div>
+            <!--<button onclick="addDrawingWindow()" data-tooltip="New Drawing">Draw</button>-->
+            <button onclick="addTaskWindow()" data-tooltip="New Task List" data-tooltip-type="task">
+              Tasks
+            </button>
+            <button
+              onclick="openInstructions(true)"
+              data-tooltip="View T2 Template"
+              data-tooltip-type="t2"
+            >
+              T2
+            </button>
+            <div class="nav-btn-dropdown">
+              <button class="nav-sticky" onclick="addStickyNote()" data-tooltip="New Sticky Note" data-tooltip-type="sticky">
+                Sticky Note
+              </button>
+              <div class="sticky-dropdown" id="sticky-dropdown"></div>
+            </div>
+            <!--
+                <button onclick="addCalendarWindow()" data-tooltip="Open Calendar">Calendar</button> 
+                -->
+          </div>
+          <div class="nav-group">
+            <button onclick="copyText()" data-tooltip="Copy Active Note">
+              Copy
+            </button>
+            <button onclick="pasteText()" data-tooltip="Paste to Active Note">
+              Paste
+            </button>
+            <button
+              id="search-btn"
+              onclick="toggleSearchReplace()"
+              data-tooltip="Search/Replace in Note"
+            >
+              Search
+            </button>
+          </div>
+        </div>
+        <div class="nav-row">
+          <div class="nav-group">
+            <button
+              id="calculator-toggle"
+              onclick="toggleCalculator()"
+              data-tooltip="Toggle Calculator"
+              data-tooltip-type="calculator"
+            >
+              Calc
+            </button>
+            <button
+              id="clock-toggle"
+              onclick="toggleClock()"
+              data-tooltip="Toggle Clock"
+              data-tooltip-type="clock"
+            >
+              Clock
+            </button>
+            <button
+              id="log-toggle"
+              onclick="toggleLog()"
+              data-tooltip="Toggle Log"
+            >
+              Log
+            </button>
+          </div>
+          <div class="nav-group">
+            <button onclick="importData()" data-tooltip="Import Session File">
+              Import
+            </button>
+            <button
+              onclick="downloadSessionJSON()"
+              data-tooltip="Download Session JSON"
+            >
+              Backup
+            </button>
+            <button
+              id="theme-toggle"
+              onclick="toggleTheme()"
+              data-tooltip="Toggle Dark/Light Mode"
+            >
+              Theme
+            </button>
+            <button
+              onclick="toggleHelpWindow()"
+              data-tooltip="View CB App Instructions"
+              data-tooltip-type="help"
+            >
+              Help
+            </button>
+            <button onclick="loadSession()" data-tooltip="Reset to Fresh UI">
+              Reset
+            </button>
+          </div>
+        </div>
+      </div>
+      <div id="search-replace">
+        <input type="text" id="search-input" placeholder="Search..." />
+        <input type="text" id="replace-input" placeholder="Replace with..." />
+        <button onclick="searchReplace()">Apply</button>
+      </div>
+      <p id="status"></p>
+      <a href="https://phbeks.com/cbapp.zip" download="cbapp.zip" style="display: block; text-align: right; margin-top: 10px; font-size: 14px; color: #ff0000a9; text-decoration: none; font-weight: bold;">
+        Download
+        </a>
+    </div>
+    <script type="text/javascript">
+      var gk_isXlsx = false;
+      var gk_xlsxFileLookup = {};
+      var gk_fileData = {};
+      const canvasFunctions = {};
+
+      function filledCell(cell) {
+        return cell !== "" && cell != null;
+      }
+
+      function changeStickyNoteColor(windowId, color) {
+        const stickyNote = document.getElementById(windowId);
+        if (stickyNote) {
+          stickyNote.style.backgroundColor = color;
+          saveSession();
+          showStatus("Sticky note color changed!");
+        }
+      }
+
+      function changeStickyNoteTextColor(windowId, color) {
+        const stickyNoteContent = document.querySelector(
+          `#${windowId} .sticky-note-content`
+        );
+        if (stickyNoteContent) {
+          stickyNoteContent.style.color = color;
+          saveSession();
+          showStatus("Sticky note text color changed!");
+        }
+      }
+
+      function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+          try {
+            var workbook = XLSX.read(gk_fileData[filename], { type: "base64" });
+            var firstSheetName = workbook.SheetNames[0];
+            var worksheet = workbook.Sheets[firstSheetName];
+            var jsonData = XLSX.utils.sheet_to_json(worksheet, {
+              header: 1,
+              blankrows: false,
+              defval: "",
+            });
+            var filteredData = jsonData.filter((row) => row.some(filledCell));
+            var headerRowIndex = filteredData.findIndex(
+              (row, index) =>
+                row.filter(filledCell).length >=
+                filteredData[index + 1]?.filter(filledCell).length
+            );
+            if (headerRowIndex === -1 || headerRowIndex > 25) {
+              headerRowIndex = 0;
+            }
+            var csv = XLSX.utils.aoa_to_sheet(
+              filteredData.slice(headerRowIndex)
+            );
+            csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+            return csv;
+          } catch (e) {
+            console.error(e);
+            return "";
+          }
+        }
+        return gk_fileData[filename] || "";
+      }
+
+      let windowCount = 0;
+      let noteCount = 0;
+      let taskCount = 0;
+      let stickyCount = 0;
+      let t2Count = 0;
+      let calculatorCount = 0;
+      let clockCount = 0;
+      let activeWindow = null;
+      let lockedWindows = {};
+      let zIndexCounter = 1;
+      let activeTool = null;
+      let offsetX = 0;
+      let offsetY = 0;
+      let calculatorVisible = false;
+      let clockVisible = false;
+      let logVisible = false;
+      let calculatorHistory = [];
+      let logEntries = [];
+      const MAX_WINDOWS = 25;
+
+      function setMaxDimensions() {
+        const textareaContainers = document.querySelectorAll(
+          ".textarea-container"
+        );
+        textareaContainers.forEach((container) => {
+          const windowElement = container.closest(".window");
+          if (windowElement) {
+            const headerHeight =
+              windowElement.querySelector(".window-header").offsetHeight || 30;
+            const paddingAndBorders = 22;
+            const buttonsHeight =
+              windowElement.querySelector(".format-buttons")?.offsetHeight || 0;
+            const countsHeight =
+              windowElement.querySelector(".counts")?.offsetHeight || 0;
+            const logInputHeight =
+              windowElement.querySelector(".note-log-input-container")
+                ?.offsetHeight || 0;
+            const maxHeight =
+              window.innerHeight -
+              headerHeight -
+              paddingAndBorders -
+              buttonsHeight -
+              countsHeight -
+              logInputHeight -
+              20;
+            const maxWidth = window.innerWidth - 32 - 20;
+            container.style.maxHeight = `${maxHeight}px`;
+            container.style.maxWidth = `${Math.min(
+              maxWidth,
+              window.innerWidth - 50
+            )}px`;
+            windowElement.style.maxWidth = `${Math.min(
+              maxWidth + 32,
+              window.innerWidth - 30
+            )}px`;
+            windowElement.style.maxHeight = `${
+              maxHeight +
+              headerHeight +
+              paddingAndBorders +
+              buttonsHeight +
+              countsHeight +
+              logInputHeight
+            }px`;
+          }
+        });
+      }
+      function addStickyNote() {
+        if (
+          document.querySelectorAll(".sticky-note-window").length >= MAX_WINDOWS
+        ) {
+          showStatus("Maximum number of sticky notes reached.");
+          return;
+        }
+
+        windowCount++;
+        stickyCount++;
+        const stickyLabel = stickyCount > 1 ? `Sticky Note ${stickyCount}` : "Sticky Note";
+        const windowId = `sticky-note-${windowCount}`;
+        const windowsContainer = document.getElementById("windows");
+        const newStickyNote = document.createElement("div");
+        newStickyNote.className = "sticky-note-window";
+        newStickyNote.id = windowId;
+        newStickyNote.style.left = "50";
+        newStickyNote.style.top = "50";
+        newStickyNote.style.zIndex = zIndexCounter++;
+        newStickyNote.dataset.x = 50;
+        newStickyNote.dataset.y = 50;
+        newStickyNote.dataset.width = 200;
+        newStickyNote.dataset.height = 200;
+        newStickyNote.style.width = "300";
+        newStickyNote.style.height = "300";
+        const computedStyles = getComputedStyle(document.body);
+        const defaultBgColor =
+          computedStyles.getPropertyValue("--bg-card").trim() || "#141820";
+        const defaultTextColor =
+          computedStyles.getPropertyValue("--text").trim() || "#e2e8f0";
+        newStickyNote.style.backgroundColor = defaultBgColor;
+
+        newStickyNote.innerHTML = `
+    <div class="sticky-note-header">
+        <span class="sticky-note-title">${stickyLabel}</span>
+        <div class="sticky-note-controls">
+            <span class="edit-window" onclick="startRename('${windowId}')">✏️</span>
+            <span class="minimize-window" onclick="minimizeStickyNote('${windowId}')">🗕</span>
+            <span class="sticky-lock-window" onclick="toggleWindowLock('${windowId}')">🔓</span>
+            <span class="close-sticky-note" onclick="closeWindow('${windowId}')">×</span>
+        </div>
+    </div>
+    <div class="sticky-note-toolbar">
+        <label for="sticky-note-color-${windowId}">Background:</label>
+        <input type="color" id="sticky-note-color-${windowId}" value="${defaultBgColor}" onchange="changeStickyNoteColor('${windowId}', this.value)">
+        <label for="sticky-note-text-color-${windowId}">Text:</label>
+        <input type="color" id="sticky-note-text-color-${windowId}" value="${defaultTextColor}" onchange="changeStickyNoteTextColor('${windowId}', this.value)">
+    </div>
+    <textarea class="sticky-note-content" placeholder="Write something..." style="color: ${defaultTextColor};"></textarea>
+`;
+
+        windowsContainer.appendChild(newStickyNote);
+        makeDraggable(newStickyNote);
+        newStickyNote.onclick = (e) => {
+          setActiveWindow(windowId);
+          const rect = newStickyNote.getBoundingClientRect();
+          newStickyNote.dataset.x = rect.left;
+          newStickyNote.dataset.y = rect.top;
+          saveSession();
+        };
+        const resizeObserver = new ResizeObserver(() => {
+          const rect = newStickyNote.getBoundingClientRect();
+          newStickyNote.dataset.width = newStickyNote.offsetWidth;
+          newStickyNote.dataset.height = newStickyNote.offsetHeight;
+          newStickyNote.dataset.x = rect.left;
+          newStickyNote.dataset.y = rect.top;
+          saveSession();
+        });
+        resizeObserver.observe(newStickyNote);
+        return newStickyNote;
+      }
+
+      function saveSession() {
+        const session = {};
+        document
+          .querySelectorAll(".window, .task-window")
+          .forEach((windowElement) => {
+            const windowId = windowElement.id;
+            const textarea = document.getElementById(`clipboard-${windowId}`);
+            const title = windowElement.querySelector(
+              ".window-title, .task-title, .sticky-note-title"
+            ).textContent;
+            session[windowId] = {
+              position: {
+                left: windowElement.dataset.x || "50",
+                top: windowElement.dataset.y || "50",
+              },
+              width: windowElement.offsetWidth,
+              height: windowElement.offsetHeight,
+              content: textarea ? textarea.value : "",
+              name: title,
+              isTaskWindow: windowElement.classList.contains("task-window"),
+              locked: windowElement.dataset.locked === "true", // Add this line
+              tasks: windowElement.classList.contains("task-window")
+                ? Array.from(windowElement.querySelectorAll(".task-item")).map(
+                    (item) => ({
+                      text: item.querySelector("span").textContent,
+                      completed: item.classList.contains("completed"),
+                    })
+                  )
+                : [],
+            };
+          });
+        const clock = document.getElementById("clock");
+        if (clock) {
+          session.clock = {
+            visible: clockVisible,
+            position: {
+              left: clock.dataset.x || "50",
+              top: clock.dataset.y || "50",
+            },
+            width: clock.dataset.width || "200",
+            height: clock.dataset.height || "150",
+            name: clock.querySelector(".clock-title").textContent,
+            clockFormat:
+              document.getElementById("clock-format-clock")?.value || "12",
+          };
+        }
+        if (document.getElementById("calculator")) {
+          session.calculator = {
+            visible: calculatorVisible,
+            history: calculatorHistory,
+            position: {
+              left: document.getElementById("calculator").dataset.x || "50",
+              top: document.getElementById("calculator").dataset.y || "50",
+            },
+            width: document.getElementById("calculator").dataset.width || "250",
+          };
+        }
+        const log = document.getElementById("log");
+        if (log) {
+          session.log = {
+            visible: logVisible,
+            position: {
+              left: log.dataset.x || "50",
+              top: log.dataset.y || "50",
+            },
+            width: log.dataset.width || "300",
+            height: log.dataset.height || "300",
+            name: log.querySelector(".log-title").textContent,
+            logs: Array.from(document.querySelectorAll(".log-item")).map(
+              (item) => ({
+                timestamp: item.querySelector(".timestamp").textContent,
+                description: item.querySelector(".description").textContent,
+              })
+            ),
+          };
+        } else {
+          session.log = {
+            visible: logVisible,
+            position: { left: "50", top: "50" },
+            width: "300",
+            height: "300",
+            name: "Log",
+            logs: logEntries,
+          };
+        }
+        session.theme = document.body.className || "light-mode";
+        document
+          .querySelectorAll(".sticky-note-window")
+          .forEach((stickyNote) => {
+            const windowId = stickyNote.id;
+            const content = stickyNote.querySelector(
+              ".sticky-note-content"
+            ).value;
+            const bgColor = stickyNote.style.backgroundColor;
+            const textColor =
+              stickyNote.querySelector(".sticky-note-content").style.color ||
+              "#000";
+            const title =
+              stickyNote.querySelector(".sticky-note-title").textContent;
+            session[windowId] = {
+              locked: stickyNote.dataset.locked === "true",
+              position: {
+                left: stickyNote.dataset.x || "50",
+                top: stickyNote.dataset.y || "50",
+              },
+              width: stickyNote.offsetWidth,
+              height: stickyNote.offsetHeight,
+              content,
+              color: bgColor,
+              textColor,
+              name: title,
+            };
+          });
+        session.calendarEvents = JSON.parse(
+          localStorage.getItem("calendarEvents") || "{}"
+        );
+        try {
+          localStorage.setItem("notepadSession", JSON.stringify(session));
+        } catch (e) {
+          console.error("Failed to save session to localStorage:", e);
+          showStatus("Failed to save session.");
+        }
+        if (session.calendarEvents) {
+          localStorage.setItem(
+            "calendarEvents",
+            JSON.stringify(session.calendarEvents)
+          );
+        }
+      }
+
+      function addWindow() {
+        if (
+          document.querySelectorAll(
+            ".window, .task-window, .clock-window, .log-window"
+          ).length >= MAX_WINDOWS
+        ) {
+          showStatus("Maximum number of windows reached.");
+          return;
+        }
+        windowCount++;
+        noteCount++;
+        const noteLabel = noteCount > 1 ? `Note ${noteCount}` : "Note";
+        const windowId = `window${windowCount}`;
+        const windowsContainer = document.getElementById("windows");
+        const newWindow = document.createElement("div");
+        newWindow.className = "window";
+        newWindow.id = windowId;
+
+        // Center the window
+        const defaultWidth = 350;
+        const defaultHeight = 250;
+        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
+        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
+        newWindow.style.left = `${left}px`;
+        newWindow.style.top = `${top}px`;
+        newWindow.style.zIndex = zIndexCounter++;
+        newWindow.dataset.x = left;
+        newWindow.dataset.y = top;
+        newWindow.dataset.width = defaultWidth;
+        newWindow.dataset.height = defaultHeight;
+        newWindow.style.width = `${defaultWidth}px`;
+        newWindow.innerHTML = `
+        <div class="window-header">
+            <span class="window-title">${noteLabel}</span>
+                <div class="window-controls">
+        <span class="edit-window" onclick="startRename('${windowId}')">✏️</span>
+        <span class="minimize-window" onclick="minimizeWindow('${windowId}')">🗕</span>
+        <span class="lock-window" onclick="toggleWindowLock('${windowId}')">🔓</span>
+        <span class="close-window" onclick="closeWindow('${windowId}')">×</span>
+    </div>
+        </div>
+        <div class="window-content">
+            <div class="textarea-container" style="width: 218px;">
+                <div class="line-numbers" id="line-numbers-${windowId}">1</div>
+                <textarea id="clipboard-${windowId}" placeholder="Paste or type your text here..." oninput="updateLineNumbers('${windowId}'); updateCounts('${windowId}'); saveSession();"></textarea>
+            </div>
+            <div class="note-log-input-container">
+                <input type="text" class="note-log-input" id="note-log-input-${windowId}" placeholder="Enter log description...">
+                <button class="note-log-button" onclick="addNoteLogEntry('${windowId}')">Add Log</button>
+            </div>
+            <div class="format-buttons">
+              <button class="clear-note-button clear-note-button--mini" onclick="clearNoteText('${windowId}')">Clear</button>
+                <button onclick="toUpperCase('${windowId}')">Uppercase</button>
+                <button onclick="toLowerCase('${windowId}')">Lowercase</button>
+            </div>
+            <div class="counts" id="counts-${windowId}">Words: 0, Characters: 0</div>
+        </div>
+    `;
+        windowsContainer.appendChild(newWindow);
+        makeDraggable(newWindow);
+        newWindow.onclick = () => setActiveWindow(windowId);
+        setActiveWindow(windowId);
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        textarea.addEventListener("scroll", () => syncScroll(windowId));
+        const logInput = document.getElementById(`note-log-input-${windowId}`);
+        logInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            addNoteLogEntry(windowId);
+          }
+        });
+        updateLineNumbers(windowId);
+        updateCounts(windowId);
+        setMaxDimensions();
+        saveSession();
+        const textareaContainer = newWindow.querySelector(
+          ".textarea-container"
+        );
+        const resizeObserver = new ResizeObserver(() => {
+          updateWindowSize(windowId);
+          saveSession();
+        });
+        resizeObserver.observe(textareaContainer);
+        return newWindow;
+      }
+
+      function addDrawingWindow() {
+        if (
+          document.querySelectorAll(
+            ".window, .task-window, .clock-window, .log-window, .drawing-window"
+          ).length >= MAX_WINDOWS
+        ) {
+          showStatus("Maximum number of windows reached.");
+          return;
+        }
+
+        const windowsContainer = document.getElementById("windows");
+        const newWindow = document.createElement("div");
+        newWindow.className = "drawing-window";
+        newWindow.id = `drawing-${windowCount}`;
+        newWindow.style.left = "50px";
+        newWindow.style.top = "50px";
+        newWindow.style.zIndex = zIndexCounter++;
+        newWindow.dataset.x = 50;
+        newWindow.dataset.y = 50;
+        newWindow.dataset.width = 600;
+        newWindow.dataset.height = 400;
+        newWindow.style.width = "600px";
+        newWindow.style.height = "400px";
+
+        newWindow.innerHTML = `
+                <div class="drawing-header">
+                    <span class="drawing-title">Drawing ${windowCount}</span>
+                    <div class="drawing-controls">
+                        <span class="close-drawing" onclick="closeWindow('${newWindow.id}')">×</span>
+                    </div>
+                </div>
+                <div class="drawing-toolbar">
+                    <label for="color-picker-${windowCount}">Color:</label>
+                    <input type="color" id="color-picker-${windowCount}" value="#000000">
+                    <label for="cursor-size-${windowCount}">Cursor Size:</label>
+                    <input type="range" id="cursor-size-${windowCount}" min="1" max="50" value="5">
+                    <button onclick="undoDrawing('${newWindow.id}')">Undo</button>
+                    <button onclick="redoDrawing('${newWindow.id}')">Redo</button>
+                </div>
+                <canvas id="canvas-${windowCount}" class="drawing-canvas"></canvas>
+            `;
+
+        windowsContainer.appendChild(newWindow);
+        makeDraggable(newWindow);
+        newWindow.onclick = () => setActiveWindow(newWindow.id);
+        setActiveWindow(newWindow.id);
+
+        const canvas = document.getElementById(`canvas-${windowCount}`);
+        const colorPicker = document.getElementById(
+          `color-picker-${windowCount}`
+        );
+        const cursorSize = document.getElementById(
+          `cursor-size-${windowCount}`
+        );
+        const ctx = canvas.getContext("2d");
+
+        canvas.width = newWindow.offsetWidth;
+        canvas.height = newWindow.offsetHeight - 80;
+
+        let drawing = false;
+        let currentColor = colorPicker.value;
+        let currentSize = cursorSize.value;
+        let paths = [];
+        let undonePaths = [];
+
+        canvas.addEventListener("mousedown", (e) => {
+          drawing = true;
+          ctx.beginPath();
+          ctx.moveTo(e.offsetX, e.offsetY);
+          paths.push({
+            color: currentColor,
+            size: currentSize,
+            points: [{ x: e.offsetX, y: e.offsetY }],
+          });
+          undonePaths = [];
+        });
+
+        canvas.addEventListener("mousemove", (e) => {
+          if (!drawing) return;
+          ctx.lineTo(e.offsetX, e.offsetY);
+          ctx.strokeStyle = currentColor;
+          ctx.lineWidth = currentSize;
+          ctx.lineCap = "round";
+          ctx.stroke();
+          paths[paths.length - 1].points.push({ x: e.offsetX, y: e.offsetY });
+        });
+
+        canvas.addEventListener("mouseup", () => {
+          drawing = false;
+          ctx.closePath();
+        });
+
+        canvas.addEventListener("mouseout", () => {
+          drawing = false;
+          ctx.closePath();
+        });
+
+        colorPicker.addEventListener("input", () => {
+          currentColor = colorPicker.value;
+        });
+
+        cursorSize.addEventListener("input", () => {
+          currentSize = cursorSize.value;
+        });
+
+        window.undoDrawing = (id) => {
+          if (paths.length === 0) return;
+          undonePaths.push(paths.pop());
+          redrawCanvas(canvas, ctx, paths);
+        };
+
+        window.redoDrawing = (id) => {
+          if (undonePaths.length === 0) return;
+          paths.push(undonePaths.pop());
+          redrawCanvas(canvas, ctx, paths);
+        };
+
+        saveSession();
+        showStatus("Drawing window created!");
+        return newWindow;
+      }
+
+      function redrawCanvas(canvas, ctx, paths) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        paths.forEach((path) => {
+          ctx.beginPath();
+          ctx.strokeStyle = path.color;
+          ctx.lineWidth = path.size;
+          ctx.lineCap = "round";
+          path.points.forEach((point, index) => {
+            if (index === 0) {
+              ctx.moveTo(point.x, point.y);
+            } else {
+              ctx.lineTo(point.x, point.y);
+            }
+          });
+          ctx.stroke();
+          ctx.closePath();
+        });
+      }
+
+      function addTaskWindow() {
+        if (
+          document.querySelectorAll(
+            ".window, .task-window, .clock-window, .log-window"
+          ).length >= MAX_WINDOWS
+        ) {
+          showStatus("Maximum number of windows reached.");
+          return;
+        }
+        windowCount++;
+        taskCount++;
+        const taskLabel = taskCount > 1 ? `Task List ${taskCount}` : "Task List";
+        const windowId = `window${windowCount}`;
+        const windowsContainer = document.getElementById("windows");
+        const newWindow = document.createElement("div");
+        const resizeObserver = new ResizeObserver(() => {
+          newWindow.dataset.width = newWindow.offsetWidth;
+          newWindow.dataset.height = newWindow.offsetHeight;
+          saveSession();
+        });
+        resizeObserver.observe(newWindow);
+        newWindow.className = "task-window";
+        newWindow.id = windowId;
+        newWindow.style.left = "50px";
+        newWindow.style.top = "50px";
+        newWindow.style.zIndex = zIndexCounter++;
+        newWindow.dataset.x = 50;
+        newWindow.dataset.y = 50;
+        newWindow.dataset.width = 400;
+        newWindow.dataset.height = 500;
+        newWindow.style.width = "400px";
+        newWindow.style.height = "500px";
+        newWindow.innerHTML = `
+        <div class="task-header">
+            <span class="task-title">${taskLabel}</span>
+            <div class="task-controls">
+                <span class="edit-window" onclick="startRename('${windowId}')">✏️</span>
+                <span class="close-task" onclick="closeWindow('${windowId}')">×</span>
+            </div>
+        </div>
+      <div class="task-content">
+    <div class="task-input-container">
+        <input type="text" class="task-input" id="task-input-${windowId}" placeholder="Enter task...">
+        <button class="note-log-button" onclick="addTask('${windowId}')">Add</button>
+    </div>
+    <div class="task-list" id="task-list-${windowId}"></div>
+    <div class="format-buttons">
+      <button class="clear-note-button clear-note-button--mini" onclick="clearTaskWindow('${windowId}')">Clear</button>
+    </div>
+</div>
+    `;
+        windowsContainer.appendChild(newWindow);
+        makeDraggable(newWindow);
+        newWindow.onclick = () => setActiveWindow(windowId);
+        setActiveWindow(windowId);
+        const taskInput = document.getElementById(`task-input-${windowId}`);
+        taskInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            addTask(windowId);
+          }
+        });
+        saveSession();
+        showStatus("Task window created!");
+        return newWindow;
+      }
+      function clearTaskWindow(windowId) {
+        const taskList = document.getElementById(`task-list-${windowId}`);
+        const taskInput = document.getElementById(`task-input-${windowId}`);
+        if (taskList) {
+          taskList.innerHTML = "";
+        }
+        if (taskInput) {
+          taskInput.value = "";
+        }
+        saveSession();
+        showStatus("Task list cleared!");
+      }
+
+      function addTask(windowId) {
+        const taskInput = document.getElementById(`task-input-${windowId}`);
+        const taskList = document.getElementById(`task-list-${windowId}`);
+        if (!taskInput || !taskList) {
+          showStatus("Error: Task input or list not found.");
+          return;
+        }
+        const taskText = taskInput.value.trim();
+        if (!taskText) {
+          showStatus("Task cannot be empty.");
+          return;
+        }
+        const taskItem = document.createElement("div");
+        taskItem.className = "task-item";
+        taskItem.innerHTML = `
+                <input type="checkbox" onchange="toggleTaskCompletion('${windowId}', this)">
+                <span>${taskText}</span>
+            `;
+        taskList.appendChild(taskItem);
+        taskInput.value = "";
+        saveSession();
+        showStatus("Task added!");
+      }
+
+      function toggleTaskCompletion(windowId, checkbox) {
+        const taskItem = checkbox.parentElement;
+        taskItem.classList.toggle("completed", checkbox.checked);
+        saveSession();
+      }
+
+      function addNoteLogEntry(windowId) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        const logInput = document.getElementById(`note-log-input-${windowId}`);
+        if (!textarea || !logInput) {
+          showStatus("Error: Textarea or input not found.");
+          return;
+        }
+        if (textarea.readOnly) {
+          showStatus("Cannot add log: Window is locked.");
+          return;
+        }
+        const description = logInput.value.trim();
+        if (!description) {
+          showStatus("Log entry cannot be empty.");
+          return;
+        }
+        const now = new Date();
+        const timestamp = now.toLocaleString("en-US", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        });
+        const logEntry = `\n[${timestamp}]: ${description}\n`;
+        textarea.value += logEntry;
+        logInput.value = "";
+        updateLineNumbers(windowId);
+        updateCounts(windowId);
+        updateWindowSize(windowId);
+        saveSession();
+        showStatus("Log entry added to note!");
+      }
+
+      function openInstructions() {
+        const windowElement = addWindow();
+        const windowId = windowElement.id;
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        if (textarea && windowElement) {
+          textarea.value = `  CB App Setup for Enterprise Browser Goal: Run CB App in Enterprise browser to enable notepad-like functionality (Enterprise blocks copying text externally).Prerequisites:-Chrome (to download CB App)-Enterprise browser (to run CB App)-SSO access for Enterprise login Steps:1.In Chrome:-Go to phbeks.com/cbapp, download cbapp.zip.-Extract cbapp.html to Documents folder.2.In Enterprise:-Log in via SSO.-Open cbapp.html (right-click > Open with Enterprise if not default).3.Optional Bookmark:-Enable Bookmarks Bar (three-dot menu > Bookmarks > Show Bookmarks Bar).-Drag CB App bookmark from Bookmarks Menu to Bookmarks Bar.Troubleshooting:-App not working? Ensure SSO login and cbapp.html opened in Enterprise. Set Enterprise as default if needed.-Bookmark missing? Verify Bookmarks Bar is enabled and CB App is bookmarked.Note: Keep cbapp.html in Documents for easy access. Must open in same Enterprise session as SSO login.`;
+          windowElement.querySelector(".window-title").textContent =
+            "CB App Instructions";
+          updateLineNumbers(windowId);
+          updateCounts(windowId);
+          const baseWidth = 700;
+          const baseHeight = 600;
+          const newWidth = Math.min(window.innerWidth - 90, baseWidth * 2.5);
+          const newHeight = Math.min(window.innerHeight - 90, baseHeight * 2.5);
+
+          windowElement.style.width = `${newWidth}px`;
+          windowElement.style.height = `${newHeight}px`;
+          windowElement.dataset.width = newWidth;
+          windowElement.dataset.height = newHeight;
+          const left = Math.max(0, (window.innerWidth - newWidth) / 2);
+          const top = Math.max(0, (window.innerHeight - newHeight) / 2);
+          windowElement.style.left = `${left}px`;
+          windowElement.style.top = `${top}px`;
+          windowElement.dataset.x = left;
+          windowElement.dataset.y = top;
+
+          updateWindowSize(windowId);
+          saveSession();
+          showStatus("Instructions loaded!");
+        }
+      }
+
+      function toggleHelpWindow() {
+        const existing = document.getElementById("help-window");
+        if (existing) {
+          existing.remove();
+          saveSession();
+          return;
+        }
+        const windowsContainer = document.getElementById("windows");
+        const helpWindow = document.createElement("div");
+        helpWindow.className = "help-window";
+        helpWindow.id = "help-window";
+
+        const defaultWidth = 620;
+        const defaultHeight = 520;
+        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
+        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
+        helpWindow.style.left = `${left}px`;
+        helpWindow.style.top = `${top}px`;
+        helpWindow.style.zIndex = zIndexCounter++;
+        helpWindow.dataset.x = left;
+        helpWindow.dataset.y = top;
+        helpWindow.dataset.width = defaultWidth;
+        helpWindow.dataset.height = defaultHeight;
+        helpWindow.style.width = `${defaultWidth}px`;
+        helpWindow.style.height = `${defaultHeight}px`;
+
+        const helpText = `CB App Setup for Enterprise Browser
+
+Goal:
+Run CB App in Enterprise browser to enable notepad-like functionality (Enterprise blocks copying text externally).
+
+Prerequisites:
+- Chrome (to download CB App)
+- Enterprise browser (to run CB App)
+- SSO access for Enterprise login
+
+Steps:
+1. In Chrome:
+   - Go to phbeks.com/cbapp, download cbapp.zip.
+   - Extract cbapp.html to Documents folder.
+2. In Enterprise:
+   - Log in via SSO.
+   - Open cbapp.html (right-click > Open with Enterprise if not default).
+3. Optional Bookmark:
+   - Enable Bookmarks Bar (three-dot menu > Bookmarks > Show Bookmarks Bar).
+   - Drag CB App bookmark from Bookmarks Menu to Bookmarks Bar.
+
+Troubleshooting:
+- App not working? Ensure SSO login and cbapp.html opened in Enterprise. Set Enterprise as default if needed.
+- Bookmark missing? Verify Bookmarks Bar is enabled and CB App is bookmarked.
+
+Note:
+Keep cbapp.html in Documents for easy access. Must open in same Enterprise session as SSO login.`;
+
+        helpWindow.innerHTML = `
+          <div class="help-header">
+            <span class="help-title">CB App Instructions</span>
+            <div class="help-controls">
+              <span class="close-window" onclick="toggleHelpWindow()">×</span>
+            </div>
+          </div>
+          <div class="help-content">
+            <pre class="help-text">${helpText}</pre>
+          </div>
+        `;
+
+        windowsContainer.appendChild(helpWindow);
+        makeDraggable(helpWindow);
+        helpWindow.onclick = () => setActiveWindow("help-window");
+        setActiveWindow("help-window");
+        saveSession();
+      }
+      function updateWindowSize(windowId) {
+        const textareaContainer = document.querySelector(
+          `#${windowId} .textarea-container`
+        );
+        const windowElement = document.getElementById(windowId);
+        if (textareaContainer && windowElement) {
+          const containerWidth = Math.min(
+            textareaContainer.offsetWidth,
+            window.innerWidth - 50
+          );
+          const containerHeight = textareaContainer.offsetHeight;
+          const newWidth = containerWidth + 32;
+          const headerHeight =
+            windowElement.querySelector(".window-header").offsetHeight || 30;
+          const paddingAndBorders = 22;
+          const buttonsHeight =
+            windowElement.querySelector(".format-buttons")?.offsetHeight || 0;
+          const countsHeight =
+            document.querySelector(".counts")?.offsetHeight || 0;
+          const logInputHeight =
+            windowElement.querySelector(".note-log-input-container")
+              ?.offsetHeight || 0;
+          const newHeight =
+            containerHeight +
+            headerHeight +
+            paddingAndBorders +
+            buttonsHeight +
+            countsHeight +
+            logInputHeight;
+          windowElement.style.width = `${Math.min(
+            newWidth,
+            window.innerWidth - 30
+          )}px`;
+          windowElement.style.height = `${newHeight}px`;
+          windowElement.dataset.width = newWidth;
+          windowElement.dataset.height = newHeight;
+          setMaxDimensions();
+        }
+      }
+
+      function addCalculator() {
+        const windowsContainer = document.getElementById("windows");
+        const calculator = document.createElement("div");
+        calculator.className = "calculator";
+        calculator.id = "calculator";
+        calculatorCount++;
+        const calculatorLabel = "Calculator";
+        const defaultWidth = 250;
+        const defaultHeight = 350;
+        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
+        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
+        calculator.style.left = `${left}px`;
+        calculator.style.top = `${top}px`;
+        calculator.style.zIndex = zIndexCounter++;
+        calculator.dataset.x = left;
+        calculator.dataset.y = top;
+        calculator.dataset.width = defaultWidth;
+        calculator.style.width = `${defaultWidth}px`;
+
+        calculator.innerHTML = `
+        <div class="calculator-header">
+          <span class="calculator-title">${calculatorLabel}</span>
+            <div class="calculator-controls">
+                <span class="close-calculator" onclick="toggleCalculator()">×</span>
+            </div>
+        </div>
+        <div class="calculator-content">
+            <input type="text" class="calculator-input" id="calculator-input" placeholder="Enter expression...">
+            <input type="text" class="calculator-display" id="calculator-display" readonly value="0">
+            <div class="calculator-buttons">
+                <button class="special" onclick="clearCalculator()">C</button>
+                <button class="operation" onclick="appendToDisplay('√')">√</button>
+                <button class="operation" onclick="appendToDisplay('%')">%</button>
+                <button class="operation" onclick="appendToDisplay('/')">/</button>
+                <button class="number" onclick="appendToDisplay('7')">7</button>
+                <button class="number" onclick="appendToDisplay('8')">8</button>
+                <button class="number" onclick="appendToDisplay('9')">9</button>
+                <button class="operation" onclick="appendToDisplay('*')">×</button>
+                <button class="number" onclick="appendToDisplay('4')">4</button>
+                <button class="number" onclick="appendToDisplay('5')">5</button>
+                <button class="number" onclick="appendToDisplay('6')">6</button>
+                <button class="operation" onclick="appendToDisplay('-')">-</button>
+                <button class="number" onclick="appendToDisplay('1')">1</button>
+                <button class="number" onclick="appendToDisplay('2')">2</button>
+                <button class="number" onclick="appendToDisplay('3')">3</button>
+                <button class="operation" onclick="appendToDisplay('+')">+</button>
+                <button class="number" onclick="appendToDisplay('0')" style="grid-column: span 2;">0</button>
+                <button class="number" onclick="appendToDisplay('.')">.</button>
+                <button class="operation" onclick="calculate()">=</button>
+            </div>
+            <div class="calculator-history" id="calculator-history"></div>
+            <div style="display: flex; gap: 5px; margin-top: 5px;">
+                <button class="special" onclick="clearHistory()" style="flex: 1;">Clear History</button>
+                <button class="special" onclick="saveSession()" style="flex: 1;">Save Session</button>
+            </div>
+        </div>
+    `;
+        windowsContainer.appendChild(calculator);
+        makeDraggable(calculator);
+        calculatorVisible = true;
+        document.getElementById("calculator-toggle").textContent = "Calc";
+        document.getElementById("calculator-toggle").classList.add("active");
+        updateCalculatorHistory();
+        const input = document.getElementById("calculator-input");
+        if (input) {
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              calculate();
+            }
+          });
+        }
+        saveSession();
+        return calculator;
+      }
+
+      function toggleCalculator() {
+        const calculator = document.getElementById("calculator");
+        const calcButton = document.getElementById("calculator-toggle");
+        if (calculator) {
+          calculator.remove();
+          calculatorVisible = false;
+          calcButton.textContent = "Calc";
+          calcButton.classList.remove("active");
+        } else {
+          addCalculator();
+        }
+        saveSession();
+      }
+
+      function appendToDisplay(value) {
+        const input = document.getElementById("calculator-input");
+        if (input) {
+          if (input.value === "" && value === ".") {
+            input.value = "0.";
+          } else {
+            input.value += value;
+          }
+        }
+      }
+
+      function clearCalculator() {
+        const input = document.getElementById("calculator-input");
+        const display = document.getElementById("calculator-display");
+        if (input) input.value = "";
+        if (display) display.value = "0";
+      }
+
+      function clearHistory() {
+        calculatorHistory = [];
+        updateCalculatorHistory();
+        saveSession();
+      }
+
+      function updateCalculatorHistory() {
+        const historyDiv = document.getElementById("calculator-history");
+        if (historyDiv) {
+          historyDiv.innerHTML = calculatorHistory
+            .map((entry) => `<p>${entry.expression} = ${entry.result}</p>`)
+            .join("");
+        }
+      }
+
+      function calculate() {
+        const input = document.getElementById("calculator-input");
+        const display = document.getElementById("calculator-display");
+        if (input && display) {
+          let expression = input.value;
+          if (!expression) {
+            display.value = "0";
+            return;
+          }
+          try {
+            let result = evaluateExpression(expression);
+            display.value = isFinite(result) ? result : "Error";
+            calculatorHistory.push({ expression, result: display.value });
+            updateCalculatorHistory();
+            saveSession();
+          } catch {
+            display.value = "Error";
+            calculatorHistory.push({ expression, result: "Error" });
+            updateCalculatorHistory();
+            saveSession();
+          }
+        }
+      }
+
+      function evaluateExpression(expression) {
+        expression = expression.replace(/×/g, "*").replace(/%/g, "/100");
+        while (expression.includes("√")) {
+          const sqrtIndex = expression.indexOf("√");
+          let number = "";
+          let i = sqrtIndex + 1;
+          while (i < expression.length && /\d|\./.test(expression[i])) {
+            number += expression[i];
+            i++;
+          }
+          const sqrtValue = Math.sqrt(parseFloat(number));
+          expression =
+            expression.substring(0, sqrtIndex) +
+            sqrtValue +
+            expression.substring(i);
+        }
+        const tokens = expression.match(/(\d*\.?\d+|[+\-*/])/g);
+        if (!tokens) throw new Error("Invalid expression");
+        let result = parseFloat(tokens[0]);
+        for (let i = 1; i < tokens.length; i += 2) {
+          const operator = tokens[i];
+          const nextNumber = parseFloat(tokens[i + 1]);
+          if (isNaN(nextNumber)) throw new Error("Invalid number");
+          switch (operator) {
+            case "+":
+              result += nextNumber;
+              break;
+            case "-":
+              result -= nextNumber;
+              break;
+            case "*":
+              result *= nextNumber;
+              break;
+            case "/":
+              if (nextNumber === 0) throw new Error("Division by zero");
+              result /= nextNumber;
+              break;
+          }
+        }
+        return result;
+      }
+
+      function addClock() {
+        const windowsContainer = document.getElementById("windows");
+        const newWindow = document.createElement("div");
+        newWindow.className = "clock-window";
+        newWindow.id = "clock";
+        clockCount++;
+        const clockLabel = "Clock";
+
+        // Center the clock window
+        const defaultWidth = 300;
+        const defaultHeight = 400;
+        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
+        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
+        newWindow.style.left = `${left}px`;
+        newWindow.style.top = `${top}px`;
+        newWindow.style.zIndex = zIndexCounter++;
+        newWindow.dataset.x = left;
+        newWindow.dataset.y = top;
+        newWindow.dataset.width = defaultWidth;
+        newWindow.dataset.height = defaultHeight;
+        newWindow.style.width = `${defaultWidth}px`;
+        newWindow.style.height = `${defaultHeight}px`;
+
+        newWindow.innerHTML = `
+        <div class="clock-header">
+          <span class="clock-title">${clockLabel}</span>
+            <div class="clock-controls">
+
+                <span class="close-clock" onclick="toggleClock()">×</span>
+            </div>
+        </div>
+        <div class="clock-content">
+            <div class="clock-time" id="clock-time-clock"></div>
+            <div class="clock-date" id="clock-date-clock"></div>
+            <div class="timezone-times">
+                <div>Eastern: <span id="clock-eastern"></span></div>
+                <div>Central: <span id="clock-central"></span></div>
+                <div>Mountain: <span id="clock-mountain"></span></div>
+                <div>Pacific: <span id="clock-pacific"></span></div>
+            </div>
+            <div class="format-buttons">
+                <select id="clock-format-clock" onchange="updateClock('clock'); saveSession();">
+                    <option value="12">12-Hour</option>
+                    <option value="24">24-Hour</option>
+                </select>
+            </div>
+            <div style="margin-top:15px;">
+                <div style="font-weight:bold;">Stopwatch</div>
+                <div id="stopwatch-display" style="font-family:monospace;font-size:20px;">00:00:00.000</div>
+                <div style="margin-top:5px;">
+                    <button onclick="startStopwatch()">Start</button>
+                    <button onclick="pauseStopwatch()">Pause</button>
+                    <button onclick="resetStopwatch()">Reset</button>
+                </div>
+            </div>
+        </div>
+        <div class="countdown-timer-container">
+    <div style="font-weight:bold;">Countdown Timer</div>
+    <div class="countdown-controls">
+        <input type="number" id="countdown-minutes" min="0" max="120" value="30" style="width:60px;"> m
+        <input type="number" id="countdown-seconds" min="0" max="59" value="0" style="width:60px;"> s
+        <button onclick="startCountdown()">Start</button>
+        <button onclick="resetCountdown()">Reset</button>
+    </div>
+    <div id="countdown-display" class="countdown-display">00:30:00</div>
+</div>
+    `;
+        windowsContainer.appendChild(newWindow);
+        makeDraggable(newWindow);
+        newWindow.onclick = () => setActiveWindow("clock");
+        setActiveWindow("clock");
+        updateClock("clock");
+        setInterval(() => updateClock("clock"), 1000);
+        clockVisible = true;
+        document.getElementById("clock-toggle").textContent = "Clock";
+        document.getElementById("clock-toggle").classList.add("active");
+        saveSession();
+        showStatus("Clock window created!");
+        return newWindow;
+      }
+
+      function toggleClock() {
+        const clock = document.getElementById("clock");
+        const clockButton = document.getElementById("clock-toggle");
+        if (clock) {
+          clock.remove();
+          clockVisible = false;
+          clockButton.textContent = "Clock";
+          clockButton.classList.remove("active");
+        } else {
+          addClock();
+        }
+        saveSession();
+      }
+
+      function updateClock(windowId) {
+        const timeDiv = document.getElementById(`clock-time-${windowId}`);
+        const dateDiv = document.getElementById(`clock-date-${windowId}`);
+        const formatSelect = document.getElementById(
+          `clock-format-${windowId}`
+        );
+        const easternDiv = document.getElementById("clock-eastern");
+        const centralDiv = document.getElementById("clock-central");
+        const mountainDiv = document.getElementById("clock-mountain");
+        const pacificDiv = document.getElementById("clock-pacific");
+        if (
+          timeDiv &&
+          dateDiv &&
+          formatSelect &&
+          easternDiv &&
+          centralDiv &&
+          mountainDiv &&
+          pacificDiv
+        ) {
+          const now = new Date();
+          const options = {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          };
+          dateDiv.textContent = now.toLocaleDateString(undefined, options);
+          const is24Hour = formatSelect.value === "24";
+          timeDiv.textContent = now.toLocaleTimeString(undefined, {
+            hour12: !is24Hour,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          const easternTime = new Date(
+            now.toLocaleString("en-US", { timeZone: "America/New_York" })
+          );
+          const centralTime = new Date(
+            now.toLocaleString("en-US", { timeZone: "America/Chicago" })
+          );
+          const mountainTime = new Date(
+            now.toLocaleString("en-US", { timeZone: "America/Denver" })
+          );
+          const pacificTime = new Date(
+            now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })
+          );
+          easternDiv.textContent = easternTime.toLocaleTimeString(undefined, {
+            hour12: !is24Hour,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          centralDiv.textContent = centralTime.toLocaleTimeString(undefined, {
+            hour12: !is24Hour,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          mountainDiv.textContent = mountainTime.toLocaleTimeString(undefined, {
+            hour12: !is24Hour,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+          pacificDiv.textContent = pacificTime.toLocaleTimeString(undefined, {
+            hour12: !is24Hour,
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          });
+        }
+      }
+      let stopwatchInterval = null;
+      let stopwatchStart = null;
+      let stopwatchElapsed = 0;
+
+      function updateStopwatchDisplay() {
+        const display = document.getElementById("stopwatch-display");
+        if (!display) return;
+        let elapsed = stopwatchElapsed;
+        if (stopwatchStart) {
+          elapsed += Date.now() - stopwatchStart;
+        }
+        const ms = elapsed % 1000;
+        const totalSeconds = Math.floor(elapsed / 1000);
+        const s = totalSeconds % 60;
+        const m = Math.floor(totalSeconds / 60) % 60;
+        const h = Math.floor(totalSeconds / 3600);
+        display.textContent =
+          `${h.toString().padStart(2, "0")}:` +
+          `${m.toString().padStart(2, "0")}:` +
+          `${s.toString().padStart(2, "0")}.` +
+          `${ms.toString().padStart(3, "0")}`;
+      }
+
+      function startStopwatch() {
+        if (!stopwatchStart) {
+          stopwatchStart = Date.now();
+          stopwatchInterval = setInterval(updateStopwatchDisplay, 31);
+        }
+      }
+
+      function pauseStopwatch() {
+        if (stopwatchStart) {
+          stopwatchElapsed += Date.now() - stopwatchStart;
+          stopwatchStart = null;
+          clearInterval(stopwatchInterval);
+          updateStopwatchDisplay();
+        }
+      }
+
+      function resetStopwatch() {
+        stopwatchElapsed = 0;
+        stopwatchStart = null;
+        clearInterval(stopwatchInterval);
+        updateStopwatchDisplay();
+      }
+
+      function addLog() {
+        if (
+          document.querySelectorAll(
+            ".window, .task-window, .clock-window, .log-window"
+          ).length >= MAX_WINDOWS
+        ) {
+          showStatus("Maximum number of windows reached.");
+          return;
+        }
+        const windowsContainer = document.getElementById("windows");
+        const newWindow = document.createElement("div");
+        newWindow.className = "log-window";
+        newWindow.id = "log";
+        newWindow.style.left = "0px";
+        newWindow.style.top = "0px";
+        newWindow.style.zIndex = zIndexCounter++;
+        newWindow.dataset.x = 0;
+        newWindow.dataset.y = 0;
+        newWindow.dataset.width = 300;
+        newWindow.dataset.height = 300;
+        newWindow.style.width = "400";
+        newWindow.style.height = "400";
+        newWindow.innerHTML = `
+                <div class="log-header">
+                    <span class="log-title">Log</span>
+                    <div class="log-controls">
+                        <span class="edit-window" onclick="startRename('log')">✏️</span>
+                        <span class="close-log" onclick="toggleLog()">×</span>
+                    </div>
+                </div>
+                <div class="log-content">
+                    <div class="log-input-container">
+                        <input type="text" class="log-input" id="log-input" placeholder="Enter log description...">
+                        <button onclick="addLogEntry()">Log</button>
+                    </div>
+                    <div class="log-list" id="log-list"></div>
+                </div>
+            `;
+        windowsContainer.appendChild(newWindow);
+        makeDraggable(newWindow);
+        newWindow.onclick = () => setActiveWindow("log");
+        setActiveWindow("log");
+        const logInput = document.getElementById("log-input");
+        logInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            addLogEntry();
+          }
+        });
+        restoreLogEntries();
+        logVisible = true;
+        document.getElementById("log-toggle").textContent = "Log";
+        document.getElementById("log-toggle").classList.add("active");
+        saveSession();
+        showStatus("Log window opened!");
+        return newWindow;
+      }
+
+      function toggleLog() {
+        const log = document.getElementById("log");
+        const logButton = document.getElementById("log-toggle");
+        if (log) {
+          log.remove();
+          logVisible = false;
+          logButton.textContent = "Log";
+          logButton.classList.remove("active");
+          showStatus("Log window hidden.");
+        } else {
+          addLog();
+        }
+        saveSession();
+      }
+
+      function addLogEntry() {
+        const logInput = document.getElementById("log-input");
+        const logList = document.getElementById("log-list");
+        if (logInput && logList && logInput.value.trim()) {
+          const description = logInput.value.trim();
+          const now = new Date();
+          const timestamp = now.toLocaleString("en-US", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: true,
+          });
+          const logEntry = { timestamp, description };
+          logEntries.push(logEntry);
+          const logItem = document.createElement("div");
+          logItem.className = "log-item";
+          logItem.innerHTML = `
+                    <span class="timestamp">${timestamp}</span>: <span class="description">${description}</span>
+                `;
+          logList.appendChild(logItem);
+          logInput.value = "";
+          logList.scrollTop = logList.scrollHeight;
+          saveSession();
+          showStatus("Log entry added!");
+        }
+      }
+
+      function restoreLogEntries() {
+        const logList = document.getElementById("log-list");
+        if (logList) {
+          logList.innerHTML = "";
+          logEntries.forEach((entry) => {
+            const logItem = document.createElement("div");
+            logItem.className = "log-item";
+            logItem.innerHTML = `
+                        <span class="timestamp">${entry.timestamp}</span>: <span class="description">${entry.description}</span>
+                    `;
+            logList.appendChild(logItem);
+          });
+          logList.scrollTop = logList.scrollHeight;
+        }
+      }
+
+      function makeDraggable(element) {
+        const header = element.querySelector(
+          ".window-header, .calculator-header, .task-header, .clock-header, .log-header, .drawing-header, .sticky-note-header"
+        );
+        if (!header) return;
+
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        header.onmousedown = function (e) {
+          isDragging = true;
+
+          element.style.zIndex = ++zIndexCounter;
+          offsetX = e.clientX - element.getBoundingClientRect().left;
+          offsetY = e.clientY - element.getBoundingClientRect().top;
+          document.body.style.userSelect = "none";
+          element.classList.add("dragging");
+
+          function onMouseMove(e) {
+            if (!isDragging) return;
+            let newX = e.clientX - offsetX;
+            let newY = e.clientY - offsetY;
+            newX = Math.max(
+              0,
+              Math.min(window.innerWidth - element.offsetWidth, newX)
+            );
+            newY = Math.max(
+              0,
+              Math.min(window.innerHeight - element.offsetHeight, newY)
+            );
+            element.style.left = newX + "px";
+            element.style.top = newY + "px";
+            element.dataset.x = newX;
+            element.dataset.y = newY;
+          }
+
+          function onMouseUp() {
+            if (isDragging) {
+              isDragging = false;
+              document.body.style.userSelect = "";
+              element.classList.remove("dragging");
+              document.removeEventListener("mousemove", onMouseMove);
+              document.removeEventListener("mouseup", onMouseUp);
+              if (typeof saveSession === "function") saveSession();
+            }
+          }
+
+          document.addEventListener("mousemove", onMouseMove);
+          document.addEventListener("mouseup", onMouseUp);
+        };
+      }
+
+      function toggleWindowLock(windowId) {
+        const windowElement = document.getElementById(windowId);
+        if (!windowElement) return;
+
+        // Get elements based on window type
+        const isSticky = windowElement.classList.contains("sticky-note-window");
+        const content = isSticky
+          ? windowElement.querySelector(".sticky-note-content")
+          : document.getElementById(`clipboard-${windowId}`);
+        const lockBtn = windowElement.querySelector(
+          ".lock-window, .sticky-lock-window"
+        );
+        const closeBtn = windowElement.querySelector(
+          ".close-window, .close-sticky-note"
+        );
+        // Get minimize button (new)
+        const minimizeBtn = windowElement.querySelector(
+          ".minimize-window"
+        );
+        const controls = windowElement.querySelector(
+          ".window-controls, .sticky-note-controls"
+        );
+        const header = windowElement.querySelector(
+          ".window-header, .sticky-note-header"
+        );
+
+        // Toggle lock state
+        const isLocked = windowElement.dataset.locked !== "true";
+        windowElement.dataset.locked = isLocked;
+
+        // Lock/unlock content editing
+        if (content) {
+          content.readOnly = isLocked;
+          content.style.pointerEvents = isLocked ? "none" : "";
+        }
+
+        // Lock/unlock dragging and restore draggability
+        if (header) {
+          header.style.pointerEvents = isLocked ? "none" : "";
+          if (isLocked) {
+            header.onmousedown = null;
+          } else {
+            // Re-initialize dragging functionality
+            header.onmousedown = function (e) {
+              let isDragging = false;
+              const offsetX =
+                e.clientX - windowElement.getBoundingClientRect().left;
+              const offsetY =
+                e.clientY - windowElement.getBoundingClientRect().top;
+
+              windowElement.style.zIndex = ++zIndexCounter;
+              document.body.style.userSelect = "none";
+              windowElement.classList.add("dragging");
+
+              function onMouseMove(e) {
+                isDragging = true;
+                let newX = e.clientX - offsetX;
+                let newY = e.clientY - offsetY;
+                newX = Math.max(
+                  0,
+                  Math.min(window.innerWidth - windowElement.offsetWidth, newX)
+                );
+                newY = Math.max(
+                  0,
+                  Math.min(window.innerHeight - windowElement.offsetHeight, newY)
+                );
+                windowElement.style.left = newX + "px";
+                windowElement.style.top = newY + "px";
+                windowElement.dataset.x = newX;
+                windowElement.dataset.y = newY;
+              }
+
+              function onMouseUp() {
+                isDragging = false;
+                document.body.style.userSelect = "";
+                windowElement.classList.remove("dragging");
+                document.removeEventListener("mousemove", onMouseMove);
+                document.removeEventListener("mouseup", onMouseUp);
+                saveSession();
+              }
+
+              document.addEventListener("mousemove", onMouseMove);
+              document.addEventListener("mouseup", onMouseUp);
+            };
+          }
+        }
+
+        // Lock/unlock resizing
+        windowElement.style.resize = isLocked ? "none" : "both";
+
+        // Lock/unlock controls
+        if (closeBtn) {
+          closeBtn.style.pointerEvents = isLocked ? "none" : "";
+          closeBtn.style.opacity = isLocked ? "0.5" : "1";
+        }
+
+        // --- Allow minimize button to always work, even when locked ---
+        if (minimizeBtn) {
+          minimizeBtn.style.pointerEvents = "auto";
+          minimizeBtn.style.opacity = "1";
+        }
+        // ---
+
+        // Update lock icon
+        if (lockBtn) {
+          lockBtn.textContent = isLocked ? "🔒" : "🔓";
+          lockBtn.classList.toggle("locked", isLocked);
+          // Keep lock button clickable
+          lockBtn.style.pointerEvents = "auto";
+          lockBtn.style.opacity = "1";
+        }
+
+        showStatus(
+          `${isSticky ? "Sticky Note" : "Window"} ${
+            isLocked ? "locked" : "unlocked"
+          }`
+        );
+        saveSession();
+      }
+
+      function setActiveWindow(windowId) {
+        const windowElement = document.getElementById(windowId);
+        if (!windowElement) return;
+        activeWindow = windowId;
+        document
+          .querySelectorAll(".window, .task-window, .clock-window, .log-window")
+          .forEach((win) => win.classList.remove("active"));
+        windowElement.classList.add("active");
+        windowElement.style.zIndex = zIndexCounter++;
+      }
+
+      function updateLineNumbers(windowId) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        const lineNumbers = document.getElementById(`line-numbers-${windowId}`);
+        if (textarea && lineNumbers) {
+          const lines = textarea.value.split("\n").length;
+          lineNumbers.innerHTML =
+            Array.from({ length: lines }, (_, i) => i + 1).join("<br>") || "1";
+        }
+      }
+
+      function syncScroll(windowId) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        const lineNumbers = document.getElementById(`line-numbers-${windowId}`);
+        if (textarea && lineNumbers) {
+          lineNumbers.scrollTop = textarea.scrollTop;
+        }
+      }
+
+      function closeWindow(windowId) {
+        const windowElement = document.getElementById(windowId);
+        if (windowElement) {
+          windowElement.remove();
+          delete lockedWindows[windowId];
+          if (activeWindow === windowId) {
+            const remainingWindows = document.querySelectorAll(
+              ".window, .task-window, .clock-window, .log-window"
+            );
+            activeWindow =
+              remainingWindows.length > 0 ? remainingWindows[0].id : null;
+            if (activeWindow) setActiveWindow(activeWindow);
+          }
+          saveSession();
+        }
+      }
+
+      let currentEditable = null;
+
+      function startRename(windowId) {
+        if (currentEditable) endRename();
+        const windowElement = document.getElementById(windowId);
+        if (windowElement) {
+          const titleSpan = windowElement.querySelector(
+            ".window-title, .task-title, .sticky-note-title"
+          );
+          titleSpan.contentEditable = true;
+          titleSpan.focus();
+          document.execCommand("selectAll", false, null); // Select all text for easy editing
+          currentEditable = { windowId, element: titleSpan };
+
+          // Listen for Enter, Escape, or blur
+          titleSpan.addEventListener("keydown", handleRenameKeydown);
+          titleSpan.addEventListener("blur", endRename);
+          document.addEventListener("mousedown", handleOutsideClick);
+        }
+      }
+
+      function handleRenameKeydown(e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          endRename();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancelRename();
+        }
+      }
+
+      function handleOutsideClick(e) {
+        if (
+          currentEditable &&
+          !e.target.closest(".window-title, .task-title, .sticky-note-title")
+        ) {
+          endRename();
+        }
+      }
+
+      function endRename() {
+        if (currentEditable) {
+          const { windowId, element } = currentEditable;
+          element.contentEditable = false;
+          element.removeEventListener("keydown", handleRenameKeydown);
+          element.removeEventListener("blur", endRename);
+          document.removeEventListener("mousedown", handleOutsideClick);
+
+          // Set default name if empty, based on window type
+          let defaultName = "";
+          if (element.classList.contains("window-title")) {
+            defaultName = `Note ${windowId.replace("window", "")}`;
+          } else if (element.classList.contains("task-title")) {
+            defaultName = `Task List ${windowId.replace("window", "")}`;
+          } else if (element.classList.contains("sticky-note-title")) {
+            defaultName = `Sticky Note ${windowId.replace("sticky-note-", "")}`;
+          } else if (windowId === "log") {
+            defaultName = "Log";
+          } else if (element.classList.contains("clock-title")) {
+            defaultName = "Clock";
+          }
+          element.textContent = element.textContent.trim() || defaultName;
+
+          currentEditable = null;
+          saveSession();
+        }
+      }
+
+      function cancelRename() {
+        if (currentEditable) {
+          const { windowId, element } = currentEditable;
+          element.contentEditable = false;
+          element.removeEventListener("keydown", handleRenameKeydown);
+          element.removeEventListener("blur", endRename);
+          document.removeEventListener("mousedown", handleOutsideClick);
+
+          // Set default name if cancelled, based on window type
+          let defaultName = "";
+          if (element.classList.contains("window-title")) {
+            defaultName = `Note ${windowId.replace("window", "")}`;
+          } else if (element.classList.contains("task-title")) {
+            defaultName = `Task List ${windowId.replace("window", "")}`;
+          } else if (element.classList.contains("sticky-note-title")) {
+            defaultName = `Sticky Note ${windowId.replace("sticky-note-", "")}`;
+          } else if (windowId === "log") {
+            defaultName = "Log";
+          } else if (element.classList.contains("clock-title")) {
+            defaultName = "Clock";
+          }
+          element.textContent = defaultName;
+
+          currentEditable = null;
+          saveSession();
+        }
+      }
+      function toggleLock(windowId) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        const lockIcon = document.querySelector(`#${windowId} .lock-window`);
+        if (textarea && lockIcon) {
+          lockedWindows[windowId] = !lockedWindows[windowId];
+          textarea.readOnly = lockedWindows[windowId];
+          lockIcon.textContent = lockedWindows[windowId] ? "🔒" : "🔓";
+          lockIcon.classList.toggle("locked", lockedWindows[windowId]);
+          showStatus(
+            `Window ${lockedWindows[windowId] ? "locked" : "unlocked"}.`
+          );
+          saveSession();
+        }
+      }
+
+      function copyText() {
+        if (!activeWindow) {
+          showStatus("No active window selected.");
+          return;
+        }
+        const textarea = document.getElementById(`clipboard-${activeWindow}`);
+        if (textarea) {
+          textarea.select();
+          try {
+            document.execCommand("copy");
+            showStatus("Text copied to clipboard!");
+          } catch {
+            showStatus("Failed to copy text.");
+          }
+        }
+      }
+
+      async function pasteText() {
+        if (!activeWindow) {
+          showStatus("No active window selected.");
+          return;
+        }
+        try {
+          const text = await navigator.clipboard.readText();
+          const textarea = document.getElementById(`clipboard-${activeWindow}`);
+          if (textarea && !textarea.readOnly) {
+            textarea.value = text;
+            updateLineNumbers(activeWindow);
+            updateCounts(activeWindow);
+            updateWindowSize(activeWindow);
+            saveSession();
+            showStatus("Text pasted from clipboard!");
+          } else {
+            showStatus("Cannot paste: Window is locked.");
+          }
+        } catch {
+          showStatus("Failed to paste text.");
+        }
+      }
+
+      function toUpperCase(windowId) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        if (textarea && !textarea.readOnly) {
+          textarea.value = textarea.value.toUpperCase();
+          updateLineNumbers(windowId);
+          updateCounts(windowId);
+          updateWindowSize(windowId);
+          saveSession();
+          showStatus("Converted to uppercase.");
+        } else {
+          showStatus("Cannot convert: Window is locked.");
+        }
+      }
+
+      function toLowerCase(windowId) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        if (textarea && !textarea.readOnly) {
+          textarea.value = textarea.value.toLowerCase();
+          updateLineNumbers(windowId);
+          updateCounts(windowId);
+          updateWindowSize(windowId);
+          saveSession();
+          showStatus("Converted to lowercase.");
+        } else {
+          showStatus("Cannot convert: Window is locked.");
+        }
+      }
+
+      function updateCounts(windowId) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        const countDiv = document.getElementById(`counts-${windowId}`);
+        if (textarea && countDiv) {
+          const text = textarea.value;
+          const words = text
+            .trim()
+            .split(/\s+/)
+            .filter((word) => word.length > 0).length;
+          countDiv.textContent = `Words: ${words}, Characters: ${text.length}`;
+        }
+      }
+
+      function searchReplace() {
+        if (!activeWindow) {
+          showStatus("No active window selected.");
+          return;
+        }
+        const searchInput = document.getElementById("search-input").value;
+        const replaceInput = document.getElementById("replace-input").value;
+        const textarea = document.getElementById(`clipboard-${activeWindow}`);
+        if (textarea && searchInput && !textarea.readOnly) {
+          textarea.value = textarea.value.replace(
+            new RegExp(searchInput, "g"),
+            replaceInput
+          );
+          updateLineNumbers(activeWindow);
+          updateCounts(activeWindow);
+          updateWindowSize(activeWindow);
+          saveSession();
+          showStatus("Replace completed!");
+        } else {
+          showStatus("Cannot replace: Window is locked.");
+        }
+      }
+
+      function toggleSearchReplace() {
+        document.getElementById("search-replace").classList.toggle("active");
+      }
+
+      function showStatus(message) {
+        const status = document.getElementById("status");
+        status.textContent = message;
+        status.style.display = "block";
+        setTimeout(() => {
+          status.style.display = "none";
+        }, 3000);
+      }
+
+      function toggleTheme() {
+        const body = document.body;
+        const newMode = body.classList.contains("light-mode")
+          ? "dark-mode"
+          : "light-mode";
+        body.className = newMode;
+
+        // Update favicon based on theme
+        let link = document.querySelector("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement("link");
+          link.rel = "icon";
+          document.head.appendChild(link);
+        }
+
+        // Light theme pencil (black)
+        const darkIconSvg = `PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg==`;
+
+        // Dark theme pencil (white)
+        const lightIconSvg = `PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg==`;
+
+        // Set favicon based on theme
+        link.href = `data:image/svg+xml;base64,${
+          newMode === "dark-mode" ? darkIconSvg : lightIconSvg
+        }`;
+
+        saveSession();
+        showStatus(`Switched to ${newMode} mode!`);
+      }
+
+      function toggleNavMenu() {
+        const navMenu = document.querySelector(".nav-menu");
+        navMenu.classList.toggle("collapsed");
+      }
+      function openInstructions(isT2 = false) {
+        const windowElement = addWindow();
+        const windowId = windowElement.id;
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        if (textarea && windowElement) {
+          if (isT2) {
+            t2Count++;
+            const t2Label =
+              t2Count > 1 ? `T2 Template ${t2Count}` : "T2 Template";
+            const templateText = `Company URL Or Company ID -
+Case Number - 
+Customer Name - 
+Customer Issue/Concern - 
+Customer Goal - 
+How can T2 help? - 
+KB Articles Used - 
+Troubleshooting Steps Taken - 
+Possible INV Number (If possible) - 
+Glance Screen share Code - `;
+            windowElement.querySelector(".window-title").textContent =
+              t2Label;
+            windowElement.classList.add("t2-window");
+            const t2Content = windowElement.querySelector(".window-content");
+            if (t2Content) {
+              t2Content.innerHTML = `
+                <div class="textarea-container" style="width: 218px;">
+                  <div class="line-numbers" id="line-numbers-${windowId}">1</div>
+                  <textarea
+                    id="clipboard-${windowId}"
+                    class="t2-textarea"
+                    placeholder="Fill out the T2 template..."
+                    oninput="saveSession();"
+                  >${templateText}</textarea>
+                </div>
+                <div class="note-log-input-container">
+                  <input type="text" class="note-log-input" id="note-log-input-${windowId}" placeholder="Enter log description...">
+                  <button class="note-log-button" onclick="addNoteLogEntry('${windowId}')">Add Log</button>
+                </div>
+                <div class="clear-note-container">
+                  <button class="clear-note-button clear-note-button--mini" onclick="clearNoteText('${windowId}')">Clear</button>
+                </div>
+              `;
+              const t2TextareaContainer = windowElement.querySelector(
+                ".textarea-container"
+              );
+              if (t2TextareaContainer) {
+                const resizeObserver = new ResizeObserver(() => {
+                  updateWindowSize(windowId);
+                  saveSession();
+                });
+                resizeObserver.observe(t2TextareaContainer);
+              }
+              setMaxDimensions();
+            }
+          } else {
+            textarea.value = `  CB App Setup for Enterprise Browser Goal: Run CB App in Enterprise browser to enable notepad-like functionality (Enterprise blocks copying text externally).Prerequisites:-Chrome (to download CB App)-Enterprise browser (to run CB App)-SSO access for Enterprise login Steps:1.In Chrome:-Go to phbeks.com/cbapp, download cbapp.zip.-Extract cbapp.html to Documents folder.2.In Enterprise:-Log in via SSO.-Open cbapp.html (right-click > Open with Enterprise if not default).3.Optional Bookmark:-Enable Bookmarks Bar (three-dot menu > Bookmarks > Show Bookmarks Bar).-Drag CB App bookmark from Bookmarks Menu to Bookmarks Bar.Troubleshooting:-App not working? Ensure SSO login and cbapp.html opened in Enterprise. Set Enterprise as default if needed.-Bookmark missing? Verify Bookmarks Bar is enabled and CB App is bookmarked.Note: Keep cbapp.html in Documents for easy access. Must open in same Enterprise session as SSO login.`;
+            windowElement.querySelector(".window-title").textContent =
+              "CB App Instructions";
+          }
+          updateLineNumbers(windowId);
+          updateCounts(windowId);
+          updateWindowSize(windowId);
+          saveSession();
+          showStatus(isT2 ? "T2 Template loaded!" : "Instructions loaded!");
+        }
+      }
+
+      function loadSession() {
+        try {
+          // Clear localStorage
+          localStorage.clear();
+
+          // Reset UI state
+          document.getElementById("windows").innerHTML = ""; // Remove all windows
+          document.body.className = "dark-mode"; // Set default theme
+          document.querySelector(".nav-menu").classList.remove("collapsed"); // Expand nav menu
+          document.getElementById("search-replace").classList.remove("active"); // Hide search/replace
+
+          // Reset global variables
+          windowCount = 0;
+          noteCount = 0;
+          taskCount = 0;
+          stickyCount = 0;
+          t2Count = 0;
+          calculatorCount = 0;
+          clockCount = 0;
+          activeWindow = null;
+          lockedWindows = {};
+          zIndexCounter = 1;
+          calculatorVisible = false;
+          clockVisible = false;
+          logVisible = false;
+          calculatorHistory = [];
+          logEntries = [];
+
+          // Reset toggle buttons
+          const calcToggle = document.getElementById("calculator-toggle");
+          const clockToggle = document.getElementById("clock-toggle");
+          const logToggle = document.getElementById("log-toggle");
+          if (calcToggle) {
+            calcToggle.textContent = "Calc";
+            calcToggle.classList.remove("active");
+          }
+          if (clockToggle) {
+            clockToggle.textContent = "Clock";
+            clockToggle.classList.remove("active");
+          }
+          if (logToggle) {
+            logToggle.textContent = "Log";
+            logToggle.classList.remove("active");
+          }
+
+          showStatus("UI reset to fresh state!");
+        } catch (e) {
+          console.error("Failed to reset UI:", e);
+          showStatus("Failed to reset UI.");
+        }
+      }
+
+      function loadSessionFromStorage(session) {
+        // Restore theme
+        document.body.className = session.theme || "light-mode";
+        if (document.getElementById("calendar-window")) {
+          loadCalendarEvents();
+        }
+
+        // Restore windows
+        Object.keys(session).forEach((key) => {
+          if (key.startsWith("window")) {
+            const windowData = session[key];
+            let newWindow;
+            if (windowData.isTaskWindow) {
+              newWindow = addTaskWindow();
+            } else {
+              newWindow = addWindow();
+            }
+            const windowElement = document.getElementById(newWindow.id);
+
+            // Restore position, size, and content
+            windowElement.style.left = `${windowData.position.left}px`;
+            windowElement.style.top = `${windowData.position.top}px`;
+            windowElement.style.width = `${windowData.width}px`;
+            windowElement.style.height = `${windowData.height}px`;
+            windowElement.dataset.x = windowData.position.left;
+            windowElement.dataset.y = windowData.position.top;
+            windowElement.dataset.width = windowData.width;
+            windowElement.dataset.height = windowData.height;
+
+            // Add to the window restoration logic in loadSessionFromStorage
+
+            if (windowData.locked) {
+              toggleWindowLock(newWindow.id);
+            }
+            if (windowData.isTaskWindow) {
+              // Restore tasks
+              const taskList = windowElement.querySelector(".task-list");
+              if (taskList && windowData.tasks) {
+                taskList.innerHTML = "";
+                windowData.tasks.forEach((task) => {
+                  const taskItem = document.createElement("div");
+                  taskItem.className =
+                    "task-item" + (task.completed ? " completed" : "");
+                  taskItem.innerHTML = `
+                        <input type="checkbox" ${
+                          task.completed ? "checked" : ""
+                        } onchange="toggleTaskCompletion('${
+                    newWindow.id
+                  }', this)">
+                        <span>${task.text}</span>
+                    `;
+                  taskList.appendChild(taskItem);
+                });
+              }
+              const title = windowElement.querySelector(".task-title");
+              if (title) title.textContent = windowData.name;
+            } else {
+              const textarea = document.getElementById(
+                `clipboard-${newWindow.id}`
+              );
+              if (textarea) textarea.value = windowData.content;
+              const title = windowElement.querySelector(".window-title");
+              if (title) title.textContent = windowData.name;
+              updateLineNumbers(newWindow.id);
+              updateCounts(newWindow.id);
+            }
+          } else if (key === "clock" && session.clock.visible) {
+            addClock();
+            const clock = document.getElementById("clock");
+            if (clock) {
+              clock.style.left = `${session.clock.position.left}px`;
+              clock.style.top = `${session.clock.position.top}px`;
+              clock.dataset.x = session.clock.position.left;
+              clock.dataset.y = session.clock.position.top;
+              document.getElementById("clock-format-clock").value =
+                session.clock.clockFormat;
+              updateClock("clock");
+            }
+          } else if (key === "calculator" && session.calculator.visible) {
+            addCalculator();
+            const calculator = document.getElementById("calculator");
+            if (calculator) {
+              calculator.style.left = `${session.calculator.position.left}px`;
+              calculator.style.top = `${session.calculator.position.top}px`;
+              calculator.dataset.x = session.calculator.position.left;
+              calculator.dataset.y = session.calculator.position.top;
+              calculatorHistory = session.calculator.history || [];
+              updateCalculatorHistory();
+            }
+          } else if (key === "log" && session.log.visible) {
+            addLog();
+            const log = document.getElementById("log");
+            if (log) {
+              log.style.left = `${session.log.position.left}px`;
+              log.style.top = `${session.log.position.top}px`;
+              log.dataset.x = session.log.position.left;
+              log.dataset.y = session.log.position.top;
+              logEntries = session.log.logs || [];
+              restoreLogEntries();
+            }
+          } else if (key.startsWith("sticky-note")) {
+            const stickyNoteData = session[key];
+            const newStickyNote = addStickyNote();
+            const stickyNoteElement = document.getElementById(newStickyNote.id);
+            stickyNoteElement.style.left = `${stickyNoteData.position.left}px`;
+            stickyNoteElement.style.top = `${stickyNoteData.position.top}px`;
+            stickyNoteElement.style.width = `${stickyNoteData.width}px`;
+            stickyNoteElement.style.height = `${stickyNoteData.height}px`;
+            stickyNoteElement.dataset.x = stickyNoteData.position.left;
+            stickyNoteElement.dataset.y = stickyNoteData.position.top;
+
+            // Restore lock state
+            if (stickyNoteData.locked) {
+              stickyNoteElement.dataset.locked = "true";
+              toggleWindowLock(newStickyNote.id);
+            }
+
+            const content = stickyNoteElement.querySelector(
+              ".sticky-note-content"
+            );
+            if (content) {
+              content.value = stickyNoteData.content;
+              content.style.color = stickyNoteData.textColor || "#000";
+            }
+
+            stickyNoteElement.style.backgroundColor = stickyNoteData.color;
+            const title = stickyNoteElement.querySelector(".sticky-note-title");
+            if (title && stickyNoteData.name) {
+              title.textContent = stickyNoteData.name;
+              if (stickyNoteData.locked) {
+                stickyNoteElement.dataset.locked = "true";
+                const lockBtn = stickyNoteElement.querySelector(
+                  ".sticky-lock-window"
+                );
+                if (lockBtn) {
+                  lockBtn.textContent = "🔒";
+                  lockBtn.classList.add("locked");
+                }
+                const content = stickyNoteElement.querySelector(
+                  ".sticky-note-content"
+                );
+                if (content) {
+                  content.readOnly = true;
+                  content.style.pointerEvents = "none";
+                }
+                stickyNoteElement.style.resize = "none";
+                const header = stickyNoteElement.querySelector(
+                  ".sticky-note-header"
+                );
+                if (header) header.style.pointerEvents = "none";
+              }
+            }
+          }
+        });
+      }
+
+      // No automatic session loading on page load
+      window.onload = () => {
+        const savedSession = localStorage.getItem("notepadSession");
+        if (savedSession) {
+          try {
+            const session = JSON.parse(savedSession);
+            loadSessionFromStorage(session);
+            showStatus("Session restored!");
+          } catch (e) {
+            console.error("Failed to load session:", e);
+            showStatus("Failed to load session.");
+          }
+        } else {
+          // Ensure fresh state on load
+          document.body.className = "dark-mode";
+          document.querySelector(".nav-menu").classList.remove("collapsed");
+          document.getElementById("search-replace").classList.remove("active");
+        }
+      };
+
+      // Save session automatically when the tab or browser closes
+      window.addEventListener("beforeunload", (event) => {
+        saveSession();
+        // Optionally, show a confirmation dialog (not recommended for modern browsers)
+        // event.preventDefault();
+        // event.returnValue = '';
+      });
+
+      const resizeObserver = new ResizeObserver(() => {
+        const taskWindows = document.querySelectorAll(".task-window");
+        taskWindows.forEach((window) => {
+          const taskList = window.querySelector(".task-list");
+          if (taskList) {
+            const headerHeight =
+              window.querySelector(".task-header").offsetHeight || 30;
+            const inputHeight =
+              window.querySelector(".task-input-container").offsetHeight || 40;
+            taskList.style.maxHeight = `${
+              window.offsetHeight - headerHeight - inputHeight - 20
+            }px`;
+          }
+        });
+      });
+      resizeObserver.observe(document.getElementById("windows"));
+
+      function clearNoteText(windowId) {
+        const windowElement = document.getElementById(windowId);
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+
+        // Check if window is locked
+        if (windowElement && windowElement.dataset.locked === "true") {
+          showStatus("Cannot clear note: Window is locked.");
+          return;
+        }
+
+        if (textarea) {
+          textarea.value = "";
+          updateLineNumbers(windowId);
+          updateCounts(windowId);
+          updateWindowSize(windowId);
+          saveSession();
+          showStatus("Note cleared!");
+        }
+      }
+
+      function downloadSessionJSON() {
+        try {
+          saveSession(); // Ensure latest state is saved
+          const session = localStorage.getItem("notepadSession");
+          if (!session) {
+            showStatus("No session data to download.");
+            return;
+          }
+          const blob = new Blob([session], { type: "application/json" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "cbapp-session.json";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showStatus("Session JSON downloaded!");
+        } catch (e) {
+          showStatus("Failed to download session.");
+        }
+      }
+      function importData() {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json,application/json";
+        input.style.display = "none";
+
+        input.onchange = (event) => {
+          const file = event.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const session = JSON.parse(e.target.result);
+              localStorage.setItem("notepadSession", JSON.stringify(session));
+              loadSession(); // Clear current UI
+              loadSessionFromStorage(session); // Load imported session
+              showStatus("Session imported!");
+            } catch (err) {
+              showStatus("Failed to import session.");
+            }
+          };
+          reader.readAsText(file);
+        };
+
+        document.body.appendChild(input);
+        input.click();
+        document.body.removeChild(input);
+      }
+      let countdownInterval = null;
+      let countdownEndTime = null;
+      let countdownActive = false;
+      let originalFavicon = null;
+
+      function startCountdown() {
+        const minInput = document.getElementById("countdown-minutes");
+        const secInput = document.getElementById("countdown-seconds");
+        const display = document.getElementById("countdown-display");
+        let minutes = parseInt(minInput.value, 10) || 0;
+        let seconds = parseInt(secInput.value, 10) || 0;
+        let totalMs = (minutes * 60 + seconds) * 1000;
+        if (totalMs <= 0) {
+          showStatus("Please enter a time greater than 0.");
+          return;
+        }
+        countdownEndTime = Date.now() + totalMs;
+        countdownActive = true;
+        updateCountdownDisplay();
+        if (countdownInterval) clearInterval(countdownInterval);
+        countdownInterval = setInterval(updateCountdownDisplay, 500);
+        showStatus(`Countdown started for ${minutes} min ${seconds} sec!`);
+      }
+
+      function resetCountdown() {
+        countdownActive = false;
+        countdownEndTime = null;
+        clearInterval(countdownInterval);
+        const minInput = document.getElementById("countdown-minutes");
+        const secInput = document.getElementById("countdown-seconds");
+        const display = document.getElementById("countdown-display");
+        let minutes = parseInt(minInput.value, 10) || 0;
+        let seconds = parseInt(secInput.value, 10) || 0;
+        display.textContent = `${Math.floor(minutes / 60)
+          .toString()
+          .padStart(2, "0")}:${(minutes % 60)
+          .toString()
+          .padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+        restoreFavicon();
+      }
+
+      function updateCountdownDisplay() {
+        const display = document.getElementById("countdown-display");
+        if (!countdownActive || !countdownEndTime) return;
+        let msLeft = countdownEndTime - Date.now();
+        if (msLeft <= 0) {
+          display.textContent = "00:00:00";
+          countdownActive = false;
+          clearInterval(countdownInterval);
+          upliftingNotification();
+          setCountdownFavicon();
+          return;
+        }
+        let totalSeconds = Math.floor(msLeft / 1000);
+        let h = Math.floor(totalSeconds / 3600);
+        let m = Math.floor((totalSeconds % 3600) / 60);
+        let s = totalSeconds % 60;
+        display.textContent = `${h.toString().padStart(2, "0")}:${m
+          .toString()
+          .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+      }
+
+      function upliftingNotification() {
+        showStatus("🎉 Timer has been reached 🎉");
+        if (window.Notification && Notification.permission === "granted") {
+          new Notification("Timer has been reached");
+        } else if (
+          window.Notification &&
+          Notification.permission !== "denied"
+        ) {
+          Notification.requestPermission().then((permission) => {
+            if (permission === "granted") {
+              new Notification("Timer has been reached");
+            }
+          });
+        }
+      }
+
+      function setCountdownFavicon() {
+        if (!originalFavicon) {
+          const link = document.querySelector("link[rel~='icon']");
+          if (link) originalFavicon = link.href;
+        }
+        let link = document.querySelector("link[rel~='icon']");
+        if (!link) {
+          link = document.createElement("link");
+          link.rel = "icon";
+          document.head.appendChild(link);
+        }
+        // Emoji favicon (works in most browsers)
+        const canvas = document.createElement("canvas");
+        canvas.width = 64;
+        canvas.height = 64;
+        const ctx = canvas.getContext("2d");
+        ctx.font = "48px serif";
+        ctx.fillText("🍽️", 8, 48);
+        link.href = canvas.toDataURL();
+      }
+
+      function restoreFavicon() {
+        if (originalFavicon) {
+          let link = document.querySelector("link[rel~='icon']");
+          if (link) link.href = originalFavicon;
+        }
+      }
+
+      function addCalendarWindow() {
+        if (document.getElementById("calendar-window")) {
+          setActiveWindow("calendar-window");
+          return;
+        }
+
+        const windowsContainer = document.getElementById("windows");
+        const calendarWindow = document.createElement("div");
+        calendarWindow.className = "window calendar-window";
+        calendarWindow.id = "calendar-window";
+
+        // Center the window
+        const defaultWidth = 400;
+        const defaultHeight = 600;
+        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
+        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
+
+        calendarWindow.style.left = `${left}px`;
+        calendarWindow.style.top = `${top}px`;
+        calendarWindow.style.zIndex = zIndexCounter++;
+        calendarWindow.dataset.x = left;
+        calendarWindow.dataset.y = top;
+        calendarWindow.dataset.width = defaultWidth;
+        calendarWindow.dataset.height = defaultHeight;
+        calendarWindow.style.width = `${defaultWidth}px`;
+        calendarWindow.style.height = `${defaultHeight}px`;
+        calendarWindow.dataset.year = new Date().getFullYear();
+        calendarWindow.dataset.month = new Date().getMonth();
+
+        calendarWindow.innerHTML = `
+        <div class="window-header">
+            <span class="window-title">Calendar</span>
+            <div class="window-controls">
+                <span class="edit-window" onclick="startRename('calendar-window')">✏️</span>
+                <span class="close-window" onclick="closeWindow('calendar-window')">×</span>
+            </div>
+        </div>
+        <div class="window-content">
+            <div class="today-events">
+                <h3>Today's Events</h3>
+                <ul id="today-events-list"></ul>
+            </div>
+            <div class="calendar-header">
+                <button onclick="navigateMonth(-1)">←</button>
+                <span id="month-year"></span>
+                <button onclick="goToToday()">Today</button>
+                <button onclick="navigateMonth(1)">→</button>
+            </div>
+            <div class="calendar-grid" id="calendar-grid"></div>
+            <div class="events-section">
+                <h3>Events for <span id="selected-date"></span></h3>
+                <ul id="events-list"></ul>
+                <div style="display: flex; gap: 5px; margin-top: 10px;">
+                    <input type="text" id="new-event" placeholder="Add new event" style="flex: 1;">
+                    <button onclick="addCalendarEvent()">Add</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+        windowsContainer.appendChild(calendarWindow);
+        makeDraggable(calendarWindow);
+        calendarWindow.onclick = () => setActiveWindow("calendar-window");
+        setActiveWindow("calendar-window");
+
+        renderCalendar();
+        updateTodayEvents();
+        saveSession();
+        showStatus("Calendar window created!");
+        return calendarWindow;
+      }
+      function addCalendarEvent() {
+        const date = document.getElementById("calendar-date").value;
+        const desc = document.getElementById("calendar-event").value.trim();
+        if (!date || !desc) {
+          showStatus("Please enter a date and event.");
+          return;
+        }
+        let events = JSON.parse(localStorage.getItem("calendarEvents") || "{}");
+        if (!events[date]) events[date] = [];
+        events[date].push(desc);
+        localStorage.setItem("calendarEvents", JSON.stringify(events));
+        document.getElementById("calendar-event").value = "";
+        loadCalendarEvents();
+        showStatus("Event added!");
+        saveSession();
+      }
+
+      function loadCalendarEvents() {
+        const date = document.getElementById("calendar-date").value;
+        const list = document.getElementById("calendar-events-list");
+        let events = JSON.parse(localStorage.getItem("calendarEvents") || "{}");
+        let html = "";
+        if (date && events[date]) {
+          html = events[date]
+            .map(
+              (e, i) =>
+                `<div>${e} <button onclick="deleteCalendarEvent('${date}',${i})">🗑️</button></div>`
+            )
+            .join("");
+        } else {
+          html = "<em>No events for this date.</em>";
+        }
+        list.innerHTML = html;
+      }
+
+      function deleteCalendarEvent(date, idx) {
+        let events = JSON.parse(localStorage.getItem("calendarEvents") || "{}");
+        if (events[date]) {
+          events[date].splice(idx, 1);
+          if (events[date].length === 0) delete events[date];
+          localStorage.setItem("calendarEvents", JSON.stringify(events));
+          loadCalendarEvents();
+          showStatus("Event deleted!");
+          saveSession();
+        }
+      }
+
+      document.addEventListener("change", function (e) {
+        if (e.target && e.target.id === "calendar-date") loadCalendarEvents();
+      });
+
+      // --- Nav Tooltips ---
+      const navTooltip = document.createElement("div");
+      navTooltip.id = "nav-tooltip";
+      document.body.appendChild(navTooltip);
+      let tooltipHideTimer = null;
+
+      function showNavTooltip(target) {
+        const text = target.getAttribute("data-tooltip");
+        if (!text) return;
+        const type = target.getAttribute("data-tooltip-type");
+        let html = `<div class="nav-tooltip-title">${text}</div>`;
+        if (type) {
+          let selector = "";
+          let titleSelector = "";
+          let filter = null;
+          if (type === "note") {
+            selector = ".window";
+            titleSelector = ".window-title";
+            filter = (name) => !/^T2 Template(\s|$)/.test(name);
+          } else if (type === "t2") {
+            selector = ".window";
+            titleSelector = ".window-title";
+            filter = (name) => /^T2 Template(\s|$)/.test(name);
+          } else if (type === "task") {
+            selector = ".task-window";
+            titleSelector = ".task-title";
+          } else if (type === "sticky") {
+            selector = ".sticky-note-window";
+            titleSelector = ".sticky-note-title";
+          } else if (type === "calculator") {
+            selector = "#calculator";
+            titleSelector = ".calculator-title";
+          } else if (type === "clock") {
+            selector = "#clock";
+            titleSelector = ".clock-title";
+          } else if (type === "help") {
+            selector = ".help-window";
+            titleSelector = ".help-title";
+            filter = () => true;
+          }
+          const items = Array.from(document.querySelectorAll(selector));
+          if (items.length > 0) {
+            html += '<div class="nav-tooltip-list">';
+            items.forEach((win) => {
+              const name =
+                win.querySelector(titleSelector)?.textContent || win.id;
+              if (filter && !filter(name)) return;
+              html += `<button class="nav-tooltip-link" data-target-id="${win.id}">- ${name}</button>`;
+            });
+            html += "</div>";
+          }
+        }
+        navTooltip.innerHTML = html;
+        navTooltip
+          .querySelectorAll(".nav-tooltip-link")
+          .forEach((link) => {
+            link.addEventListener("click", (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const targetId = link.getAttribute("data-target-id");
+              const win = document.getElementById(targetId);
+              if (win) {
+                win.style.display = "";
+                setActiveWindow(targetId);
+              }
+            });
+          });
+        const rect = target.getBoundingClientRect();
+        const top = rect.top - 8;
+        navTooltip.style.left = `${rect.left + rect.width / 2}px`;
+        navTooltip.style.top = `${top}px`;
+        navTooltip.style.transform = "translate(-50%, -100%)";
+        navTooltip.classList.add("visible");
+      }
+
+      function hideNavTooltip() {
+        navTooltip.classList.remove("visible");
+      }
+
+      document.querySelectorAll(".nav-menu [data-tooltip]").forEach((el) => {
+        el.addEventListener("mouseenter", () => {
+          if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
+          showNavTooltip(el);
+        });
+        el.addEventListener("mouseleave", () => {
+          tooltipHideTimer = setTimeout(() => {
+            if (!navTooltip.matches(":hover")) hideNavTooltip();
+          }, 120);
+        });
+      });
+
+      navTooltip.addEventListener("mouseenter", () => {
+        if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
+      });
+      navTooltip.addEventListener("mouseleave", hideNavTooltip);
+
+      function minimizeWindow(windowId) {
+        const win = document.getElementById(windowId);
+        if (win) {
+          win.style.display = "none";
+          saveSession();
+        }
+      }
+
+      function minimizeStickyNote(windowId) {
+        const win = document.getElementById(windowId);
+        if (win) {
+          win.style.display = "none";
+          saveSession();
+        }
+      }
+
+      function renderCalendar() {
+        const calendarWindow = document.getElementById("calendar-window");
+        if (!calendarWindow) return;
+
+        const year = parseInt(calendarWindow.dataset.year);
+        const month = parseInt(calendarWindow.dataset.month);
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const events = JSON.parse(
+          sessionStorage.getItem("calendarEvents") || "{}"
+        );
+
+        let daysHTML = "";
+        for (let i = 0; i < firstDay; i++) {
+          daysHTML += '<div class="day empty"></div>';
+        }
+
+        const today = new Date().toISOString().split("T")[0];
+        for (let day = 1; day <= daysInMonth; day++) {
+          const dateStr = `${year}-${String(month + 1).padStart(
+            2,
+            "0"
+          )}-${String(day).padStart(2, "0")}`;
+          const hasEvents = events[dateStr] && events[dateStr].length > 0;
+          const isToday = dateStr === today;
+          daysHTML += `
+            <div class="day${hasEvents ? " has-events" : ""}${
+            isToday ? " today" : ""
+          }" 
+                 onclick="showEvents('${dateStr}')" 
+                 data-date="${dateStr}">
+                ${day}
+            </div>`;
+        }
+
+        const monthNames = [
+          "January",
+          "February",
+          "March",
+          "April",
+          "May",
+          "June",
+          "July",
+          "August",
+          "September",
+          "October",
+          "November",
+          "December",
+        ];
+
+        document.getElementById(
+          "month-year"
+        ).textContent = `${monthNames[month]} ${year}`;
+        document.getElementById("calendar-grid").innerHTML = `
+        <div class="day-name">Sun</div>
+        <div class="day-name">Mon</div>
+        <div class="day-name">Tue</div>
+        <div class="day-name">Wed</div>
+        <div class="day-name">Thu</div>
+        <div class="day-name">Fri</div>
+        <div class="day-name">Sat</div>
+        ${daysHTML}
+    `;
+
+        updateTodayEvents();
+      }
+
+      function navigateMonth(delta) {
+        const calendarWindow = document.getElementById("calendar-window");
+        if (!calendarWindow) return;
+
+        let year = parseInt(calendarWindow.dataset.year);
+        let month = parseInt(calendarWindow.dataset.month);
+
+        month += delta;
+        if (month < 0) {
+          month = 11;
+          year--;
+        } else if (month > 11) {
+          month = 0;
+          year++;
+        }
+
+        calendarWindow.dataset.year = year;
+        calendarWindow.dataset.month = month;
+        renderCalendar();
+      }
+
+      function goToToday() {
+        const calendarWindow = document.getElementById("calendar-window");
+        if (!calendarWindow) return;
+
+        const today = new Date();
+        calendarWindow.dataset.year = today.getFullYear();
+        calendarWindow.dataset.month = today.getMonth();
+        renderCalendar();
+        showStatus("Navigated to today");
+      }
+
+      (function logConsoleEasterEgg() {
+        try {
+          const titleStyle =
+            "color:#00d4aa;font-weight:700;font-size:14px;font-family:JetBrains Mono,Consolas,monospace;";
+          const hintStyle =
+            "color:#8492a6;font-size:12px;font-family:JetBrains Mono,Consolas,monospace;";
+          console.log("%cphbeks // cbapp", titleStyle);
+          console.log("%cType cbappEgg() to reveal a secret.", hintStyle);
+          window.cbappEgg = function () {
+            console.log("%cYou found it. Keep building.", titleStyle);
+          };
+        } catch (e) {
+          // Swallow console errors to avoid breaking app flow.
+        }
+      })();
+    </script>
+  </body>
+</html>
