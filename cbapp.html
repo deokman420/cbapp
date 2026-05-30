@@ -76,80 +76,8 @@
         background: rgba(0, 0, 0, 0.3);
         border: 1px solid rgba(200, 200, 200, 0.3);
       }
-      .window-header,
-      .calculator-header,
-      .task-header,
-      .clock-header,
-      .log-header,
-      .help-header {
-        background: rgba(200, 200, 200, 0.5);
-        padding: 5px 10px;
-        cursor: default;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-      }
-      .dark-mode .window-header,
-      .dark-mode .calculator-header,
-      .dark-mode .task-header,
-      .dark-mode .clock-header,
-      .dark-mode .log-header {
-        background: rgba(100, 100, 100, 0.5);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-      .window-title,
-      .calculator-title,
-      .task-title,
-      .clock-title,
-      .log-title,
-      .help-title {
-        font-size: 14px;
-        font-weight: bold;
-      }
-      .window-controls,
-      .calculator-controls,
-      .task-controls,
-      .clock-controls,
-      .log-controls {
-        display: flex;
-        gap: 5px;
-      }
-      .edit-window {
-        color: #0c0;
-        font-size: 12px;
-        cursor: pointer;
-      }
-      .edit-window:hover {
-        color: #0a0;
-      }
-      .lock-window {
-        color: #fa0;
-        font-size: 12px;
-        cursor: pointer;
-      }
-      .lock-window.locked {
-        color: #f50;
-      }
-      .lock-window:hover {
-        color: #c80;
-      }
-      .close-window,
-      .close-calculator,
-      .close-task,
-      .close-clock,
-      .close-log {
-        color: #f55;
-        font-size: 12px;
-        cursor: default;
-      }
-      .close-window:hover,
-      .close-calculator:hover,
-      .close-task:hover,
-      .close-clock:hover,
-      .close-log:hover {
-        color: #f00;
-      }
+      /* Legacy controls flex rule removed - now in modern section near header styles */
+      /* Legacy close button colors removed - now using modern muted/accent variables */
       .window-content {
         padding: 10px;
         display: flex;
@@ -327,24 +255,7 @@
       .calculator-buttons .special:hover {
         background: rgba(255, 0, 0, 0.7);
       }
-      .calculator-history,
-      .log-list {
-        max-height: 100px;
-        overflow-y: auto;
-        margin-top: 10px;
-        padding: 5px;
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 5px;
-        font-size: 12px;
-      }
-      .dark-mode .calculator-history,
-      .dark-mode .log-list {
-        background: rgba(0, 0, 0, 0.2);
-      }
-      .calculator-history p,
-      .log-item {
-        margin: 2px 0;
-      }
+      /* Legacy .calculator-history / .log-list background rules removed - unified in modern phbeks section */
       .nav-menu {
         position: fixed;
         bottom: 10px;
@@ -549,17 +460,7 @@
         background: rgba(255, 255, 255, 0.1);
         color: #fff;
       }
-      .task-list {
-        max-height: 200px;
-        overflow-y: auto;
-        padding: 5px;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-      }
-      .dark-mode .task-list {
-        border-color: #555;
-        background: rgba(255, 255, 255, 0.1);
-      }
+      /* Legacy .task-list border/background removed - now handled by modern unified rule */
       .task-item {
         display: flex;
         align-items: center;
@@ -632,46 +533,7 @@
         overflow: auto;
       }
 
-      .help-content {
-        scrollbar-width: thin;
-        scrollbar-color: rgba(0, 212, 170, 0.6) rgba(20, 24, 32, 0.7);
-      }
-
-      .help-content::-webkit-scrollbar {
-        width: 10px;
-      }
-
-      .help-content::-webkit-scrollbar-track {
-        background: rgba(20, 24, 32, 0.7);
-        border-radius: 10px;
-      }
-
-      .help-content::-webkit-scrollbar-thumb {
-        background: rgba(0, 212, 170, 0.6);
-        border-radius: 10px;
-        border: 2px solid rgba(20, 24, 32, 0.8);
-      }
-
-      .help-content::-webkit-scrollbar-thumb:hover {
-        background: rgba(0, 212, 170, 0.8);
-      }
-
-      .light-mode .help-content {
-        scrollbar-color: rgba(14, 165, 163, 0.6) rgba(226, 232, 240, 0.9);
-      }
-
-      .light-mode .help-content::-webkit-scrollbar-track {
-        background: rgba(226, 232, 240, 0.9);
-      }
-
-      .light-mode .help-content::-webkit-scrollbar-thumb {
-        background: rgba(14, 165, 163, 0.6);
-        border: 2px solid rgba(226, 232, 240, 0.9);
-      }
-
-      .light-mode .help-content::-webkit-scrollbar-thumb:hover {
-        background: rgba(14, 165, 163, 0.85);
-      }
+      /* Help window now inherits the unified scrollbar styles above */
 
       .help-text {
         margin: 0;
@@ -869,18 +731,7 @@
         overflow: hidden;
       }
 
-      .task-list {
-        max-height: calc(100% - 100px);
-        overflow-y: auto;
-        padding: 5px;
-        border: 1px solid #ccc;
-        border-radius: 5px;
-      }
-
-      .dark-mode .task-list {
-        border-color: #555;
-        background: rgba(255, 255, 255, 0.1);
-      }
+      /* Duplicate legacy .task-list styles removed - modern unified rule at ~1217 handles consistency */
       .countdown-timer-container {
         display: flex;
         flex-direction: column;
@@ -986,15 +837,7 @@
       .nav-group {
         position: relative; /* Needed for dropdown positioning */
       }
-      .minimize-window {
-        color: #888;
-        font-size: 12px;
-        cursor: pointer;
-        margin-right: 4px;
-      }
-      .minimize-window:hover {
-        color: #007bff;
-      }
+      /* Legacy minimize-window hard-coded colors removed - now controlled by modern .minimize-window rule using variables */
       .sticky-dropdown {
         display: none;
         position: absolute;
@@ -1190,6 +1033,7 @@
       .task-header,
       .clock-header,
       .log-header,
+      .help-header,
       .drawing-header,
       .sticky-note-header {
         background: var(--bg-card-hover);
@@ -1197,13 +1041,29 @@
         color: var(--text);
         font-family: var(--mono);
         padding: 8px 12px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .window-controls,
+      .calculator-controls,
+      .task-controls,
+      .clock-controls,
+      .log-controls,
+      .sticky-note-controls {
+        display: flex;
+        gap: 5px;
       }
 
       .window-title,
       .calculator-title,
       .task-title,
       .clock-title,
-      .log-title {
+      .log-title,
+      .help-title,
+      .sticky-note-title,
+      .drawing-title {
         font-weight: 600;
         letter-spacing: 0.04em;
         font-size: 12px;
@@ -1257,6 +1117,7 @@
         background: var(--bg-card);
         border: 1px solid var(--border);
         color: var(--text-dim);
+        border-radius: 8px;   /* normalized with other inner panels */
       }
 
       .nav-menu {
@@ -1352,16 +1213,16 @@
 
       .clear-note-button,
       .clear-note-button.clear-note-button--mini {
-        background: #f55;
+        background: #ef4444;
         color: #fff;
-        border-color: #f55;
+        border-color: #ef4444;
         box-shadow: none;
       }
 
       .clear-note-button:hover,
       .clear-note-button.clear-note-button--mini:hover {
-        background: #d22;
-        border-color: #d22;
+        background: #dc2626;
+        border-color: #dc2626;
         color: #fff;
         transform: none;
       }
@@ -1504,44 +1365,126 @@
         padding: 0 20px 16px;
       }
 
-      .clock-content {
+      /* Unified custom scrollbar styling - clock is the reference */
+      .clock-content,
+      .help-content,
+      textarea,
+      .t2-textarea,
+      .sticky-note-content,
+      .task-list,
+      .log-list,
+      .calculator-history,
+      .t2-window .textarea-container,
+      .nav-tooltip-list {
         scrollbar-width: thin;
         scrollbar-color: rgba(0, 212, 170, 0.6) rgba(20, 24, 32, 0.7);
       }
 
-      .clock-content::-webkit-scrollbar {
+      .clock-content::-webkit-scrollbar,
+      .help-content::-webkit-scrollbar,
+      textarea::-webkit-scrollbar,
+      .t2-textarea::-webkit-scrollbar,
+      .sticky-note-content::-webkit-scrollbar,
+      .task-list::-webkit-scrollbar,
+      .log-list::-webkit-scrollbar,
+      .calculator-history::-webkit-scrollbar,
+      .t2-window .textarea-container::-webkit-scrollbar,
+      .nav-tooltip-list::-webkit-scrollbar {
         width: 10px;
       }
 
-      .clock-content::-webkit-scrollbar-track {
+      .clock-content::-webkit-scrollbar-track,
+      .help-content::-webkit-scrollbar-track,
+      textarea::-webkit-scrollbar-track,
+      .t2-textarea::-webkit-scrollbar-track,
+      .sticky-note-content::-webkit-scrollbar-track,
+      .task-list::-webkit-scrollbar-track,
+      .log-list::-webkit-scrollbar-track,
+      .calculator-history::-webkit-scrollbar-track,
+      .t2-window .textarea-container::-webkit-scrollbar-track,
+      .nav-tooltip-list::-webkit-scrollbar-track {
         background: rgba(20, 24, 32, 0.7);
         border-radius: 10px;
       }
 
-      .clock-content::-webkit-scrollbar-thumb {
+      .clock-content::-webkit-scrollbar-thumb,
+      .help-content::-webkit-scrollbar-thumb,
+      textarea::-webkit-scrollbar-thumb,
+      .t2-textarea::-webkit-scrollbar-thumb,
+      .sticky-note-content::-webkit-scrollbar-thumb,
+      .task-list::-webkit-scrollbar-thumb,
+      .log-list::-webkit-scrollbar-thumb,
+      .calculator-history::-webkit-scrollbar-thumb,
+      .t2-window .textarea-container::-webkit-scrollbar-thumb,
+      .nav-tooltip-list::-webkit-scrollbar-thumb {
         background: rgba(0, 212, 170, 0.6);
         border-radius: 10px;
         border: 2px solid rgba(20, 24, 32, 0.8);
       }
 
-      .clock-content::-webkit-scrollbar-thumb:hover {
+      .clock-content::-webkit-scrollbar-thumb:hover,
+      .help-content::-webkit-scrollbar-thumb:hover,
+      textarea::-webkit-scrollbar-thumb:hover,
+      .t2-textarea::-webkit-scrollbar-thumb:hover,
+      .sticky-note-content::-webkit-scrollbar-thumb:hover,
+      .task-list::-webkit-scrollbar-thumb:hover,
+      .log-list::-webkit-scrollbar-thumb:hover,
+      .calculator-history::-webkit-scrollbar-thumb:hover,
+      .t2-window .textarea-container::-webkit-scrollbar-thumb:hover,
+      .nav-tooltip-list::-webkit-scrollbar-thumb:hover {
         background: rgba(0, 212, 170, 0.8);
       }
 
-      .light-mode .clock-content {
+      .light-mode .clock-content,
+      .light-mode .help-content,
+      .light-mode textarea,
+      .light-mode .t2-textarea,
+      .light-mode .sticky-note-content,
+      .light-mode .task-list,
+      .light-mode .log-list,
+      .light-mode .calculator-history,
+      .light-mode .t2-window .textarea-container,
+      .light-mode .nav-tooltip-list {
         scrollbar-color: rgba(14, 165, 163, 0.6) rgba(226, 232, 240, 0.9);
       }
 
-      .light-mode .clock-content::-webkit-scrollbar-track {
+      .light-mode .clock-content::-webkit-scrollbar-track,
+      .light-mode .help-content::-webkit-scrollbar-track,
+      .light-mode textarea::-webkit-scrollbar-track,
+      .light-mode .t2-textarea::-webkit-scrollbar-track,
+      .light-mode .sticky-note-content::-webkit-scrollbar-track,
+      .light-mode .task-list::-webkit-scrollbar-track,
+      .light-mode .log-list::-webkit-scrollbar-track,
+      .light-mode .calculator-history::-webkit-scrollbar-track,
+      .light-mode .t2-window .textarea-container::-webkit-scrollbar-track,
+      .light-mode .nav-tooltip-list::-webkit-scrollbar-track {
         background: rgba(226, 232, 240, 0.9);
       }
 
-      .light-mode .clock-content::-webkit-scrollbar-thumb {
+      .light-mode .clock-content::-webkit-scrollbar-thumb,
+      .light-mode .help-content::-webkit-scrollbar-thumb,
+      .light-mode textarea::-webkit-scrollbar-thumb,
+      .light-mode .t2-textarea::-webkit-scrollbar-thumb,
+      .light-mode .sticky-note-content::-webkit-scrollbar-thumb,
+      .light-mode .task-list::-webkit-scrollbar-thumb,
+      .light-mode .log-list::-webkit-scrollbar-thumb,
+      .light-mode .calculator-history::-webkit-scrollbar-thumb,
+      .light-mode .t2-window .textarea-container::-webkit-scrollbar-thumb,
+      .light-mode .nav-tooltip-list::-webkit-scrollbar-thumb {
         background: rgba(14, 165, 163, 0.6);
         border: 2px solid rgba(226, 232, 240, 0.9);
       }
 
-      .light-mode .clock-content::-webkit-scrollbar-thumb:hover {
+      .light-mode .clock-content::-webkit-scrollbar-thumb:hover,
+      .light-mode .help-content::-webkit-scrollbar-thumb:hover,
+      .light-mode textarea::-webkit-scrollbar-thumb:hover,
+      .light-mode .t2-textarea::-webkit-scrollbar-thumb:hover,
+      .light-mode .sticky-note-content::-webkit-scrollbar-thumb:hover,
+      .light-mode .task-list::-webkit-scrollbar-thumb:hover,
+      .light-mode .log-list::-webkit-scrollbar-thumb:hover,
+      .light-mode .calculator-history::-webkit-scrollbar-thumb:hover,
+      .light-mode .t2-window .textarea-container::-webkit-scrollbar-thumb:hover,
+      .light-mode .nav-tooltip-list::-webkit-scrollbar-thumb:hover {
         background: rgba(14, 165, 163, 0.85);
       }
 
@@ -1751,20 +1694,11 @@
         <button onclick="searchReplace()">Apply</button>
       </div>
       <p id="status"></p>
-      <a href="https://phbeks.com/cbapp.zip" download="cbapp.zip" style="display: block; text-align: right; margin-top: 10px; font-size: 14px; color: #ff0000a9; text-decoration: none; font-weight: bold;">
-        Download
-        </a>
+      <a href="#" onclick="downloadCurrentHtml(); return false;" style="display: block; text-align: right; margin-top: 10px; font-size: 13px; color: var(--accent); text-decoration: none; opacity: 0.85;">
+        Download current session as .html
+      </a>
     </div>
     <script type="text/javascript">
-      var gk_isXlsx = false;
-      var gk_xlsxFileLookup = {};
-      var gk_fileData = {};
-      const canvasFunctions = {};
-
-      function filledCell(cell) {
-        return cell !== "" && cell != null;
-      }
-
       function changeStickyNoteColor(windowId, color) {
         const stickyNote = document.getElementById(windowId);
         if (stickyNote) {
@@ -1783,39 +1717,6 @@
           saveSession();
           showStatus("Sticky note text color changed!");
         }
-      }
-
-      function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-          try {
-            var workbook = XLSX.read(gk_fileData[filename], { type: "base64" });
-            var firstSheetName = workbook.SheetNames[0];
-            var worksheet = workbook.Sheets[firstSheetName];
-            var jsonData = XLSX.utils.sheet_to_json(worksheet, {
-              header: 1,
-              blankrows: false,
-              defval: "",
-            });
-            var filteredData = jsonData.filter((row) => row.some(filledCell));
-            var headerRowIndex = filteredData.findIndex(
-              (row, index) =>
-                row.filter(filledCell).length >=
-                filteredData[index + 1]?.filter(filledCell).length
-            );
-            if (headerRowIndex === -1 || headerRowIndex > 25) {
-              headerRowIndex = 0;
-            }
-            var csv = XLSX.utils.aoa_to_sheet(
-              filteredData.slice(headerRowIndex)
-            );
-            csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-            return csv;
-          } catch (e) {
-            console.error(e);
-            return "";
-          }
-        }
-        return gk_fileData[filename] || "";
       }
 
       let windowCount = 0;
@@ -1837,6 +1738,34 @@
       let calculatorHistory = [];
       let logEntries = [];
       const MAX_WINDOWS = 25;
+
+      // --- Internal stability helpers (no UI or behavior change) ---
+      let _saveTimer = null;
+      function debouncedSave(delay = 180) {
+        if (_saveTimer) clearTimeout(_saveTimer);
+        _saveTimer = setTimeout(() => {
+          _saveTimer = null;
+          try { saveSession(); } catch (e) { /* swallow */ }
+        }, delay);
+      }
+
+      // Map of windowId -> ResizeObserver for cleanup
+      const _resizeObservers = Object.create(null);
+
+      function registerResizeObserver(windowId, observer) {
+        if (_resizeObservers[windowId]) {
+          try { _resizeObservers[windowId].disconnect(); } catch (e) {}
+        }
+        _resizeObservers[windowId] = observer;
+      }
+
+      function disconnectResizeObserver(windowId) {
+        const obs = _resizeObservers[windowId];
+        if (obs) {
+          try { obs.disconnect(); } catch (e) {}
+          delete _resizeObservers[windowId];
+        }
+      }
 
       function setMaxDimensions() {
         const textareaContainers = document.querySelectorAll(
@@ -1950,8 +1879,9 @@
           newStickyNote.dataset.height = newStickyNote.offsetHeight;
           newStickyNote.dataset.x = rect.left;
           newStickyNote.dataset.y = rect.top;
-          saveSession();
+          debouncedSave(220);
         });
+        registerResizeObserver(windowId, resizeObserver);
         resizeObserver.observe(newStickyNote);
         return newStickyNote;
       }
@@ -2073,16 +2003,26 @@
           localStorage.getItem("calendarEvents") || "{}"
         );
         try {
-          localStorage.setItem("notepadSession", JSON.stringify(session));
+          const serialized = JSON.stringify(session);
+          // Guard against localStorage quota exhaustion (typical limit ~5-10MB)
+          if (serialized.length > 4500000) {
+            console.warn("Session too large to save safely, skipping write.");
+            return;
+          }
+          localStorage.setItem("notepadSession", serialized);
         } catch (e) {
           console.error("Failed to save session to localStorage:", e);
           showStatus("Failed to save session.");
         }
         if (session.calendarEvents) {
-          localStorage.setItem(
-            "calendarEvents",
-            JSON.stringify(session.calendarEvents)
-          );
+          try {
+            const cal = JSON.stringify(session.calendarEvents);
+            if (cal.length < 500000) {
+              localStorage.setItem("calendarEvents", cal);
+            }
+          } catch (e) {
+            console.warn("Calendar events too large to persist.");
+          }
         }
       }
 
@@ -2130,7 +2070,7 @@
         <div class="window-content">
             <div class="textarea-container" style="width: 218px;">
                 <div class="line-numbers" id="line-numbers-${windowId}">1</div>
-                <textarea id="clipboard-${windowId}" placeholder="Paste or type your text here..." oninput="updateLineNumbers('${windowId}'); updateCounts('${windowId}'); saveSession();"></textarea>
+                <textarea id="clipboard-${windowId}" placeholder="Paste or type your text here..." oninput="updateLineNumbers('${windowId}'); updateCounts('${windowId}');"></textarea>
             </div>
             <div class="note-log-input-container">
                 <input type="text" class="note-log-input" id="note-log-input-${windowId}" placeholder="Enter log description...">
@@ -2150,6 +2090,8 @@
         setActiveWindow(windowId);
         const textarea = document.getElementById(`clipboard-${windowId}`);
         textarea.addEventListener("scroll", () => syncScroll(windowId));
+        // Debounced persistence for stability (no behavior change)
+        textarea.addEventListener("input", () => debouncedSave(160), { passive: true });
         const logInput = document.getElementById(`note-log-input-${windowId}`);
         logInput.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
@@ -2166,8 +2108,9 @@
         );
         const resizeObserver = new ResizeObserver(() => {
           updateWindowSize(windowId);
-          saveSession();
+          debouncedSave(220);
         });
+        registerResizeObserver(windowId, resizeObserver);
         resizeObserver.observe(textareaContainer);
         return newWindow;
       }
@@ -2331,8 +2274,9 @@
         const resizeObserver = new ResizeObserver(() => {
           newWindow.dataset.width = newWindow.offsetWidth;
           newWindow.dataset.height = newWindow.offsetHeight;
-          saveSession();
+          debouncedSave(220);
         });
+        registerResizeObserver(windowId, resizeObserver);
         resizeObserver.observe(newWindow);
         newWindow.className = "task-window";
         newWindow.id = windowId;
@@ -2406,10 +2350,13 @@
         }
         const taskItem = document.createElement("div");
         taskItem.className = "task-item";
-        taskItem.innerHTML = `
-                <input type="checkbox" onchange="toggleTaskCompletion('${windowId}', this)">
-                <span>${taskText}</span>
-            `;
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.onchange = () => toggleTaskCompletion(windowId, checkbox);
+        const span = document.createElement("span");
+        span.textContent = taskText;
+        taskItem.appendChild(checkbox);
+        taskItem.appendChild(span);
         taskList.appendChild(taskItem);
         taskInput.value = "";
         saveSession();
@@ -2463,7 +2410,20 @@
         const windowId = windowElement.id;
         const textarea = document.getElementById(`clipboard-${windowId}`);
         if (textarea && windowElement) {
-          textarea.value = `  CB App Setup for Enterprise Browser Goal: Run CB App in Enterprise browser to enable notepad-like functionality (Enterprise blocks copying text externally).Prerequisites:-Chrome (to download CB App)-Enterprise browser (to run CB App)-SSO access for Enterprise login Steps:1.In Chrome:-Go to phbeks.com/cbapp, download cbapp.zip.-Extract cbapp.html to Documents folder.2.In Enterprise:-Log in via SSO.-Open cbapp.html (right-click > Open with Enterprise if not default).3.Optional Bookmark:-Enable Bookmarks Bar (three-dot menu > Bookmarks > Show Bookmarks Bar).-Drag CB App bookmark from Bookmarks Menu to Bookmarks Bar.Troubleshooting:-App not working? Ensure SSO login and cbapp.html opened in Enterprise. Set Enterprise as default if needed.-Bookmark missing? Verify Bookmarks Bar is enabled and CB App is bookmarked.Note: Keep cbapp.html in Documents for easy access. Must open in same Enterprise session as SSO login.`;
+          textarea.value = `CB App - Self-contained single file app
+
+This cbapp.html is the complete application. No zip or extra files needed.
+
+How to use:
+- Open this file directly in your Enterprise browser.
+- Click the "Download .html" link at the bottom anytime to save your current notes/session.
+- Recommended: Save to Documents or a dedicated folder and create a bookmark/shortcut.
+
+Enterprise Browser:
+- Right-click → "Open with Enterprise" if needed.
+- The app works best when launched from within an active Enterprise session.
+
+Tip: Use the Download button inside the app to preserve your open windows and notes.`;
           windowElement.querySelector(".window-title").textContent =
             "CB App Instructions";
           updateLineNumbers(windowId);
@@ -2521,25 +2481,20 @@
 Goal:
 Run CB App in Enterprise browser to enable notepad-like functionality (Enterprise blocks copying text externally).
 
-Prerequisites:
-- Chrome (to download CB App)
-- Enterprise browser (to run CB App)
-- SSO access for Enterprise login
+This file is the complete CB App. No separate download required.
 
-Steps:
-1. In Chrome:
-   - Go to phbeks.com/cbapp, download cbapp.zip.
-   - Extract cbapp.html to Documents folder.
-2. In Enterprise:
-   - Log in via SSO.
-   - Open cbapp.html (right-click > Open with Enterprise if not default).
-3. Optional Bookmark:
-   - Enable Bookmarks Bar (three-dot menu > Bookmarks > Show Bookmarks Bar).
-   - Drag CB App bookmark from Bookmarks Menu to Bookmarks Bar.
+Usage:
+- Open this cbapp.html directly in your Enterprise browser.
+- Use the "Download .html" link at the bottom to save a copy of your current session (including all open notes).
+- For best results, keep the file in a convenient location (e.g. Documents) and create a bookmark or desktop shortcut.
+
+Enterprise Browser Tips:
+- Right-click the file → Open with Enterprise (if not set as default).
+- Enable the Bookmarks Bar in Chrome/Edge for easy access if desired.
 
 Troubleshooting:
-- App not working? Ensure SSO login and cbapp.html opened in Enterprise. Set Enterprise as default if needed.
-- Bookmark missing? Verify Bookmarks Bar is enabled and CB App is bookmarked.
+- App not responding? Make sure you're running it inside the Enterprise browser session (not regular Chrome).
+- Set Enterprise as your default browser for .html files if needed.
 
 Note:
 Keep cbapp.html in Documents for easy access. Must open in same Enterprise session as SSO login.`;
@@ -2863,7 +2818,8 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         newWindow.onclick = () => setActiveWindow("clock");
         setActiveWindow("clock");
         updateClock("clock");
-        setInterval(() => updateClock("clock"), 1000);
+        if (window._clockInterval) clearInterval(window._clockInterval);
+        window._clockInterval = setInterval(() => updateClock("clock"), 1000);
         clockVisible = true;
         document.getElementById("clock-toggle").textContent = "Clock";
         document.getElementById("clock-toggle").classList.add("active");
@@ -2877,6 +2833,7 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         const clockButton = document.getElementById("clock-toggle");
         if (clock) {
           clock.remove();
+          if (window._clockInterval) { clearInterval(window._clockInterval); window._clockInterval = null; }
           clockVisible = false;
           clockButton.textContent = "Clock";
           clockButton.classList.remove("active");
@@ -2887,6 +2844,7 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
       }
 
       function updateClock(windowId) {
+        if (!windowId) return;
         const timeDiv = document.getElementById(`clock-time-${windowId}`);
         const dateDiv = document.getElementById(`clock-date-${windowId}`);
         const formatSelect = document.getElementById(
@@ -3096,9 +3054,16 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
           logEntries.push(logEntry);
           const logItem = document.createElement("div");
           logItem.className = "log-item";
-          logItem.innerHTML = `
-                    <span class="timestamp">${timestamp}</span>: <span class="description">${description}</span>
-                `;
+          const ts = document.createElement("span");
+          ts.className = "timestamp";
+          ts.textContent = timestamp;
+          const sep = document.createTextNode(": ");
+          const desc = document.createElement("span");
+          desc.className = "description";
+          desc.textContent = description;
+          logItem.appendChild(ts);
+          logItem.appendChild(sep);
+          logItem.appendChild(desc);
           logList.appendChild(logItem);
           logInput.value = "";
           logList.scrollTop = logList.scrollHeight;
@@ -3114,9 +3079,16 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
           logEntries.forEach((entry) => {
             const logItem = document.createElement("div");
             logItem.className = "log-item";
-            logItem.innerHTML = `
-                        <span class="timestamp">${entry.timestamp}</span>: <span class="description">${entry.description}</span>
-                    `;
+            const ts = document.createElement("span");
+            ts.className = "timestamp";
+            ts.textContent = entry.timestamp;
+            const sep = document.createTextNode(": ");
+            const desc = document.createElement("span");
+            desc.className = "description";
+            desc.textContent = entry.description;
+            logItem.appendChild(ts);
+            logItem.appendChild(sep);
+            logItem.appendChild(desc);
             logList.appendChild(logItem);
           });
           logList.scrollTop = logList.scrollHeight;
@@ -3136,7 +3108,7 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         header.onmousedown = function (e) {
           isDragging = true;
 
-          element.style.zIndex = ++zIndexCounter;
+          element.style.zIndex = (zIndexCounter = Math.min(zIndexCounter + 1, 2147483640));
           offsetX = e.clientX - element.getBoundingClientRect().left;
           offsetY = e.clientY - element.getBoundingClientRect().top;
           document.body.style.userSelect = "none";
@@ -3226,7 +3198,7 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
               const offsetY =
                 e.clientY - windowElement.getBoundingClientRect().top;
 
-              windowElement.style.zIndex = ++zIndexCounter;
+              windowElement.style.zIndex = (zIndexCounter = Math.min(zIndexCounter + 1, 2147483640));
               document.body.style.userSelect = "none";
               windowElement.classList.add("dragging");
 
@@ -3304,7 +3276,7 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
           .querySelectorAll(".window, .task-window, .clock-window, .log-window")
           .forEach((win) => win.classList.remove("active"));
         windowElement.classList.add("active");
-        windowElement.style.zIndex = zIndexCounter++;
+        windowElement.style.zIndex = (zIndexCounter = Math.min(zIndexCounter + 1, 2147483640));
       }
 
       function updateLineNumbers(windowId) {
@@ -3328,6 +3300,7 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
       function closeWindow(windowId) {
         const windowElement = document.getElementById(windowId);
         if (windowElement) {
+          disconnectResizeObserver(windowId);
           windowElement.remove();
           delete lockedWindows[windowId];
           if (activeWindow === windowId) {
@@ -3338,7 +3311,7 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
               remainingWindows.length > 0 ? remainingWindows[0].id : null;
             if (activeWindow) setActiveWindow(activeWindow);
           }
-          saveSession();
+          debouncedSave(80);
         }
       }
 
@@ -3650,24 +3623,57 @@ Glance Screen share Code - `;
                   <button class="clear-note-button clear-note-button--mini" onclick="clearNoteText('${windowId}')">Clear</button>
                 </div>
               `;
-              const t2TextareaContainer = windowElement.querySelector(
-                ".textarea-container"
-              );
+
+              // Make T2 structurally consistent with a fresh Note for the grab handle (header)
+              // and modern listeners. Do not call updateWindowSize — we want the explicit size.
+              const t2Textarea = document.getElementById(`clipboard-${windowId}`);
+              if (t2Textarea) {
+                t2Textarea.addEventListener("scroll", () => syncScroll(windowId));
+                t2Textarea.addEventListener("input", () => debouncedSave(160), { passive: true });
+              }
+
+              const t2LogInput = document.getElementById(`note-log-input-${windowId}`);
+              if (t2LogInput) {
+                t2LogInput.addEventListener("keydown", (e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    addNoteLogEntry(windowId);
+                  }
+                });
+              }
+
+              const t2TextareaContainer = windowElement.querySelector(".textarea-container");
               if (t2TextareaContainer) {
                 const resizeObserver = new ResizeObserver(() => {
-                  saveSession();
+                  debouncedSave(220);
                 });
+                registerResizeObserver(windowId, resizeObserver);
                 resizeObserver.observe(t2TextareaContainer);
               }
             }
           } else {
-            textarea.value = `  CB App Setup for Enterprise Browser Goal: Run CB App in Enterprise browser to enable notepad-like functionality (Enterprise blocks copying text externally).Prerequisites:-Chrome (to download CB App)-Enterprise browser (to run CB App)-SSO access for Enterprise login Steps:1.In Chrome:-Go to phbeks.com/cbapp, download cbapp.zip.-Extract cbapp.html to Documents folder.2.In Enterprise:-Log in via SSO.-Open cbapp.html (right-click > Open with Enterprise if not default).3.Optional Bookmark:-Enable Bookmarks Bar (three-dot menu > Bookmarks > Show Bookmarks Bar).-Drag CB App bookmark from Bookmarks Menu to Bookmarks Bar.Troubleshooting:-App not working? Ensure SSO login and cbapp.html opened in Enterprise. Set Enterprise as default if needed.-Bookmark missing? Verify Bookmarks Bar is enabled and CB App is bookmarked.Note: Keep cbapp.html in Documents for easy access. Must open in same Enterprise session as SSO login.`;
+            textarea.value = `CB App - Self-contained single file app
+
+This cbapp.html is the complete application. No zip or extra files needed.
+
+How to use:
+- Open this file directly in your Enterprise browser.
+- Click the "Download .html" link at the bottom anytime to save your current notes/session.
+- Recommended: Save to Documents or a dedicated folder and create a bookmark/shortcut.
+
+Enterprise Browser:
+- Right-click → "Open with Enterprise" if needed.
+- The app works best when launched from within an active Enterprise session.
+
+Tip: Use the Download button inside the app to preserve your open windows and notes.`;
             windowElement.querySelector(".window-title").textContent =
               "CB App Instructions";
           }
           updateLineNumbers(windowId);
           updateCounts(windowId);
-          updateWindowSize(windowId);
+          if (!isT2) {
+            updateWindowSize(windowId);
+          }
           saveSession();
           showStatus(isT2 ? "T2 Template loaded!" : "Instructions loaded!");
         }
@@ -3675,8 +3681,9 @@ Glance Screen share Code - `;
 
       function loadSession() {
         try {
-          // Clear localStorage
-          localStorage.clear();
+          // Clear only this app's keys (safer than wiping the entire origin)
+          localStorage.removeItem("notepadSession");
+          localStorage.removeItem("calendarEvents");
 
           // Reset UI state
           document.getElementById("windows").innerHTML = ""; // Remove all windows
@@ -3729,7 +3736,7 @@ Glance Screen share Code - `;
         // Restore theme
         document.body.className = session.theme || "light-mode";
         if (document.getElementById("calendar-window")) {
-          loadCalendarEvents();
+          try { loadCalendarEvents(); } catch (e) {}
         }
 
         // Restore windows
@@ -3968,6 +3975,25 @@ Glance Screen share Code - `;
           showStatus("Failed to download session.");
         }
       }
+
+      function downloadCurrentHtml() {
+        try {
+          const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+          const blob = new Blob([html], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'cbapp.html';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          showStatus('Downloaded cbapp.html');
+        } catch (e) {
+          showStatus('Failed to download HTML.');
+        }
+      }
+
       function importData() {
         const input = document.createElement("input");
         input.type = "file";
@@ -3980,7 +4006,17 @@ Glance Screen share Code - `;
           const reader = new FileReader();
           reader.onload = (e) => {
             try {
-              const session = JSON.parse(e.target.result);
+              const text = e.target.result;
+              if (typeof text !== "string" || text.length > 4500000) {
+                showStatus("Import failed: file too large or invalid.");
+                return;
+              }
+              const session = JSON.parse(text);
+              // Basic structural sanity check before trusting the import
+              if (!session || typeof session !== "object") {
+                showStatus("Import failed: not a valid session file.");
+                return;
+              }
               localStorage.setItem("notepadSession", JSON.stringify(session));
               loadSession(); // Clear current UI
               loadSessionFromStorage(session); // Load imported session
@@ -4103,6 +4139,7 @@ Glance Screen share Code - `;
       }
 
       function addCalendarWindow() {
+        try {
         if (document.getElementById("calendar-window")) {
           setActiveWindow("calendar-window");
           return;
@@ -4172,10 +4209,16 @@ Glance Screen share Code - `;
         saveSession();
         showStatus("Calendar window created!");
         return calendarWindow;
+        } catch (e) {
+          console.warn("Calendar feature encountered an error (non-fatal):", e);
+          showStatus("Calendar is not available.");
+        }
       }
       function addCalendarEvent() {
-        const date = document.getElementById("calendar-date").value;
-        const desc = document.getElementById("calendar-event").value.trim();
+        try {
+        const date = document.getElementById("calendar-date")?.value;
+        const descEl = document.getElementById("calendar-event");
+        const desc = descEl ? descEl.value.trim() : "";
         if (!date || !desc) {
           showStatus("Please enter a date and event.");
           return;
@@ -4188,11 +4231,15 @@ Glance Screen share Code - `;
         loadCalendarEvents();
         showStatus("Event added!");
         saveSession();
+        } catch (e) { console.warn("addCalendarEvent error (non-fatal)"); }
       }
 
       function loadCalendarEvents() {
-        const date = document.getElementById("calendar-date").value;
+        try {
+        const dateEl = document.getElementById("calendar-date");
         const list = document.getElementById("calendar-events-list");
+        if (!dateEl || !list) return;
+        const date = dateEl.value;
         let events = JSON.parse(localStorage.getItem("calendarEvents") || "{}");
         let html = "";
         if (date && events[date]) {
@@ -4206,9 +4253,11 @@ Glance Screen share Code - `;
           html = "<em>No events for this date.</em>";
         }
         list.innerHTML = html;
+        } catch (e) { console.warn("loadCalendarEvents error (non-fatal)"); }
       }
 
       function deleteCalendarEvent(date, idx) {
+        try {
         let events = JSON.parse(localStorage.getItem("calendarEvents") || "{}");
         if (events[date]) {
           events[date].splice(idx, 1);
@@ -4218,10 +4267,13 @@ Glance Screen share Code - `;
           showStatus("Event deleted!");
           saveSession();
         }
+        } catch (e) { console.warn("deleteCalendarEvent error (non-fatal)"); }
       }
 
       document.addEventListener("change", function (e) {
-        if (e.target && e.target.id === "calendar-date") loadCalendarEvents();
+        if (e.target && e.target.id === "calendar-date") {
+          try { loadCalendarEvents(); } catch (e) {}
+        }
       });
 
       // --- Nav Tooltips ---
@@ -4336,7 +4388,18 @@ Glance Screen share Code - `;
         }
       }
 
+      // --- Calendar hardening stubs (prevent crashes from incomplete feature) ---
+      function updateTodayEvents() {
+        // No-op stub: the calendar UI is not fully wired in this build.
+        // Prevents ReferenceError if renderCalendar or load paths are reached.
+      }
+      function showEvents(dateStr) {
+        // Safe stub — shows a gentle message instead of throwing.
+        try { showStatus("Calendar view is not available in this version."); } catch (e) {}
+      }
+
       function renderCalendar() {
+        try {
         const calendarWindow = document.getElementById("calendar-window");
         if (!calendarWindow) return;
 
@@ -4345,7 +4408,7 @@ Glance Screen share Code - `;
         const firstDay = new Date(year, month, 1).getDay();
         const daysInMonth = new Date(year, month + 1, 0).getDate();
         const events = JSON.parse(
-          sessionStorage.getItem("calendarEvents") || "{}"
+          localStorage.getItem("calendarEvents") || "{}"
         );
 
         let daysHTML = "";
@@ -4401,9 +4464,11 @@ Glance Screen share Code - `;
     `;
 
         updateTodayEvents();
+        } catch (e) { console.warn("renderCalendar error (non-fatal)"); }
       }
 
       function navigateMonth(delta) {
+        try {
         const calendarWindow = document.getElementById("calendar-window");
         if (!calendarWindow) return;
 
@@ -4422,9 +4487,11 @@ Glance Screen share Code - `;
         calendarWindow.dataset.year = year;
         calendarWindow.dataset.month = month;
         renderCalendar();
+        } catch (e) { console.warn("navigateMonth error (non-fatal)"); }
       }
 
       function goToToday() {
+        try {
         const calendarWindow = document.getElementById("calendar-window");
         if (!calendarWindow) return;
 
@@ -4433,6 +4500,7 @@ Glance Screen share Code - `;
         calendarWindow.dataset.month = today.getMonth();
         renderCalendar();
         showStatus("Navigated to today");
+        } catch (e) { console.warn("goToToday error (non-fatal)"); }
       }
 
       (function logConsoleEasterEgg() {
