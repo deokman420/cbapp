@@ -3625,10 +3625,15 @@ Glance Screen share Code - `;
             windowElement.querySelector(".window-title").textContent =
               t2Label;
             windowElement.classList.add("t2-window");
+            // Lock T2 window to fixed dimensions
+            windowElement.style.width = "450px";
+            windowElement.style.height = "420px";
+            windowElement.dataset.width = 450;
+            windowElement.dataset.height = 420;
             const t2Content = windowElement.querySelector(".window-content");
             if (t2Content) {
               t2Content.innerHTML = `
-                <div class="textarea-container" style="width: 218px;">
+                <div class="textarea-container" style="width: 350px; max-height: 220px; overflow: auto;">
                   <div class="line-numbers" id="line-numbers-${windowId}">1</div>
                   <textarea
                     id="clipboard-${windowId}"
@@ -3650,12 +3655,10 @@ Glance Screen share Code - `;
               );
               if (t2TextareaContainer) {
                 const resizeObserver = new ResizeObserver(() => {
-                  updateWindowSize(windowId);
                   saveSession();
                 });
                 resizeObserver.observe(t2TextareaContainer);
               }
-              setMaxDimensions();
             }
           } else {
             textarea.value = `  CB App Setup for Enterprise Browser Goal: Run CB App in Enterprise browser to enable notepad-like functionality (Enterprise blocks copying text externally).Prerequisites:-Chrome (to download CB App)-Enterprise browser (to run CB App)-SSO access for Enterprise login Steps:1.In Chrome:-Go to phbeks.com/cbapp, download cbapp.zip.-Extract cbapp.html to Documents folder.2.In Enterprise:-Log in via SSO.-Open cbapp.html (right-click > Open with Enterprise if not default).3.Optional Bookmark:-Enable Bookmarks Bar (three-dot menu > Bookmarks > Show Bookmarks Bar).-Drag CB App bookmark from Bookmarks Menu to Bookmarks Bar.Troubleshooting:-App not working? Ensure SSO login and cbapp.html opened in Enterprise. Set Enterprise as default if needed.-Bookmark missing? Verify Bookmarks Bar is enabled and CB App is bookmarked.Note: Keep cbapp.html in Documents for easy access. Must open in same Enterprise session as SSO login.`;
