@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -5,8 +6,10 @@
     <meta name="description" content="CB App - A browser-based notepad and productivity tool">
     <meta name="theme-color" content="#007bff">
     <!-- Add CSP for security -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data:;">
     <title>CB App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
@@ -314,7 +317,7 @@
       }
       .light-mode .nav-menu button,
       .light-mode .nav-menu a {
-        background: #007bff;
+        background: #0062cc;
       }
       .light-mode .nav-menu button:hover,
       .light-mode .nav-menu a:hover {
@@ -324,25 +327,25 @@
       }
       .dark-mode .nav-menu button,
       .dark-mode .nav-menu a {
-        background: #4a90e2;
+        background: #2a66aa;
       }
       .dark-mode .nav-menu button:hover,
       .dark-mode .nav-menu a:hover {
-        background: #357abd;
+        background: #285a94;
         transform: translateY(-2px);
         box-shadow: 0 2px 8px rgba(74, 144, 226, 0.5);
       }
       #theme-toggle,
       #log-toggle {
-        background: #6c757d;
+        background: #565e64;
       }
       .dark-mode #theme-toggle,
       .dark-mode #log-toggle {
-        background: #6c757d;
+        background: #565e64;
       }
       #theme-toggle:hover,
       #log-toggle:hover {
-        background: #5a6268;
+        background: #494f54;
         box-shadow: 0 2px 8px rgba(108, 117, 125, 0.5);
       }
       .nav-menu button.active {
@@ -577,7 +580,7 @@
         margin-top: 10px;
       }
       #log-toggle {
-        background: #007bff;
+        background: #0062cc;
         border-radius: 8px;
         padding: 8px 12px;
         font-size: 12px;
@@ -591,11 +594,11 @@
       }
 
       .dark-mode #log-toggle {
-        background: #4a90e2;
+        background: #2a66aa;
       }
 
       .dark-mode #log-toggle:hover {
-        background: #357abd;
+        background: #285a94;
         transform: translateY(-2px);
         box-shadow: 0 2px 8px rgba(74, 144, 226, 0.5);
       }
