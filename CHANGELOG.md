@@ -7,6 +7,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.0.2] — 2026-07-28
+
+### Fixed
+
+- **Calc, Clock, Log, Theme and Search did not highlight on hover** while Note,
+  Tasks, T2 and the rest did. Those five are the only toolbar buttons with an
+  `id`, and a leftover id-specificity rule (0,1,0,0) outranked both
+  `.nav-menu button:hover` and `.nav-menu button.active` (0,0,2,0), pinning them
+  to the resting colours. The rule existed only to neutralise legacy skins that
+  were deleted in v3.0, so it is gone; the shared nav rules already style every
+  toolbar button identically. This also restores the active-state highlight on
+  the Calc and Clock toggles.
+
+---
+
 ## [3.0.1] — 2026-07-28
 
 ### Fixed

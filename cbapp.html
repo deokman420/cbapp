@@ -19,7 +19,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.0.1 — 2026-07-28. See CHANGELOG.md for release history. -->
+    <!-- CB App v3.0.2 — 2026-07-28. See CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -916,22 +916,20 @@
 
       .calculator-buttons .operation,
       .log-input-container button,
-      .note-log-button,
-      #log-toggle {
+      .note-log-button {
         background: var(--accent-dim);
         color: var(--accent);
-        border-color: rgba(0, 212, 170, 0.35);
+        border-color: color-mix(in srgb, var(--accent) 35%, transparent);
       }
 
-      #theme-toggle,
-      #log-toggle,
-      #calculator-toggle,
-      #clock-toggle,
-      #search-btn {
-        background: var(--bg-card);
-        color: var(--text);
-        border-color: var(--border);
-      }
+      /* An id-specificity rule for #theme-toggle / #log-toggle /
+         #calculator-toggle / #clock-toggle / #search-btn used to sit here. It
+         existed only to neutralise the legacy skins those buttons carried, and
+         those were deleted in v3.0 — but at (0,1,0,0) it also outranked
+         `.nav-menu button:hover` (0,0,2,0) and `.nav-menu button.active`, so
+         Calc, Clock, Log, Theme and Search stayed plain on hover while Note,
+         Tasks and T2 highlighted. Removed: the shared nav rules already give
+         every toolbar button the same resting, hover and active styling. */
 
       .calculator-buttons .special,
       .clear-note-button {
