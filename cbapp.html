@@ -19,7 +19,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- Version 1.05 web (minimize when the window is locked)-->
+    <!-- CB App v3.0 — 2026-07-28. See CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -71,14 +71,11 @@
       .log-window.dragging {
         opacity: 0.8;
       }
-      .dark-mode .window,
-      .dark-mode .calculator,
-      .dark-mode .task-window,
-      .dark-mode .clock-window,
-      .dark-mode .log-window {
-        background: rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(200, 200, 200, 0.3);
-      }
+      /* The `.dark-mode X` legacy rules that used to live here outranked the
+         token-based system further down purely on specificity (0,0,2,0 beats
+         0,0,1,0), so windows were still painting rgba(0,0,0,0.3) over a
+         rgba(200,200,200,0.3) border instead of --bg-card / --border. The
+         tokens already cover both themes; the overrides only defeated them. */
       /* Legacy controls flex rule removed - now in modern section near header styles */
       /* Legacy close button colors removed - now using modern muted/accent variables */
       .window-content {
@@ -99,12 +96,6 @@
         min-height: 200px;
         width: 350px;
       }
-      .light-mode .textarea-container {
-        border-color: #ccc;
-      }
-      .dark-mode .textarea-container {
-        border-color: #555;
-      }
       .line-numbers {
         width: 30px;
         background: rgba(200, 200, 200, 0.5);
@@ -117,11 +108,6 @@
         user-select: none;
         border-right: 1px solid #ccc;
         transition: background 0.5s ease;
-      }
-      .dark-mode .line-numbers {
-        background: rgba(80, 80, 80, 0.5);
-        color: #aaa;
-        border-right-color: #555;
       }
       textarea {
         flex: 1;
@@ -141,15 +127,6 @@
       textarea[readonly] {
         background: rgba(0, 0, 0, 0.1);
       }
-      .dark-mode textarea[readonly] {
-        background: rgba(255, 255, 255, 0.1);
-      }
-      .light-mode textarea {
-        color: #000;
-      }
-      .dark-mode textarea {
-        color: #fff;
-      }
       .note-log-input-container {
         display: flex;
         gap: 5px;
@@ -161,11 +138,6 @@
         border: 1px solid #ccc;
         border-radius: 5px;
         outline: none;
-      }
-      .dark-mode .note-log-input {
-        border-color: #555;
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
       }
       .note-log-button {
         padding: 5px 10px;
@@ -183,6 +155,15 @@
         justify-content: center;
         gap: 5px;
         flex-wrap: wrap;
+      }
+      /* Note/T2 only: a divider line separating the log-input row from the
+         action buttons. Scoped to .window so the clock/task rows are untouched;
+         using border-top (not a separate <hr>) keeps the height inside
+         .format-buttons.offsetHeight so updateWindowSize stays accurate. */
+      .window .format-buttons {
+        border-top: 1px solid var(--border);
+        padding-top: 8px;
+        margin-top: 2px;
       }
       .counts {
         font-size: 12px;
@@ -206,18 +187,9 @@
         margin-bottom: 10px;
         box-sizing: border-box;
       }
-      .dark-mode .calculator-input,
-      .dark-mode .calculator-display,
-      .dark-mode .log-input {
-        background: rgba(0, 0, 0, 0.3);
-        color: #fff;
-      }
       .calculator-display {
         background: rgba(255, 255, 255, 0.4);
         text-align: right;
-      }
-      .dark-mode .calculator-display {
-        background: rgba(0, 0, 0, 0.4);
       }
       .calculator-buttons {
         display: grid;
@@ -234,15 +206,6 @@
       }
       .calculator-buttons .number {
         background: rgba(200, 200, 200, 0.5);
-      }
-      .light-mode .calculator-buttons .number:hover {
-        background: rgba(180, 180, 180, 0.5);
-      }
-      .dark-mode .calculator-buttons .number {
-        background: rgba(100, 100, 100, 0.5);
-      }
-      .dark-mode .calculator-buttons .number:hover {
-        background: rgba(120, 120, 120, 0.5);
       }
       .calculator-buttons .operation,
       .log-input-container button {
@@ -287,10 +250,6 @@
         gap: 10px;
         flex-wrap: wrap;
       }
-      .dark-mode .nav-menu {
-        background: rgba(0, 0, 0, 0.3);
-        box-shadow: 0 4px 20px rgba(255, 255, 255, 0.1);
-      }
       .nav-menu.collapsed {
         width: 40px;
         padding: 8px;
@@ -315,39 +274,9 @@
         min-width: 140px;
         padding: 0 18px;
       }
-      .light-mode .nav-menu button,
-      .light-mode .nav-menu a {
-        background: #0062cc;
-      }
-      .light-mode .nav-menu button:hover,
-      .light-mode .nav-menu a:hover {
-        background: #0056b3;
-        transform: translateY(-2px);
-        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.5);
-      }
-      .dark-mode .nav-menu button,
-      .dark-mode .nav-menu a {
-        background: #2a66aa;
-      }
-      .dark-mode .nav-menu button:hover,
-      .dark-mode .nav-menu a:hover {
-        background: #285a94;
-        transform: translateY(-2px);
-        box-shadow: 0 2px 8px rgba(74, 144, 226, 0.5);
-      }
-      #theme-toggle,
-      #log-toggle {
-        background: #565e64;
-      }
-      .dark-mode #theme-toggle,
-      .dark-mode #log-toggle {
-        background: #565e64;
-      }
-      #theme-toggle:hover,
-      #log-toggle:hover {
-        background: #494f54;
-        box-shadow: 0 2px 8px rgba(108, 117, 125, 0.5);
-      }
+      /* Legacy #theme-toggle / #log-toggle colour overrides removed: they
+         outranked the unified nav-button styling further down and left LOG
+         rendering blue and THEME grey while every sibling was card-coloured. */
       .nav-menu button.active {
         background: #28a745;
       }
@@ -458,11 +387,6 @@
         border-radius: 5px;
         outline: none;
       }
-      .dark-mode .task-input {
-        border-color: #555;
-        background: rgba(255, 255, 255, 0.1);
-        color: #fff;
-      }
       /* Legacy .task-list border/background removed - now handled by modern unified rule */
       .task-item {
         display: flex;
@@ -520,9 +444,6 @@
         font-size: 14px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
       }
-      .dark-mode .log-item {
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
       .log-item:last-child {
         border-bottom: none;
       }
@@ -546,126 +467,12 @@
         white-space: pre-wrap;
       }
 
-      .t2-window .window-content {
-        padding-bottom: 12px;
-      }
+      /* Legacy #log-toggle skin removed - it is a nav button like any other and
+         is styled by the unified nav rules (and .active) further down. */
 
-      .t2-window .t2-textarea {
-        width: 100%;
-        min-height: 240px;
-        padding: 10px;
-        border: none;
-        border-radius: 10px;
-        background: transparent;
-        color: var(--text);
-        font-family: var(--mono);
-        resize: none;
-        outline: none;
-        overflow: auto;
-        display: block;
-      }
-
-      .t2-window .textarea-container {
-        width: 100% !important;
-        min-height: 240px;
-        resize: both;
-        overflow: auto;
-      }
-
-      .t2-window .line-numbers {
-        display: none;
-      }
-
-      .t2-window .note-log-input-container {
-        margin-top: 10px;
-      }
-      #log-toggle {
-        background: #0062cc;
-        border-radius: 8px;
-        padding: 8px 12px;
-        font-size: 12px;
-        transition: all 0.2s ease;
-      }
-
-      #log-toggle:hover {
-        background: #0056b3;
-        transform: translateY(-2px);
-        box-shadow: 0 2px 8px rgba(0, 123, 255, 0.5);
-      }
-
-      .dark-mode #log-toggle {
-        background: #2a66aa;
-      }
-
-      .dark-mode #log-toggle:hover {
-        background: #285a94;
-        transform: translateY(-2px);
-        box-shadow: 0 2px 8px rgba(74, 144, 226, 0.5);
-      }
-
-      #log-toggle.active {
-        background: #28a745;
-      }
-
-      #log-toggle.active:hover {
-        background: #218838;
-      }
-
-      .drawing-window {
-        position: absolute;
-        background: rgba(255, 255, 255, 0.9);
-        border: 1px solid #ccc;
-        border-radius: 10px;
-        overflow: hidden;
-        resize: both;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-        transition: background 0.3s ease, box-shadow 0.3s ease;
-      }
-
-      .dark-mode .drawing-window {
-        background: rgba(0, 0, 0, 0.8);
-        border: 1px solid #555;
-        box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
-      }
-
-      .drawing-header {
-        background: rgba(200, 200, 200, 0.5);
-        padding: 5px 10px;
-        cursor: default;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-        transition: background 0.3s ease;
-      }
-
-      .dark-mode .drawing-header {
-        background: rgba(80, 80, 80, 0.5);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
-
-      .drawing-toolbar {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 10px;
-        background: rgba(240, 240, 240, 0.9);
-        border-bottom: 1px solid #ccc;
-        transition: background 0.3s ease;
-      }
-
-      .dark-mode .drawing-toolbar {
-        background: rgba(50, 50, 50, 0.9);
-        border-bottom: 1px solid #555;
-      }
-
-      .drawing-canvas {
-        display: block;
-        width: 100%;
-        height: calc(100% - 80px);
-        cursor: crosshair;
-        background: transparent;
-      }
+      /* The drawing window was removed: its nav button has been commented out
+         for a long time, so the styles and ~120 lines of canvas code behind it
+         were unreachable. */
 
       .sticky-note-window {
         position: absolute;
@@ -678,11 +485,6 @@
         transition: background 0.3s ease, box-shadow 0.3s ease;
       }
 
-      .dark-mode .sticky-note-window {
-        background: #444444;
-        border: 1px solid #555;
-        box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
-      }
 
       .sticky-note-header {
         background: rgba(200, 200, 200, 0.5);
@@ -694,10 +496,6 @@
         border-bottom: 1px solid rgba(0, 0, 0, 0.1);
       }
 
-      .dark-mode .sticky-note-header {
-        background: rgba(80, 80, 80, 0.5);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-      }
 
       .sticky-note-toolbar {
         display: flex;
@@ -708,10 +506,6 @@
         border-bottom: 1px solid #ccc;
       }
 
-      .dark-mode .sticky-note-toolbar {
-        background: rgba(50, 50, 50, 0.9);
-        border-bottom: 1px solid #555;
-      }
 
       .sticky-note-content {
         width: 100%;
@@ -726,9 +520,6 @@
         color: #000;
       }
 
-      .dark-mode .sticky-note-content {
-        color: #fff;
-      }
       .task-window {
         resize: both;
         overflow: hidden;
@@ -798,10 +589,6 @@
         z-index: 2000;
         padding: 5px 0;
       }
-      .dark-mode .note-dropdown {
-        background: #222;
-        color: #fff;
-      }
       .note-dropdown .note-dropdown-item {
         padding: 8px 16px;
         cursor: pointer;
@@ -854,10 +641,6 @@
         z-index: 2000;
         padding: 5px 0;
       }
-      .dark-mode .sticky-dropdown {
-        background: #222;
-        color: #fff;
-      }
       .sticky-dropdown .note-dropdown-item {
         padding: 8px 16px;
         cursor: pointer;
@@ -889,74 +672,6 @@
         color: #f50;
       }
 
-      .calendar-window .calendar-grid {
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 5px;
-        margin-top: 10px;
-      }
-
-      .calendar-window .day-name {
-        text-align: center;
-        font-weight: bold;
-        padding: 5px;
-      }
-
-      .calendar-window .day {
-        text-align: center;
-        padding: 10px;
-        border: 1px solid #ccc;
-        cursor: pointer;
-        background-color: rgba(255, 255, 255, 0.7);
-        transition: background-color 0.3s;
-      }
-
-      .calendar-window .day.has-events {
-        background-color: #e0f7fa;
-      }
-
-      .calendar-window .day.today {
-        background-color: #ffeb3b;
-      }
-
-      .calendar-window .day.empty {
-        background-color: rgba(245, 245, 245, 0.5);
-      }
-
-      .dark-mode .calendar-window .day {
-        border-color: #555;
-        background-color: rgba(51, 51, 51, 0.7);
-        color: #fff;
-      }
-
-      .dark-mode .calendar-window .day.has-events {
-        background-color: #004d40;
-      }
-
-      .dark-mode .calendar-window .day.today {
-        background-color: #ffc107;
-        color: #000;
-      }
-
-      .dark-mode .calendar-window .day.empty {
-        background-color: rgba(34, 34, 34, 0.5);
-      }
-
-      .calendar-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px;
-      }
-
-      .today-events,
-      .events-section {
-        padding: 10px;
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 5px;
-        margin-top: 10px;
-      }
-
       /* Phbeks.com visual system overrides */
       *, *::before, *::after {
         box-sizing: border-box;
@@ -972,11 +687,20 @@
         --blue: #3b82f6;
         --purple: #a855f7;
         --orange: #f59e0b;
+        /* #ef4444 measured 4.02:1 on the dark card - the destructive controls
+           are the last place to be borderline. */
+        --danger: #f87171;
+        --danger-solid: #dc2626;
         --text: #e2e8f0;
         --text-dim: #8492a6;
         --text-muted: #4a5568;
         --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         --mono: "JetBrains Mono", "Consolas", monospace;
+        /* A sticky note defaulted to --bg-card, making it pixel-identical to
+           every other window - the one window type whose whole point is that
+           you can pick it out at a glance. Warm, solid, high-contrast. */
+        --sticky-bg: #2b2718;
+        --sticky-text: #f6ecd2;
       }
 
       .light-mode {
@@ -984,14 +708,21 @@
         --bg-card: #ffffff;
         --bg-card-hover: #f1f5f9;
         --border: #d7dee8;
-        --accent: #0ea5a3;
-        --accent-dim: rgba(14, 165, 163, 0.14);
+        /* #0ea5a3 measured ~2.9:1 as text on the light card - it is a fine
+           border/glow colour but fails AA for the many places --accent is used
+           as a foreground (active titles, links, operator keys). */
+        --accent: #115e59;
+        --accent-dim: rgba(17, 94, 89, 0.13);
+        --danger: #a01818;
+        --danger-solid: #b91c1c;
         --blue: #2563eb;
         --purple: #7c3aed;
         --orange: #f59e0b;
         --text: #0f172a;
         --text-dim: #475569;
         --text-muted: #64748b;
+        --sticky-bg: #fff6c9;
+        --sticky-text: #3b3210;
       }
 
       body,
@@ -1012,7 +743,6 @@
       .task-window,
       .clock-window,
       .log-window,
-      .drawing-window,
       .sticky-note-window {
         background: var(--bg-card);
         border: 1px solid var(--border);
@@ -1026,7 +756,6 @@
       .task-window:hover,
       .clock-window:hover,
       .log-window:hover,
-      .drawing-window:hover,
       .sticky-note-window:hover {
         border-color: var(--accent);
       }
@@ -1037,7 +766,6 @@
       .clock-header,
       .log-header,
       .help-header,
-      .drawing-header,
       .sticky-note-header {
         background: var(--bg-card-hover);
         border-bottom: 1px solid var(--border);
@@ -1065,8 +793,7 @@
       .clock-title,
       .log-title,
       .help-title,
-      .sticky-note-title,
-      .drawing-title {
+      .sticky-note-title {
         font-weight: 600;
         letter-spacing: 0.04em;
         font-size: 12px;
@@ -1082,7 +809,9 @@
       .line-numbers {
         background: var(--bg-card-hover);
         border-right-color: var(--border);
-        color: var(--text-muted);
+        /* --text-muted measured 2.19:1 dark / 3.46:1 light against the gutter;
+           these are numbers people actually read. */
+        color: var(--text-dim);
         font-family: var(--mono);
       }
 
@@ -1206,33 +935,36 @@
 
       .calculator-buttons .special,
       .clear-note-button {
-        background: rgba(239, 68, 68, 0.16);
-        color: #ef4444;
-        border-color: rgba(239, 68, 68, 0.35);
+        background: color-mix(in srgb, var(--danger) 16%, transparent);
+        color: var(--danger);
+        border-color: color-mix(in srgb, var(--danger) 40%, transparent);
         text-transform: none;
         font-size: 0.7rem;
         padding: 6px 12px;
       }
 
+      /* White on #ef4444 is 3.3:1; --danger-solid clears AA in both themes. */
       .clear-note-button,
       .clear-note-button.clear-note-button--mini {
-        background: #ef4444;
+        background: var(--danger-solid);
         color: #fff;
-        border-color: #ef4444;
+        border-color: var(--danger-solid);
         box-shadow: none;
       }
 
       .clear-note-button:hover,
       .clear-note-button.clear-note-button--mini:hover {
-        background: #dc2626;
-        border-color: #dc2626;
+        background: #991b1b;
+        border-color: #991b1b;
         color: #fff;
         transform: none;
       }
 
+      /* Was a hard-coded dark-theme teal wash, which read as a stray blue tint
+         against the light palette. */
       .nav-menu button.active,
       #log-toggle.active {
-        background: rgba(0, 212, 170, 0.2);
+        background: var(--accent-dim);
         color: var(--accent);
         border-color: var(--accent);
       }
@@ -1272,28 +1004,80 @@
 
 
       .sticky-note-window {
-        background: var(--bg-card);
+        background: var(--sticky-bg);
         border-color: var(--border);
       }
 
-      .sticky-note-header {
-        background: var(--bg-card-hover);
-        border-bottom-color: var(--border);
-        color: var(--text);
+      /* The header and toolbar are translucent washes rather than fixed
+         colours, so they stay legible against whatever background colour the
+         user picks in the swatch, not just the default. */
+      .sticky-note-header,
+      .sticky-note-toolbar {
+        background: rgba(0, 0, 0, 0.16);
+        border-bottom-color: rgba(0, 0, 0, 0.18);
+        color: inherit;
       }
 
+      .dark-mode .sticky-note-header,
+      .dark-mode .sticky-note-toolbar {
+        background: rgba(255, 255, 255, 0.07);
+        border-bottom-color: rgba(255, 255, 255, 0.12);
+      }
+
+      .sticky-note-window,
+      .sticky-note-toolbar label {
+        color: var(--sticky-text);
+      }
+
+      .sticky-note-window .edit-window,
+      .sticky-note-window .minimize-window,
+      .sticky-note-window .close-sticky-note,
+      .sticky-note-window .sticky-lock-window {
+        color: inherit;
+        opacity: 0.85;
+      }
+
+      .sticky-note-window .edit-window:hover,
+      .sticky-note-window .minimize-window:hover,
+      .sticky-note-window .close-sticky-note:hover,
+      .sticky-note-window .sticky-lock-window:hover {
+        opacity: 1;
+      }
+
+      /* Locked stays legible but unmistakable against the note's own colours. */
+      .sticky-note-window .sticky-lock-window.locked {
+        color: #b91c1c;
+        opacity: 1;
+      }
+
+      .dark-mode .sticky-note-window .sticky-lock-window.locked {
+        color: #fca5a5;
+      }
+
+      /* The two swatch labels rendered at default body size, so a colour
+         picker nobody uses twice a session dominated the note. */
       .sticky-note-toolbar {
-        background: var(--bg-card);
-        border-bottom-color: var(--border);
-        color: var(--text-dim);
+        gap: 8px;
+        padding: 6px 12px;
+        font-size: 11px;
       }
 
       .sticky-note-toolbar label {
-        color: var(--text-dim);
+        font-family: var(--mono);
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.9;
+      }
+
+      .sticky-note-toolbar input[type="color"] {
+        width: 28px;
+        height: 20px;
+        padding: 0 2px;
+        cursor: pointer;
       }
 
       .sticky-note-toolbar input[type="color"],
-      .drawing-toolbar input[type="color"],
       .clock-window input[type="number"],
       .clock-window select {
         background: var(--bg-card);
@@ -1304,13 +1088,11 @@
         font-family: var(--mono);
       }
 
-      .dark-mode .sticky-note-toolbar input[type="color"],
-      .dark-mode .drawing-toolbar input[type="color"] {
+      .dark-mode .sticky-note-toolbar input[type="color"] {
         background: #0f131a;
       }
 
-      .light-mode .sticky-note-toolbar input[type="color"],
-      .light-mode .drawing-toolbar input[type="color"] {
+      .light-mode .sticky-note-toolbar input[type="color"] {
         background: #ffffff;
       }
 
@@ -1523,6 +1305,31 @@
         color: var(--text-muted);
       }
 
+      /* The close glyph is a thin text "×" that reads smaller than its emoji
+         siblings; nudge it up so it's an easier hit target without dominating. */
+      .close-window,
+      .close-sticky-note,
+      .close-calculator,
+      .close-task,
+      .close-clock,
+      .close-log {
+        font-size: 19px;
+        line-height: 1;
+      }
+
+      /* These header control glyphs are text nodes, so the default `cursor: auto`
+         resolves to the text I-beam on hover. Force the normal arrow instead. */
+      .edit-window,
+      .minimize-window,
+      .close-window,
+      .close-sticky-note,
+      .close-calculator,
+      .close-task,
+      .close-clock,
+      .close-log {
+        cursor: default;
+      }
+
       .lock-window,
       .sticky-lock-window {
         color: var(--orange);
@@ -1530,32 +1337,13 @@
 
       .lock-window.locked,
       .sticky-lock-window.locked {
-        color: #ef4444;
+        color: var(--danger);
       }
 
       .clock-content,
       .log-item span,
       .countdown-display {
         font-family: var(--mono);
-      }
-
-      .calendar-window .day {
-        background-color: var(--bg-card);
-        border-color: var(--border);
-        color: var(--text);
-      }
-
-      .calendar-window .day.has-events {
-        background-color: rgba(59, 130, 246, 0.2);
-      }
-
-      .calendar-window .day.today {
-        background-color: rgba(0, 212, 170, 0.2);
-        color: var(--text);
-      }
-
-      .calendar-window .day.empty {
-        background-color: rgba(20, 24, 32, 0.6);
       }
 
       .help-window {
@@ -1583,14 +1371,746 @@
         color: var(--text-dim);
       }
 
+      /* ==========================================================
+         UX pass — everything below intentionally sits last so it
+         wins on cascade order over the legacy rules above.
+         ========================================================== */
+
+      /* --- Focus: which window do Copy/Paste/Search act on? ---
+         setActiveWindow() has always set .active, but nothing ever drew it.
+         Hover is demoted to a neutral tint so it stops impersonating focus. */
+      .window:hover,
+      .calculator:hover,
+      .task-window:hover,
+      .clock-window:hover,
+      .log-window:hover,
+      .sticky-note-window:hover,
+      .help-window:hover {
+        border-color: var(--text-muted);
+      }
+
+      .window.active,
+      .calculator.active,
+      .task-window.active,
+      .clock-window.active,
+      .log-window.active,
+      .sticky-note-window.active,
+      .help-window.active {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent), 0 20px 50px rgba(0, 0, 0, 0.45);
+      }
+
+      .active > .window-header,
+      .active > .calculator-header,
+      .active > .task-header,
+      .active > .clock-header,
+      .active > .log-header,
+      .active > .help-header,
+      .active > .sticky-note-header {
+        background: var(--accent-dim);
+      }
+
+      .active > * > .window-title,
+      .active > * > .calculator-title,
+      .active > * > .task-title,
+      .active > * > .clock-title,
+      .active > * > .log-title,
+      .active > * > .help-title,
+      .active > * > .sticky-note-title,
+      .active > .window-header > .window-title {
+        color: var(--accent);
+      }
+
+      /* --- Keyboard accessibility: nothing had a focus ring at all. --- */
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+
+      /* --- Header control glyphs ---
+         --text-muted on --bg-card is ~2.4:1, well under WCAG AA, and the
+         glyphs are buttons so they need a pointer, not the default arrow. */
+      .minimize-window,
+      .edit-window,
+      .close-window,
+      .close-sticky-note,
+      .close-calculator,
+      .close-task,
+      .close-clock,
+      .close-log,
+      .lock-window,
+      .sticky-lock-window {
+        color: var(--text-dim);
+        cursor: pointer;
+        width: 22px;
+        height: 22px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        transition: color 0.15s ease, background 0.15s ease;
+      }
+
+      .minimize-window:hover,
+      .edit-window:hover,
+      .close-window:hover,
+      .close-sticky-note:hover,
+      .close-calculator:hover,
+      .close-task:hover,
+      .close-clock:hover,
+      .close-log:hover {
+        color: var(--accent);
+        background: var(--accent-dim);
+      }
+
+      .close-window:hover,
+      .close-sticky-note:hover,
+      .close-calculator:hover,
+      .close-task:hover,
+      .close-clock:hover,
+      .close-log:hover {
+        color: var(--danger);
+        background: color-mix(in srgb, var(--danger) 16%, transparent);
+      }
+
+      /* --- Nav bar --- */
+      /* The ☰ collapse control is a small-screen affordance. A later
+         `display: inline-flex` on all buttons was un-hiding it on desktop,
+         where clicking it collapsed the whole toolbar into a 40px pill. */
+      .nav-menu .nav-toggle {
+        display: none;
+      }
+
+      .nav-menu.collapsed .nav-toggle {
+        display: inline-flex;
+      }
+
+      /* The tooltip hard-coded a near-black panel but took its text colour from
+         --text, which in light mode is also near-black - unreadable. Both now
+         come from the theme. */
+      #nav-tooltip {
+        max-width: min(320px, calc(100vw - 24px));
+        white-space: normal;
+        overflow-wrap: anywhere;
+        background: var(--bg-card);
+        color: var(--text);
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+      }
+
+      .light-mode #nav-tooltip {
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+      }
+
+      /* A locked note's readonly wash was a flat rgba(0,0,0,0.2) regardless of
+         theme, which turned light-mode notes muddy grey. */
+      textarea[readonly],
+      .sticky-note-content[readonly] {
+        background: var(--bg-card-hover);
+        cursor: not-allowed;
+      }
+
+      .nav-tooltip-list {
+        max-height: 210px;
+        overflow-y: auto;
+      }
+
+      /* --- Status toast ---
+         Was `bottom: 50px`, i.e. directly behind the bottom-centre nav menu,
+         so every status message was invisible. Anchored opposite the nav. */
+      #status {
+        top: 18px;
+        bottom: auto;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 9px 16px;
+        border-radius: 999px;
+        font-size: 12px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+        z-index: 2500;
+        margin: 0;
+        pointer-events: none;
+      }
+
+      #status.showing {
+        animation: status-in 0.18s ease-out;
+      }
+
+      /* The search panel occupies the same top-centre slot; drop the toast
+         below it rather than letting the two stack on top of each other. */
+      #search-replace.active ~ #status {
+        top: 76px;
+      }
+
+      @keyframes status-in {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -8px);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, 0);
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #status.showing {
+          animation: none;
+        }
+        * {
+          transition-duration: 0.01ms !important;
+        }
+      }
+
+      /* --- Notes ---
+         .window-content reserved 32px for a .clear-note-container that no
+         longer lives there (Clear moved into .format-buttons), leaving a dead
+         gap under every note. */
+      .window-content {
+        padding-bottom: 10px;
+      }
+
+      /* --- Sticky notes ---
+         Content was calc(100% - 60px) against a ~33px header plus a ~40px
+         toolbar, so the textarea overflowed past the bottom of the note.
+         Flex layout removes the hard-coded arithmetic entirely. */
+      .sticky-note-window {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .sticky-note-header,
+      .sticky-note-toolbar {
+        flex: 0 0 auto;
+      }
+
+      .sticky-note-content {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 0;
+      }
+
+      /* --- Task list --- */
+      .task-window {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .task-content {
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+
+      .task-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 4px;
+      }
+
+      /* An empty task list read as a large unexplained void with a red
+         destructive button floating in the middle of it. */
+      .task-list:empty::before {
+        content: "No tasks yet — add one above.";
+        display: block;
+        padding: 18px 6px;
+        color: var(--text-muted);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .task-list:empty {
+        border-color: var(--border);
+        background: var(--bg-card);
+      }
+
+      .task-item {
+        border-radius: 6px;
+        gap: 8px;
+      }
+
+      .task-item:hover {
+        background: var(--bg-card-hover);
+      }
+
+      .task-item span {
+        flex: 1;
+        overflow-wrap: anywhere;
+      }
+
+      .task-item .task-delete {
+        opacity: 0;
+        color: var(--text-muted);
+        background: transparent;
+        border: 0;
+        padding: 2px 6px;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+        transition: opacity 0.15s ease, color 0.15s ease;
+      }
+
+      .task-item:hover .task-delete,
+      .task-delete:focus-visible {
+        opacity: 1;
+      }
+
+      .task-item .task-delete:hover {
+        color: var(--danger);
+      }
+
+      .task-window .format-buttons {
+        justify-content: flex-end;
+        border-top: 1px solid var(--border);
+        padding-top: 8px;
+      }
+
+      /* --- Touch dragging ---
+         Without touch-action:none the browser claims the gesture for panning
+         and never delivers pointermove, so a title bar can be pressed but not
+         dragged. Scoped to the title bars so content still scrolls normally. */
+      .window-header,
+      .task-header,
+      .clock-header,
+      .log-header,
+      .calculator-header,
+      .help-header,
+      .sticky-note-header {
+        touch-action: none;
+        cursor: grab;
+        user-select: none;
+      }
+
+      .dragging > .window-header,
+      .dragging > .task-header,
+      .dragging > .clock-header,
+      .dragging > .log-header,
+      .dragging > .calculator-header,
+      .dragging > .help-header,
+      .dragging > .sticky-note-header {
+        cursor: grabbing;
+      }
+
+      [data-locked="true"] > .window-header,
+      [data-locked="true"] > .task-header,
+      [data-locked="true"] > .clock-header,
+      [data-locked="true"] > .log-header,
+      [data-locked="true"] > .calculator-header,
+      [data-locked="true"] > .help-header,
+      [data-locked="true"] > .sticky-note-header {
+        cursor: default;
+      }
+
+      /* Native resize corners are effectively unusable with a finger. */
+      @media (pointer: coarse) {
+        .window,
+        .task-window,
+        .clock-window,
+        .log-window,
+        .calculator,
+        .sticky-note-window,
+        .help-window {
+          resize: none;
+        }
+      }
+
+      /* --- Locked windows ---
+         Locking now disables the controls inside any window type, so they need
+         to read as unavailable rather than merely unresponsive. */
+      button:disabled,
+      input:disabled,
+      select:disabled,
+      textarea:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+
+      button:disabled:hover,
+      .format-buttons button:disabled:hover,
+      .calculator-buttons button:disabled:hover,
+      .note-log-button:disabled:hover,
+      .clear-note-button:disabled:hover {
+        transform: none;
+        box-shadow: none;
+        border-color: var(--border);
+        color: inherit;
+        background: inherit;
+      }
+
+      [data-locked="true"] .task-item:hover {
+        background: transparent;
+      }
+
+      [data-locked="true"] .task-delete {
+        display: none;
+      }
+
+      /* --- Calculator ---
+         .calculator-buttons .number (0,0,2,0) outranked the shared button
+         styling, so the digit keys stayed a flat light grey in dark mode while
+         every other control was themed. */
+      .calculator-buttons .number {
+        background: var(--bg-card-hover);
+        color: var(--text);
+        border-color: var(--border);
+      }
+
+      .calculator-buttons .number:hover {
+        background: var(--bg-card);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      /* --- Clock ---
+         The countdown row was bare " m" / " s" text nodes next to fixed-width
+         inputs, which sat at different baselines and read as noise. */
+      .countdown-field {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .countdown-field input[type="number"] {
+        width: 62px;
+        text-align: center;
+      }
+
+      .countdown-field span {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--text-dim);
+      }
+
+      .countdown-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      /* The countdown block is fixed-height chrome at the foot of the clock;
+         only the scrolling region above it should absorb spare space. */
+      .countdown-timer-container {
+        flex: 0 0 auto;
+      }
+
+      /* --- Log --- */
+      .log-window {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .log-content {
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+
+      .log-list {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 4px;
+      }
+
+      .log-list:empty::before {
+        content: "No entries yet — log something above.";
+        display: block;
+        padding: 18px 6px;
+        color: var(--text-muted);
+        font-size: 12px;
+        text-align: center;
+      }
+
+      .log-item {
+        display: flex;
+        align-items: baseline;
+        gap: 6px;
+        border-radius: 6px;
+      }
+
+      .log-item:hover {
+        background: var(--bg-card-hover);
+      }
+
+      .log-item .description {
+        flex: 1;
+        overflow-wrap: anywhere;
+      }
+
+      .log-item .timestamp {
+        color: var(--text-dim);
+        white-space: nowrap;
+      }
+
+      .log-delete {
+        opacity: 0;
+        color: var(--text-muted);
+        background: transparent;
+        border: 0;
+        padding: 2px 6px;
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+        transition: opacity 0.15s ease, color 0.15s ease;
+      }
+
+      .log-item:hover .log-delete,
+      .log-delete:focus-visible {
+        opacity: 1;
+      }
+
+      .log-delete:hover {
+        color: var(--danger);
+      }
+
+      [data-locked="true"] .log-delete {
+        display: none;
+      }
+
+      [data-locked="true"] .log-item:hover {
+        background: transparent;
+      }
+
+      /* --- Search / replace ---
+         Was an unstyled div dropped into the whiteboard's flex column, so it
+         appeared mid-canvas with no chrome and shoved the layout around. */
+      #search-replace {
+        position: fixed;
+        left: 50%;
+        top: 18px;
+        transform: translateX(-50%);
+        margin: 0;
+        display: none;
+        gap: 8px;
+        align-items: center;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 8px 10px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        z-index: 2400;
+      }
+
+      #search-replace.active {
+        display: flex;
+      }
+
+      #search-replace input {
+        border-radius: 999px;
+        padding: 7px 14px;
+        font-size: 12px;
+        width: 170px;
+        outline: none;
+      }
+
+      /* --- Download link ---
+         Was a full-width right-aligned block flush against the viewport edge.
+         Made it a deliberate corner chip that clears the nav menu. */
+      /* Pinned to the bottom-right corner of the viewport in every layout and
+         always above the window layer (windows are capped below 900, this sits
+         at 1001), so it can never be covered or pushed off-screen. */
+      .download-html-link {
+        position: fixed;
+        right: 16px;
+        bottom: 16px;
+        right: max(16px, env(safe-area-inset-right));
+        bottom: max(16px, env(safe-area-inset-bottom));
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 8px 14px;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        z-index: 1001;
+        transition: color 0.2s, border-color 0.2s, background 0.2s;
+      }
+
+      /* Deliberately the one control that highlights red rather than the accent
+         teal: it writes a file to disk, so it reads as distinct from the
+         in-app actions that all share the teal hover. */
+      .download-html-link:hover,
+      .download-html-link:focus-visible {
+        color: var(--danger);
+        border-color: var(--danger);
+        background: var(--bg-card-hover);
+      }
+
+      .download-html-link:focus-visible {
+        outline-color: var(--danger);
+      }
+
+      /* --- Empty canvas ---
+         An app that opens to a featureless void gives the user nothing to
+         act on. This hint is hidden by JS as soon as a window exists. */
+      #empty-state {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        text-align: center;
+        pointer-events: none;
+        padding: 0 24px 160px;
+        color: var(--text-muted);
+      }
+
+      #empty-state[hidden] {
+        display: none;
+      }
+
+      #empty-state .empty-title {
+        font-size: 15px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      #empty-state .empty-hint {
+        font-size: 13px;
+        max-width: 52ch;
+        line-height: 1.7;
+        color: var(--text-dim);
+        margin: 0;
+      }
+
+      #empty-state strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      #empty-state kbd {
+        font-family: var(--mono);
+        font-size: 11px;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 1px 6px;
+        color: var(--text-dim);
+      }
+
+      /* --- Minimised windows need a way back ---
+         minimizeWindow() sets display:none and the only route back was an
+         undiscoverable hover tooltip. This is a real restore bar. */
+      #minimized-bar {
+        position: fixed;
+        left: 16px;
+        bottom: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        max-width: 40vw;
+        z-index: 1001;
+      }
+
+      #minimized-bar:empty {
+        display: none;
+      }
+
+      .minimized-chip {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        border-radius: 999px;
+        padding: 7px 14px;
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        cursor: pointer;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .minimized-chip:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      /* --- Small screens ---
+         The nav is width:max-content / flex-wrap:nowrap, so on a phone it ran
+         far past the viewport with no way to reach the right-hand buttons. */
+      @media (max-width: 720px) {
+        .nav-menu {
+          top: 8px;
+          bottom: auto;
+          left: 8px;
+          right: 8px;
+          transform: none;
+          width: auto;
+          max-width: none;
+          flex-wrap: wrap;
+        }
+
+        .nav-row {
+          justify-content: center;
+          flex-wrap: wrap;
+        }
+
+        /* The vertical group dividers only read as separators on one line;
+           once the toolbar wraps they become stray floating strokes. */
+        .nav-group {
+          flex-wrap: wrap;
+          justify-content: center;
+          border-right: none;
+          padding: 0 4px;
+        }
+
+        #status,
+        #search-replace {
+          top: auto;
+          bottom: 18px;
+        }
+
+        #search-replace.active ~ #status {
+          top: auto;
+          bottom: 92px;
+        }
+
+        #search-replace {
+          flex-wrap: wrap;
+          justify-content: center;
+          border-radius: 16px;
+          max-width: calc(100vw - 32px);
+        }
+
+        #search-replace input {
+          width: 100%;
+        }
+
+        #empty-state {
+          padding-bottom: 0;
+        }
+
+        /* Keep the minimized chips clear of the download chip in the corner
+           instead of letting the two rows overlap on a narrow screen. */
+        #minimized-bar {
+          max-width: calc(100vw - 32px);
+          bottom: 64px;
+        }
+      }
     </style>
   </head>
   <body class="dark-mode">
     <div class="whiteboard">
       <div id="windows"></div>
-      <div class="nav-menu">
+      <nav class="nav-menu" aria-label="CB App toolbar">
         <div class="nav-row">
-          <button class="nav-toggle" onclick="toggleNavMenu()">☰</button>
+          <button
+            class="nav-toggle"
+            type="button"
+            onclick="toggleNavMenu()"
+            aria-label="Expand toolbar"
+            aria-expanded="false"
+          >
+            ☰
+          </button>
           <div class="nav-group">
             <div class="nav-btn-dropdown">
               <button onclick="addWindow()" data-tooltip="New Note" data-tooltip-type="note">
@@ -1598,7 +2118,6 @@
               </button>
               <div class="note-dropdown" id="note-dropdown"></div>
             </div>
-            <!--<button onclick="addDrawingWindow()" data-tooltip="New Drawing">Draw</button>-->
             <button onclick="addTaskWindow()" data-tooltip="New Task List" data-tooltip-type="task">
               Tasks
             </button>
@@ -1615,9 +2134,6 @@
               </button>
               <div class="sticky-dropdown" id="sticky-dropdown"></div>
             </div>
-            <!--
-                <button onclick="addCalendarWindow()" data-tooltip="Open Calendar">Calendar</button> 
-                -->
           </div>
           <div class="nav-group">
             <button onclick="copyText()" data-tooltip="Copy Active Note">
@@ -1690,15 +2206,31 @@
             </button>
           </div>
         </div>
+      </nav>
+      <div id="empty-state">
+        <div class="empty-title">CB App</div>
+        <p class="empty-hint">
+          Nothing open yet. Start with <strong>Note</strong>, <strong>Tasks</strong>
+          or <strong>T2</strong> in the toolbar below — or press
+          <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> for a new note.
+          Everything you type is saved to this browser automatically.
+        </p>
       </div>
-      <div id="search-replace">
-        <input type="text" id="search-input" placeholder="Search..." />
-        <input type="text" id="replace-input" placeholder="Replace with..." />
+      <div id="search-replace" role="search" aria-label="Search and replace in the active note">
+        <input type="text" id="search-input" placeholder="Search..." aria-label="Search for" />
+        <input type="text" id="replace-input" placeholder="Replace with..." aria-label="Replace with" />
         <button onclick="searchReplace()">Apply</button>
+        <button onclick="toggleSearchReplace()" aria-label="Close search">Close</button>
       </div>
-      <p id="status"></p>
-      <a href="#" onclick="downloadCurrentHtml(); return false;" style="display: block; text-align: right; margin-top: 10px; font-size: 13px; color: var(--accent); text-decoration: none; opacity: 0.85;">
-        Download current session as .html
+      <div id="minimized-bar" aria-label="Minimized windows"></div>
+      <p id="status" role="status" aria-live="polite"></p>
+      <a
+        href="#"
+        class="download-html-link"
+        onclick="downloadCurrentHtml(); return false;"
+        title="Save this whole app, with your current session baked in, as a single .html file"
+      >
+        Download .html
       </a>
     </div>
     <script type="text/javascript">
@@ -1730,8 +2262,11 @@
       let calculatorCount = 0;
       let clockCount = 0;
       let activeWindow = null;
-      let lockedWindows = {};
+      // lockedWindows removed along with the orphaned toggleLock(): lock state
+      // lives on each element's dataset.locked, which is what toggleWindowLock()
+      // and saveSession() actually read.
       let zIndexCounter = 1;
+      let restoring = false; // true only while loadSessionFromStorage rebuilds the DOM
       let activeTool = null;
       let offsetX = 0;
       let offsetY = 0;
@@ -1741,6 +2276,175 @@
       let calculatorHistory = [];
       let logEntries = [];
       const MAX_WINDOWS = 25;
+
+      // Every window type used to spawn at a fixed spot - notes, calculator,
+      // clock and help all dead-centre, tasks at 50,50, log at 0,0 - so opening
+      // three things buried them in one pile. Windows now cascade, stay clear of
+      // the toolbar, and wrap back to the start when they run out of room.
+      const WINDOW_SELECTOR =
+        ".window, .task-window, .clock-window, .log-window, .calculator, .sticky-note-window, .help-window";
+      const CASCADE_STEP = 32;
+      let cascadeIndex = 0;
+
+      // Windows live strictly below the fixed chrome (toolbar 1000, download
+      // chip and minimized bar 1001, search 2400, toast 2500, tooltip 3000).
+      // zIndexCounter used to climb to 2147483640, so after enough focus
+      // switches a window would render on top of the toolbar and the download
+      // link. When the ceiling is reached the stack is compacted instead.
+      const WINDOW_Z_MAX = 900;
+
+      function nextWindowZ() {
+        if (zIndexCounter >= WINDOW_Z_MAX) compactWindowZ();
+        return ++zIndexCounter;
+      }
+
+      // Re-number the open windows 1..n, preserving their current order, so the
+      // counter can keep going without ever reaching the chrome layer.
+      function compactWindowZ() {
+        const ordered = Array.from(document.querySelectorAll(WINDOW_SELECTOR))
+          .map((el) => ({ el, z: parseInt(el.style.zIndex) || 0 }))
+          .sort((a, b) => a.z - b.z);
+        ordered.forEach((item, i) => {
+          item.el.style.zIndex = i + 1;
+        });
+        zIndexCounter = ordered.length;
+      }
+
+      function navMenuBounds() {
+        const nav = document.querySelector(".nav-menu");
+        return nav ? nav.getBoundingClientRect() : null;
+      }
+
+      // Usable canvas: the viewport minus whatever edge the toolbar occupies.
+      function canvasBounds() {
+        const pad = 12;
+        const nav = navMenuBounds();
+        let top = pad;
+        let bottom = window.innerHeight - pad;
+        if (nav && nav.height) {
+          // Toolbar is bottom-anchored on desktop, top-anchored on narrow screens.
+          if (nav.top > window.innerHeight / 2) bottom = nav.top - pad;
+          else top = nav.bottom + pad;
+        }
+        return { left: pad, top, right: window.innerWidth - pad, bottom };
+      }
+
+      function clampToCanvas(width, height, x, y) {
+        const b = canvasBounds();
+        const maxX = Math.max(b.left, b.right - width);
+        const maxY = Math.max(b.top, b.bottom - height);
+        return {
+          x: Math.min(Math.max(b.left, x), maxX),
+          y: Math.min(Math.max(b.top, y), maxY),
+        };
+      }
+
+      // Position a freshly created window. The first one on an empty canvas is
+      // centred; every one after that steps down-right from that same anchor,
+      // so the pile reads as a predictable staircase rather than scattering
+      // (centring each window on its own size put them all back on top of each
+      // other, just slightly offset).
+      let cascadeAnchor = null;
+
+      function placeWindow(element, width, height) {
+        const b = canvasBounds();
+        const openCount = document.querySelectorAll(WINDOW_SELECTOR).length;
+
+        if (openCount === 0 || !cascadeAnchor) {
+          cascadeAnchor = {
+            x: b.left + Math.max(0, (b.right - b.left - width) / 2),
+            y: b.top + Math.max(0, (b.bottom - b.top - height) / 2),
+          };
+          cascadeIndex = 0;
+        } else {
+          cascadeIndex++;
+        }
+
+        // Before a window would run past the edge of the canvas, restart the
+        // staircase from the top-left rather than from slot 0 - slot 0 is
+        // where the very first window is still sitting.
+        const step = cascadeIndex * CASCADE_STEP;
+        if (
+          cascadeAnchor.x + step + width > b.right ||
+          cascadeAnchor.y + step + height > b.bottom
+        ) {
+          cascadeAnchor = { x: b.left + 12, y: b.top + 12 };
+          cascadeIndex = 0;
+        }
+
+        const offset = cascadeIndex * CASCADE_STEP;
+        const spot = clampToCanvas(
+          width,
+          height,
+          cascadeAnchor.x + offset,
+          cascadeAnchor.y + offset
+        );
+        element.style.left = `${spot.x}px`;
+        element.style.top = `${spot.y}px`;
+        element.dataset.x = spot.x;
+        element.dataset.y = spot.y;
+        return spot;
+      }
+
+      // Sessions saved on a large monitor used to restore off-screen on a small
+      // one, with no way to drag a window back into view.
+      function clampWindowIntoView(element) {
+        if (!element || element.style.display === "none") return;
+        const spot = clampToCanvas(
+          element.offsetWidth,
+          element.offsetHeight,
+          parseFloat(element.dataset.x) || 0,
+          parseFloat(element.dataset.y) || 0
+        );
+        element.style.left = `${spot.x}px`;
+        element.style.top = `${spot.y}px`;
+        element.dataset.x = spot.x;
+        element.dataset.y = spot.y;
+      }
+
+      // Raise + focus. Previously .active was set but never styled, so nothing
+      // told the user which note Copy/Paste/Search would act on.
+      function wireWindowFocus(element) {
+        const raise = () => setActiveWindow(element.id);
+        // mousedown, not click: raising on mouseup felt a beat behind the cursor.
+        element.addEventListener("mousedown", raise);
+        element.addEventListener("focusin", raise);
+      }
+
+      // The empty canvas and the minimised-window bar both derive purely from
+      // the DOM, so one function keeps them honest after any change.
+      function refreshChrome() {
+        const all = Array.from(document.querySelectorAll(WINDOW_SELECTOR));
+        const emptyState = document.getElementById("empty-state");
+        if (emptyState) emptyState.hidden = all.length > 0;
+
+        const bar = document.getElementById("minimized-bar");
+        if (!bar) return;
+        const minimized = all.filter((el) => el.style.display === "none");
+        bar.innerHTML = "";
+        minimized.forEach((el) => {
+          const label =
+            el.querySelector(
+              ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calculator-title, .help-title"
+            )?.textContent || el.id;
+          const chip = document.createElement("button");
+          chip.className = "minimized-chip";
+          chip.textContent = label;
+          chip.title = `Restore ${label}`;
+          chip.addEventListener("click", () => restoreWindow(el.id));
+          bar.appendChild(chip);
+        });
+      }
+
+      function restoreWindow(windowId) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        el.style.display = "";
+        setActiveWindow(windowId);
+        clampWindowIntoView(el);
+        refreshChrome();
+        saveSession();
+      }
 
       // --- Internal stability helpers (no UI or behavior change) ---
       let _saveTimer = null;
@@ -1817,10 +2521,14 @@
         });
       }
       function addStickyNote() {
+        // Each add* function used to count a different subset (sticky notes
+        // counted only sticky notes; the others ignored sticky notes and the
+        // calculator entirely), so the "maximum" moved depending on which
+        // button you pressed. One selector, one limit.
         if (
-          document.querySelectorAll(".sticky-note-window").length >= MAX_WINDOWS
+          document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
-          showStatus("Maximum number of sticky notes reached.");
+          showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
           return;
         }
 
@@ -1832,30 +2540,34 @@
         const newStickyNote = document.createElement("div");
         newStickyNote.className = "sticky-note-window";
         newStickyNote.id = windowId;
-        newStickyNote.style.left = "50";
-        newStickyNote.style.top = "50";
-        newStickyNote.style.zIndex = zIndexCounter++;
-        newStickyNote.dataset.x = 50;
-        newStickyNote.dataset.y = 50;
-        newStickyNote.dataset.width = 200;
-        newStickyNote.dataset.height = 200;
-        newStickyNote.style.width = "300";
-        newStickyNote.style.height = "300";
+        newStickyNote.style.zIndex = nextWindowZ();
+        newStickyNote.dataset.width = 412;
+        newStickyNote.dataset.height = 431;
+        newStickyNote.style.width = "412px";
+        newStickyNote.style.height = "431px";
+        // These were "50" without a unit, so the declarations were invalid and
+        // dropped; the note landed wherever static flow put it.
+        placeWindow(newStickyNote, 412, 431);
+        // Only seed the swatch inputs from the theme; do NOT write the colours
+        // to element.style. Baking them in at creation time froze the note to
+        // whichever theme was active when it was made, so switching to light
+        // mode left dark text on a still-dark note (1.2:1). Left unset, the
+        // CSS --sticky-bg / --sticky-text tokens follow the theme, and an
+        // explicit user pick still overrides them via the change handlers.
         const computedStyles = getComputedStyle(document.body);
         const defaultBgColor =
-          computedStyles.getPropertyValue("--bg-card").trim() || "#141820";
+          computedStyles.getPropertyValue("--sticky-bg").trim() || "#2b2718";
         const defaultTextColor =
-          computedStyles.getPropertyValue("--text").trim() || "#e2e8f0";
-        newStickyNote.style.backgroundColor = defaultBgColor;
+          computedStyles.getPropertyValue("--sticky-text").trim() || "#f6ecd2";
 
         newStickyNote.innerHTML = `
     <div class="sticky-note-header">
         <span class="sticky-note-title">${stickyLabel}</span>
         <div class="sticky-note-controls">
-            <span class="edit-window" onclick="startRename('${windowId}')">✏️</span>
-            <span class="minimize-window" onclick="minimizeStickyNote('${windowId}')">🗕</span>
-            <span class="sticky-lock-window" onclick="toggleWindowLock('${windowId}')">🔓</span>
-            <span class="close-sticky-note" onclick="closeWindow('${windowId}')">×</span>
+            <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
+            <span class="minimize-window" onclick="minimizeStickyNote('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
+            <span class="sticky-lock-window" onclick="toggleWindowLock('${windowId}')" title="Lock editing, dragging and resizing" role="button" tabindex="0">🔓</span>
+            <span class="close-sticky-note" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
         </div>
     </div>
     <div class="sticky-note-toolbar">
@@ -1864,18 +2576,14 @@
         <label for="sticky-note-text-color-${windowId}">Text:</label>
         <input type="color" id="sticky-note-text-color-${windowId}" value="${defaultTextColor}" onchange="changeStickyNoteTextColor('${windowId}', this.value)">
     </div>
-    <textarea class="sticky-note-content" placeholder="Write something..." style="color: ${defaultTextColor};"></textarea>
+    <textarea class="sticky-note-content" placeholder="Write something..."></textarea>
 `;
 
         windowsContainer.appendChild(newStickyNote);
         makeDraggable(newStickyNote);
-        newStickyNote.onclick = (e) => {
-          setActiveWindow(windowId);
-          const rect = newStickyNote.getBoundingClientRect();
-          newStickyNote.dataset.x = rect.left;
-          newStickyNote.dataset.y = rect.top;
-          saveSession();
-        };
+        wireWindowFocus(newStickyNote);
+        setActiveWindow(windowId);
+        refreshChrome();
         const resizeObserver = new ResizeObserver(() => {
           const rect = newStickyNote.getBoundingClientRect();
           newStickyNote.dataset.width = newStickyNote.offsetWidth;
@@ -1890,6 +2598,10 @@
       }
 
       function saveSession() {
+        // While restoring we rebuild the DOM by replaying add*() helpers, each of
+        // which calls saveSession(); skip those so we never persist a partial
+        // mid-restore snapshot. loadSessionFromStorage() does one final save itself.
+        if (restoring) return;
         const session = {};
         document
           .querySelectorAll(".window, .task-window")
@@ -1906,6 +2618,8 @@
               },
               width: windowElement.offsetWidth,
               height: windowElement.offsetHeight,
+              zIndex: parseInt(windowElement.style.zIndex) || 0,
+              minimized: windowElement.style.display === "none",
               content: textarea ? textarea.value : "",
               name: title,
               isTaskWindow: windowElement.classList.contains("task-window"),
@@ -1933,6 +2647,8 @@
             name: clock.querySelector(".clock-title").textContent,
             clockFormat:
               document.getElementById("clock-format-clock")?.value || "12",
+            locked: clock.dataset.locked === "true",
+            minimized: clock.style.display === "none",
           };
         }
         if (document.getElementById("calculator")) {
@@ -1944,6 +2660,10 @@
               top: document.getElementById("calculator").dataset.y || "50",
             },
             width: document.getElementById("calculator").dataset.width || "250",
+            locked:
+              document.getElementById("calculator").dataset.locked === "true",
+            minimized:
+              document.getElementById("calculator").style.display === "none",
           };
         }
         const log = document.getElementById("log");
@@ -1957,6 +2677,8 @@
             width: log.dataset.width || "300",
             height: log.dataset.height || "300",
             name: log.querySelector(".log-title").textContent,
+            locked: log.dataset.locked === "true",
+            minimized: log.style.display === "none",
             logs: Array.from(document.querySelectorAll(".log-item")).map(
               (item) => ({
                 timestamp: item.querySelector(".timestamp").textContent,
@@ -1974,6 +2696,20 @@
             logs: logEntries,
           };
         }
+        // The help window was the one window type that silently vanished on
+        // refresh while every other one came back.
+        const help = document.getElementById("help-window");
+        session.help = help
+          ? {
+              visible: true,
+              position: {
+                left: help.dataset.x || "50",
+                top: help.dataset.y || "50",
+              },
+              minimized: help.style.display === "none",
+              locked: help.dataset.locked === "true",
+            }
+          : { visible: false };
         session.theme = document.body.className || "light-mode";
         document
           .querySelectorAll(".sticky-note-window")
@@ -1982,10 +2718,11 @@
             const content = stickyNote.querySelector(
               ".sticky-note-content"
             ).value;
-            const bgColor = stickyNote.style.backgroundColor;
+            // Empty means "no explicit pick, follow the theme" - persist that
+            // rather than snapshotting whatever the theme happened to be.
+            const bgColor = stickyNote.style.backgroundColor || "";
             const textColor =
-              stickyNote.querySelector(".sticky-note-content").style.color ||
-              "#000";
+              stickyNote.querySelector(".sticky-note-content").style.color || "";
             const title =
               stickyNote.querySelector(".sticky-note-title").textContent;
             session[windowId] = {
@@ -1996,15 +2733,15 @@
               },
               width: stickyNote.offsetWidth,
               height: stickyNote.offsetHeight,
+              zIndex: parseInt(stickyNote.style.zIndex) || 0,
+              minimized: stickyNote.style.display === "none",
               content,
               color: bgColor,
               textColor,
               name: title,
             };
           });
-        session.calendarEvents = JSON.parse(
-          localStorage.getItem("calendarEvents") || "{}"
-        );
+        session.zIndexCounter = zIndexCounter;
         try {
           const serialized = JSON.stringify(session);
           // Guard against localStorage quota exhaustion (typical limit ~5-10MB)
@@ -2017,25 +2754,13 @@
           console.error("Failed to save session to localStorage:", e);
           showStatus("Failed to save session.");
         }
-        if (session.calendarEvents) {
-          try {
-            const cal = JSON.stringify(session.calendarEvents);
-            if (cal.length < 500000) {
-              localStorage.setItem("calendarEvents", cal);
-            }
-          } catch (e) {
-            console.warn("Calendar events too large to persist.");
-          }
-        }
       }
 
       function addWindow() {
         if (
-          document.querySelectorAll(
-            ".window, .task-window, .clock-window, .log-window"
-          ).length >= MAX_WINDOWS
+          document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
-          showStatus("Maximum number of windows reached.");
+          showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
           return;
         }
         windowCount++;
@@ -2047,31 +2772,30 @@
         newWindow.className = "window";
         newWindow.id = windowId;
 
-        // Center the window
-        const defaultWidth = 350;
-        const defaultHeight = 250;
-        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
-        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
-        newWindow.style.left = `${left}px`;
-        newWindow.style.top = `${top}px`;
-        newWindow.style.zIndex = zIndexCounter++;
-        newWindow.dataset.x = left;
-        newWindow.dataset.y = top;
+        // Center the window. The note's true source-of-truth for size is the
+        // resizable .textarea-container (see updateWindowSize); the window then
+        // sizes to fit it. These defaults match the container 525x287 below,
+        // which yields a 493x285 textarea.
+        const defaultWidth = 557;
+        const defaultHeight = 429;
+        newWindow.style.zIndex = nextWindowZ();
         newWindow.dataset.width = defaultWidth;
         newWindow.dataset.height = defaultHeight;
         newWindow.style.width = `${defaultWidth}px`;
+        newWindow.style.height = `${defaultHeight}px`;
+        placeWindow(newWindow, defaultWidth, defaultHeight);
         newWindow.innerHTML = `
         <div class="window-header">
             <span class="window-title">${noteLabel}</span>
                 <div class="window-controls">
-        <span class="edit-window" onclick="startRename('${windowId}')">✏️</span>
-        <span class="minimize-window" onclick="minimizeWindow('${windowId}')">🗕</span>
-        <span class="lock-window" onclick="toggleWindowLock('${windowId}')">🔓</span>
-        <span class="close-window" onclick="closeWindow('${windowId}')">×</span>
+        <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
+        <span class="minimize-window" onclick="minimizeWindow('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
+        <span class="lock-window" onclick="toggleWindowLock('${windowId}')" title="Lock editing, dragging and resizing" role="button" tabindex="0">🔓</span>
+        <span class="close-window" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
     </div>
         </div>
         <div class="window-content">
-            <div class="textarea-container" style="width: 218px;">
+            <div class="textarea-container" style="width: 525px; height: 287px;">
                 <div class="line-numbers" id="line-numbers-${windowId}">1</div>
                 <textarea id="clipboard-${windowId}" placeholder="Paste or type your text here..." oninput="updateLineNumbers('${windowId}'); updateCounts('${windowId}');"></textarea>
             </div>
@@ -2083,14 +2807,16 @@
               <button class="clear-note-button clear-note-button--mini" onclick="clearNoteText('${windowId}')">Clear</button>
                 <button onclick="toUpperCase('${windowId}')">Uppercase</button>
                 <button onclick="toLowerCase('${windowId}')">Lowercase</button>
+                <button onclick="copyNoteText('${windowId}')">Copy</button>
             </div>
             <div class="counts" id="counts-${windowId}">Words: 0, Characters: 0</div>
         </div>
     `;
         windowsContainer.appendChild(newWindow);
         makeDraggable(newWindow);
-        newWindow.onclick = () => setActiveWindow(windowId);
+        wireWindowFocus(newWindow);
         setActiveWindow(windowId);
+        refreshChrome();
         const textarea = document.getElementById(`clipboard-${windowId}`);
         textarea.addEventListener("scroll", () => syncScroll(windowId));
         // Debounced persistence for stability (no behavior change)
@@ -2118,154 +2844,11 @@
         return newWindow;
       }
 
-      function addDrawingWindow() {
-        if (
-          document.querySelectorAll(
-            ".window, .task-window, .clock-window, .log-window, .drawing-window"
-          ).length >= MAX_WINDOWS
-        ) {
-          showStatus("Maximum number of windows reached.");
-          return;
-        }
-
-        const windowsContainer = document.getElementById("windows");
-        const newWindow = document.createElement("div");
-        newWindow.className = "drawing-window";
-        newWindow.id = `drawing-${windowCount}`;
-        newWindow.style.left = "50px";
-        newWindow.style.top = "50px";
-        newWindow.style.zIndex = zIndexCounter++;
-        newWindow.dataset.x = 50;
-        newWindow.dataset.y = 50;
-        newWindow.dataset.width = 600;
-        newWindow.dataset.height = 400;
-        newWindow.style.width = "600px";
-        newWindow.style.height = "400px";
-
-        newWindow.innerHTML = `
-                <div class="drawing-header">
-                    <span class="drawing-title">Drawing ${windowCount}</span>
-                    <div class="drawing-controls">
-                        <span class="close-drawing" onclick="closeWindow('${newWindow.id}')">×</span>
-                    </div>
-                </div>
-                <div class="drawing-toolbar">
-                    <label for="color-picker-${windowCount}">Color:</label>
-                    <input type="color" id="color-picker-${windowCount}" value="#000000">
-                    <label for="cursor-size-${windowCount}">Cursor Size:</label>
-                    <input type="range" id="cursor-size-${windowCount}" min="1" max="50" value="5">
-                    <button onclick="undoDrawing('${newWindow.id}')">Undo</button>
-                    <button onclick="redoDrawing('${newWindow.id}')">Redo</button>
-                </div>
-                <canvas id="canvas-${windowCount}" class="drawing-canvas"></canvas>
-            `;
-
-        windowsContainer.appendChild(newWindow);
-        makeDraggable(newWindow);
-        newWindow.onclick = () => setActiveWindow(newWindow.id);
-        setActiveWindow(newWindow.id);
-
-        const canvas = document.getElementById(`canvas-${windowCount}`);
-        const colorPicker = document.getElementById(
-          `color-picker-${windowCount}`
-        );
-        const cursorSize = document.getElementById(
-          `cursor-size-${windowCount}`
-        );
-        const ctx = canvas.getContext("2d");
-
-        canvas.width = newWindow.offsetWidth;
-        canvas.height = newWindow.offsetHeight - 80;
-
-        let drawing = false;
-        let currentColor = colorPicker.value;
-        let currentSize = cursorSize.value;
-        let paths = [];
-        let undonePaths = [];
-
-        canvas.addEventListener("mousedown", (e) => {
-          drawing = true;
-          ctx.beginPath();
-          ctx.moveTo(e.offsetX, e.offsetY);
-          paths.push({
-            color: currentColor,
-            size: currentSize,
-            points: [{ x: e.offsetX, y: e.offsetY }],
-          });
-          undonePaths = [];
-        });
-
-        canvas.addEventListener("mousemove", (e) => {
-          if (!drawing) return;
-          ctx.lineTo(e.offsetX, e.offsetY);
-          ctx.strokeStyle = currentColor;
-          ctx.lineWidth = currentSize;
-          ctx.lineCap = "round";
-          ctx.stroke();
-          paths[paths.length - 1].points.push({ x: e.offsetX, y: e.offsetY });
-        });
-
-        canvas.addEventListener("mouseup", () => {
-          drawing = false;
-          ctx.closePath();
-        });
-
-        canvas.addEventListener("mouseout", () => {
-          drawing = false;
-          ctx.closePath();
-        });
-
-        colorPicker.addEventListener("input", () => {
-          currentColor = colorPicker.value;
-        });
-
-        cursorSize.addEventListener("input", () => {
-          currentSize = cursorSize.value;
-        });
-
-        window.undoDrawing = (id) => {
-          if (paths.length === 0) return;
-          undonePaths.push(paths.pop());
-          redrawCanvas(canvas, ctx, paths);
-        };
-
-        window.redoDrawing = (id) => {
-          if (undonePaths.length === 0) return;
-          paths.push(undonePaths.pop());
-          redrawCanvas(canvas, ctx, paths);
-        };
-
-        saveSession();
-        showStatus("Drawing window created!");
-        return newWindow;
-      }
-
-      function redrawCanvas(canvas, ctx, paths) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        paths.forEach((path) => {
-          ctx.beginPath();
-          ctx.strokeStyle = path.color;
-          ctx.lineWidth = path.size;
-          ctx.lineCap = "round";
-          path.points.forEach((point, index) => {
-            if (index === 0) {
-              ctx.moveTo(point.x, point.y);
-            } else {
-              ctx.lineTo(point.x, point.y);
-            }
-          });
-          ctx.stroke();
-          ctx.closePath();
-        });
-      }
-
       function addTaskWindow() {
         if (
-          document.querySelectorAll(
-            ".window, .task-window, .clock-window, .log-window"
-          ).length >= MAX_WINDOWS
+          document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
-          showStatus("Maximum number of windows reached.");
+          showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
           return;
         }
         windowCount++;
@@ -2283,21 +2866,20 @@
         resizeObserver.observe(newWindow);
         newWindow.className = "task-window";
         newWindow.id = windowId;
-        newWindow.style.left = "50px";
-        newWindow.style.top = "50px";
-        newWindow.style.zIndex = zIndexCounter++;
-        newWindow.dataset.x = 50;
-        newWindow.dataset.y = 50;
+        newWindow.style.zIndex = nextWindowZ();
         newWindow.dataset.width = 400;
         newWindow.dataset.height = 500;
         newWindow.style.width = "400px";
         newWindow.style.height = "500px";
+        placeWindow(newWindow, 400, 500);
         newWindow.innerHTML = `
         <div class="task-header">
             <span class="task-title">${taskLabel}</span>
             <div class="task-controls">
-                <span class="edit-window" onclick="startRename('${windowId}')">✏️</span>
-                <span class="close-task" onclick="closeWindow('${windowId}')">×</span>
+                <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
+                <span class="minimize-window" onclick="minimizeWindow('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
+                <span class="lock-window" onclick="toggleWindowLock('${windowId}')" title="Lock editing, dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                <span class="close-task" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
             </div>
         </div>
       <div class="task-content">
@@ -2313,8 +2895,9 @@
     `;
         windowsContainer.appendChild(newWindow);
         makeDraggable(newWindow);
-        newWindow.onclick = () => setActiveWindow(windowId);
+        wireWindowFocus(newWindow);
         setActiveWindow(windowId);
+        refreshChrome();
         const taskInput = document.getElementById(`task-input-${windowId}`);
         taskInput.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
@@ -2329,6 +2912,17 @@
       function clearTaskWindow(windowId) {
         const taskList = document.getElementById(`task-list-${windowId}`);
         const taskInput = document.getElementById(`task-input-${windowId}`);
+        // Clearing is destructive and there is no undo, so don't do it silently.
+        if (taskList && taskList.children.length > 0) {
+          const count = taskList.children.length;
+          if (
+            !confirm(
+              `Delete all ${count} task${count === 1 ? "" : "s"} in this list? This cannot be undone.`
+            )
+          ) {
+            return;
+          }
+        }
         if (taskList) {
           taskList.innerHTML = "";
         }
@@ -2336,7 +2930,38 @@
           taskInput.value = "";
         }
         saveSession();
-        showStatus("Task list cleared!");
+        showStatus("Task list cleared.");
+      }
+
+      // Single builder for both new tasks and restored ones, so the two paths
+      // can't drift (the restore path previously produced items with no
+      // delete button and a differently-wired checkbox).
+      function createTaskItem(windowId, text, completed) {
+        const taskItem = document.createElement("div");
+        taskItem.className = "task-item" + (completed ? " completed" : "");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = !!completed;
+        checkbox.setAttribute("aria-label", `Mark "${text}" complete`);
+        checkbox.onchange = () => toggleTaskCompletion(windowId, checkbox);
+        const span = document.createElement("span");
+        span.textContent = text;
+        // A list you can only empty wholesale isn't a task list.
+        const del = document.createElement("button");
+        del.className = "task-delete";
+        del.textContent = "×";
+        del.title = "Delete this task";
+        del.setAttribute("aria-label", `Delete task "${text}"`);
+        del.onclick = (e) => {
+          e.stopPropagation();
+          taskItem.remove();
+          saveSession();
+          showStatus("Task deleted.");
+        };
+        taskItem.appendChild(checkbox);
+        taskItem.appendChild(span);
+        taskItem.appendChild(del);
+        return taskItem;
       }
 
       function addTask(windowId) {
@@ -2349,21 +2974,15 @@
         const taskText = taskInput.value.trim();
         if (!taskText) {
           showStatus("Task cannot be empty.");
+          taskInput.focus();
           return;
         }
-        const taskItem = document.createElement("div");
-        taskItem.className = "task-item";
-        const checkbox = document.createElement("input");
-        checkbox.type = "checkbox";
-        checkbox.onchange = () => toggleTaskCompletion(windowId, checkbox);
-        const span = document.createElement("span");
-        span.textContent = taskText;
-        taskItem.appendChild(checkbox);
-        taskItem.appendChild(span);
-        taskList.appendChild(taskItem);
+        taskList.appendChild(createTaskItem(windowId, taskText, false));
         taskInput.value = "";
+        taskInput.focus(); // keep the user in flow for a second task
+        taskList.scrollTop = taskList.scrollHeight;
         saveSession();
-        showStatus("Task added!");
+        showStatus("Task added.");
       }
 
       function toggleTaskCompletion(windowId, checkbox) {
@@ -2408,55 +3027,15 @@
         showStatus("Log entry added to note!");
       }
 
-      function openInstructions() {
-        const windowElement = addWindow();
-        const windowId = windowElement.id;
-        const textarea = document.getElementById(`clipboard-${windowId}`);
-        if (textarea && windowElement) {
-          textarea.value = `CB App - Self-contained single file app
-
-This cbapp.html is the complete application. No zip or extra files needed.
-
-How to use:
-- Open this file directly in your Enterprise browser.
-- Click the "Download .html" link at the bottom anytime to save your current notes/session.
-- Recommended: Save to Documents or a dedicated folder and create a bookmark/shortcut.
-
-Enterprise Browser:
-- Right-click → "Open with Enterprise" if needed.
-- The app works best when launched from within an active Enterprise session.
-
-Tip: Use the Download button inside the app to preserve your open windows and notes.`;
-          windowElement.querySelector(".window-title").textContent =
-            "CB App Instructions";
-          updateLineNumbers(windowId);
-          updateCounts(windowId);
-          const baseWidth = 700;
-          const baseHeight = 600;
-          const newWidth = Math.min(window.innerWidth - 90, baseWidth * 2.5);
-          const newHeight = Math.min(window.innerHeight - 90, baseHeight * 2.5);
-
-          windowElement.style.width = `${newWidth}px`;
-          windowElement.style.height = `${newHeight}px`;
-          windowElement.dataset.width = newWidth;
-          windowElement.dataset.height = newHeight;
-          const left = Math.max(0, (window.innerWidth - newWidth) / 2);
-          const top = Math.max(0, (window.innerHeight - newHeight) / 2);
-          windowElement.style.left = `${left}px`;
-          windowElement.style.top = `${top}px`;
-          windowElement.dataset.x = left;
-          windowElement.dataset.y = top;
-
-          updateWindowSize(windowId);
-          saveSession();
-          showStatus("Instructions loaded!");
-        }
-      }
-
       function toggleHelpWindow() {
         const existing = document.getElementById("help-window");
+        if (existing && existing.style.display === "none") {
+          restoreWindow("help-window");
+          return;
+        }
         if (existing) {
           existing.remove();
+          refreshChrome();
           saveSession();
           return;
         }
@@ -2467,46 +3046,53 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
         const defaultWidth = 620;
         const defaultHeight = 520;
-        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
-        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
-        helpWindow.style.left = `${left}px`;
-        helpWindow.style.top = `${top}px`;
-        helpWindow.style.zIndex = zIndexCounter++;
-        helpWindow.dataset.x = left;
-        helpWindow.dataset.y = top;
+        helpWindow.style.zIndex = nextWindowZ();
         helpWindow.dataset.width = defaultWidth;
         helpWindow.dataset.height = defaultHeight;
         helpWindow.style.width = `${defaultWidth}px`;
         helpWindow.style.height = `${defaultHeight}px`;
+        placeWindow(helpWindow, defaultWidth, defaultHeight);
 
-        const helpText = `CB App Setup for Enterprise Browser
+        const helpText = `CB APP
 
-Goal:
-Run CB App in Enterprise browser to enable notepad-like functionality (Enterprise blocks copying text externally).
+Windows
+- Note, Tasks, T2 and Sticky Note each open a window; Calc, Clock and Log
+  toggle a single one.
+- Drag by the title bar. Drag the bottom-right corner to resize.
+- The window with the teal outline is the active one. Copy, Paste and
+  Search all act on it.
+- 🗕 minimizes to the chip bar in the bottom-left corner; click a chip to
+  bring the window back. 🔓 locks a window against editing, dragging and
+  resizing. ✏️ renames it.
 
-This file is the complete CB App. No separate download required.
+Keyboard
+- Ctrl+Shift+N    new note
+- Ctrl+Shift+T    new task list
+- Ctrl+Shift+F    search / replace
+- Ctrl+Shift+W    close the active window
+- Escape          close search, or cancel a rename
 
-Usage:
-- Open this cbapp.html directly in your Enterprise browser.
-- Use the "Download .html" link at the bottom to save a copy of your current session (including all open notes).
-- For best results, keep the file in a convenient location (e.g. Documents) and create a bookmark or desktop shortcut.
+Saving
+- Everything is saved to this browser automatically as you type, and
+  restored the next time you open the file.
+- Backup writes your session out as a .json file; Import reads one back.
+- "Download .html" saves this entire app with your current session baked
+  into it - one file, no dependencies, opens anywhere.
+- Reset clears the saved session and returns to a blank canvas.
 
-Enterprise Browser Tips:
-- Right-click the file → Open with Enterprise (if not set as default).
-- Enable the Bookmarks Bar in Chrome/Edge for easy access if desired.
-
-Troubleshooting:
-- App not responding? Make sure you're running it inside the Enterprise browser session (not regular Chrome).
-- Set Enterprise as your default browser for .html files if needed.
-
-Note:
-Keep cbapp.html in Documents for easy access. Must open in same Enterprise session as SSO login.`;
+Enterprise browser
+- Open cbapp.html directly in the Enterprise browser; keep it somewhere
+  convenient (e.g. Documents) and bookmark it.
+- Right-click the file -> Open with Enterprise if it isn't your default.
+- It must be opened in the same Enterprise session as your SSO login.`;
 
         helpWindow.innerHTML = `
           <div class="help-header">
             <span class="help-title">CB App Instructions</span>
             <div class="help-controls">
-              <span class="close-window" onclick="toggleHelpWindow()">×</span>
+              <span class="minimize-window" onclick="minimizeWindow('help-window')" title="Minimize" role="button" tabindex="0">🗕</span>
+              <span class="lock-window" onclick="toggleWindowLock('help-window')" title="Lock dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+              <span class="close-window" onclick="toggleHelpWindow()" title="Close" role="button" tabindex="0">×</span>
             </div>
           </div>
           <div class="help-content">
@@ -2516,8 +3102,9 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
 
         windowsContainer.appendChild(helpWindow);
         makeDraggable(helpWindow);
-        helpWindow.onclick = () => setActiveWindow("help-window");
+        wireWindowFocus(helpWindow);
         setActiveWindow("help-window");
+        refreshChrome();
         saveSession();
       }
       function updateWindowSize(windowId) {
@@ -2537,8 +3124,11 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
           const paddingAndBorders = 22;
           const buttonsHeight =
             windowElement.querySelector(".format-buttons")?.offsetHeight || 0;
+          // Was document.querySelector(".counts") - the first .counts in the
+          // whole document, i.e. some other window's, once more than one note
+          // was open.
           const countsHeight =
-            document.querySelector(".counts")?.offsetHeight || 0;
+            windowElement.querySelector(".counts")?.offsetHeight || 0;
           const logInputHeight =
             windowElement.querySelector(".note-log-input-container")
               ?.offsetHeight || 0;
@@ -2561,29 +3151,34 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
       }
 
       function addCalculator() {
+        // addClock and addCalculator had no cap guard at all, so the "maximum"
+        // could be walked past two windows at a time.
+        if (document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS) {
+          showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
+          return null;
+        }
         const windowsContainer = document.getElementById("windows");
         const calculator = document.createElement("div");
         calculator.className = "calculator";
         calculator.id = "calculator";
         calculatorCount++;
         const calculatorLabel = "Calculator";
-        const defaultWidth = 250;
-        const defaultHeight = 350;
-        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
-        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
-        calculator.style.left = `${left}px`;
-        calculator.style.top = `${top}px`;
-        calculator.style.zIndex = zIndexCounter++;
-        calculator.dataset.x = left;
-        calculator.dataset.y = top;
+        // 250 was below the .calculator min-width of 350, so the declared and
+        // rendered widths disagreed and placement was computed from the wrong one.
+        const defaultWidth = 350;
+        const defaultHeight = 400;
+        calculator.style.zIndex = nextWindowZ();
         calculator.dataset.width = defaultWidth;
         calculator.style.width = `${defaultWidth}px`;
+        placeWindow(calculator, defaultWidth, defaultHeight);
 
         calculator.innerHTML = `
         <div class="calculator-header">
           <span class="calculator-title">${calculatorLabel}</span>
             <div class="calculator-controls">
-                <span class="close-calculator" onclick="toggleCalculator()">×</span>
+                <span class="minimize-window" onclick="minimizeWindow('calculator')" title="Minimize" role="button" tabindex="0">🗕</span>
+                <span class="lock-window" onclick="toggleWindowLock('calculator')" title="Lock editing, dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                <span class="close-calculator" onclick="toggleCalculator()" title="Close" role="button" tabindex="0">×</span>
             </div>
         </div>
         <div class="calculator-content">
@@ -2613,12 +3208,16 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
             <div class="calculator-history" id="calculator-history"></div>
             <div style="display: flex; gap: 5px; margin-top: 5px;">
                 <button class="special" onclick="clearHistory()" style="flex: 1;">Clear History</button>
-                <button class="special" onclick="saveSession()" style="flex: 1;">Save Session</button>
             </div>
         </div>
     `;
         windowsContainer.appendChild(calculator);
         makeDraggable(calculator);
+        // The calculator had no focus wiring at all, so clicking it never
+        // raised it above whatever window was sitting on top of it.
+        wireWindowFocus(calculator);
+        setActiveWindow("calculator");
+        refreshChrome();
         calculatorVisible = true;
         document.getElementById("calculator-toggle").textContent = "Calc";
         document.getElementById("calculator-toggle").classList.add("active");
@@ -2639,6 +3238,12 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
       function toggleCalculator() {
         const calculator = document.getElementById("calculator");
         const calcButton = document.getElementById("calculator-toggle");
+        // Minimize then click the toolbar button and this used to silently
+        // destroy the window instead of bringing it back.
+        if (calculator && calculator.style.display === "none") {
+          restoreWindow("calculator");
+          return;
+        }
         if (calculator) {
           calculator.remove();
           calculatorVisible = false;
@@ -2725,31 +3330,40 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         }
         const tokens = expression.match(/(\d*\.?\d+|[+\-*/])/g);
         if (!tokens) throw new Error("Invalid expression");
-        let result = parseFloat(tokens[0]);
+
+        // This used to fold strictly left-to-right, so 2+3*4 gave 20 instead of
+        // 14. Resolve × and ÷ in a first pass, then + and - in a second.
+        const terms = [parseFloat(tokens[0])];
+        const ops = [];
+        if (isNaN(terms[0])) throw new Error("Invalid number");
         for (let i = 1; i < tokens.length; i += 2) {
           const operator = tokens[i];
           const nextNumber = parseFloat(tokens[i + 1]);
           if (isNaN(nextNumber)) throw new Error("Invalid number");
-          switch (operator) {
-            case "+":
-              result += nextNumber;
-              break;
-            case "-":
-              result -= nextNumber;
-              break;
-            case "*":
-              result *= nextNumber;
-              break;
-            case "/":
-              if (nextNumber === 0) throw new Error("Division by zero");
-              result /= nextNumber;
-              break;
+          if (operator === "*" || operator === "/") {
+            const left = terms.pop();
+            if (operator === "/" && nextNumber === 0) {
+              throw new Error("Division by zero");
+            }
+            terms.push(operator === "*" ? left * nextNumber : left / nextNumber);
+          } else {
+            ops.push(operator);
+            terms.push(nextNumber);
           }
+        }
+
+        let result = terms[0];
+        for (let i = 0; i < ops.length; i++) {
+          result = ops[i] === "+" ? result + terms[i + 1] : result - terms[i + 1];
         }
         return result;
       }
 
       function addClock() {
+        if (document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS) {
+          showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
+          return null;
+        }
         const windowsContainer = document.getElementById("windows");
         const newWindow = document.createElement("div");
         newWindow.className = "clock-window";
@@ -2757,27 +3371,26 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         clockCount++;
         const clockLabel = "Clock";
 
-        // Center the clock window
-        const defaultWidth = 300;
-        const defaultHeight = 400;
-        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
-        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
-        newWindow.style.left = `${left}px`;
-        newWindow.style.top = `${top}px`;
-        newWindow.style.zIndex = zIndexCounter++;
-        newWindow.dataset.x = left;
-        newWindow.dataset.y = top;
+        // 350x516 was not in fact tall enough: .clock-content overflowed by
+        // ~40px, so the stopwatch buttons were sliced in half by the countdown
+        // block below them. This fits all four sections with no scrollbar, and
+        // the extra width keeps the countdown controls on a single row.
+        const defaultWidth = 390;
+        const defaultHeight = 566;
+        newWindow.style.zIndex = nextWindowZ();
         newWindow.dataset.width = defaultWidth;
         newWindow.dataset.height = defaultHeight;
         newWindow.style.width = `${defaultWidth}px`;
         newWindow.style.height = `${defaultHeight}px`;
+        placeWindow(newWindow, defaultWidth, defaultHeight);
 
         newWindow.innerHTML = `
         <div class="clock-header">
           <span class="clock-title">${clockLabel}</span>
             <div class="clock-controls">
-
-                <span class="close-clock" onclick="toggleClock()">×</span>
+                <span class="minimize-window" onclick="minimizeWindow('clock')" title="Minimize" role="button" tabindex="0">🗕</span>
+                <span class="lock-window" onclick="toggleWindowLock('clock')" title="Lock editing, dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                <span class="close-clock" onclick="toggleClock()" title="Close" role="button" tabindex="0">×</span>
             </div>
         </div>
         <div class="clock-content">
@@ -2808,8 +3421,8 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         <div class="countdown-timer-container">
     <div style="font-weight:bold;">Countdown Timer</div>
     <div class="countdown-controls">
-        <input type="number" id="countdown-minutes" min="0" max="120" value="30" style="width:60px;"> m
-        <input type="number" id="countdown-seconds" min="0" max="59" value="0" style="width:60px;"> s
+        <label class="countdown-field"><input type="number" id="countdown-minutes" min="0" max="120" value="30" aria-label="Countdown minutes"><span>min</span></label>
+        <label class="countdown-field"><input type="number" id="countdown-seconds" min="0" max="59" value="0" aria-label="Countdown seconds"><span>sec</span></label>
         <button onclick="startCountdown()">Start</button>
         <button onclick="resetCountdown()">Reset</button>
     </div>
@@ -2818,8 +3431,9 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
     `;
         windowsContainer.appendChild(newWindow);
         makeDraggable(newWindow);
-        newWindow.onclick = () => setActiveWindow("clock");
+        wireWindowFocus(newWindow);
         setActiveWindow("clock");
+        refreshChrome();
         updateClock("clock");
         if (window._clockInterval) clearInterval(window._clockInterval);
         window._clockInterval = setInterval(() => updateClock("clock"), 1000);
@@ -2834,6 +3448,10 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
       function toggleClock() {
         const clock = document.getElementById("clock");
         const clockButton = document.getElementById("clock-toggle");
+        if (clock && clock.style.display === "none") {
+          restoreWindow("clock");
+          return;
+        }
         if (clock) {
           clock.remove();
           if (window._clockInterval) { clearInterval(window._clockInterval); window._clockInterval = null; }
@@ -2967,32 +3585,31 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
 
       function addLog() {
         if (
-          document.querySelectorAll(
-            ".window, .task-window, .clock-window, .log-window"
-          ).length >= MAX_WINDOWS
+          document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
-          showStatus("Maximum number of windows reached.");
+          showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
           return;
         }
         const windowsContainer = document.getElementById("windows");
         const newWindow = document.createElement("div");
         newWindow.className = "log-window";
         newWindow.id = "log";
-        newWindow.style.left = "0px";
-        newWindow.style.top = "0px";
-        newWindow.style.zIndex = zIndexCounter++;
-        newWindow.dataset.x = 0;
-        newWindow.dataset.y = 0;
-        newWindow.dataset.width = 300;
-        newWindow.dataset.height = 300;
-        newWindow.style.width = "400";
-        newWindow.style.height = "400";
+        newWindow.style.zIndex = nextWindowZ();
+        newWindow.dataset.width = 400;
+        newWindow.dataset.height = 400;
+        // These were "400" without a unit - invalid, so the log window silently
+        // collapsed to its 350x150 min-size in the top-left corner.
+        newWindow.style.width = "400px";
+        newWindow.style.height = "400px";
+        placeWindow(newWindow, 400, 400);
         newWindow.innerHTML = `
                 <div class="log-header">
                     <span class="log-title">Log</span>
                     <div class="log-controls">
-                        <span class="edit-window" onclick="startRename('log')">✏️</span>
-                        <span class="close-log" onclick="toggleLog()">×</span>
+                        <span class="edit-window" onclick="startRename('log')" title="Rename" role="button" tabindex="0">✏️</span>
+                        <span class="minimize-window" onclick="minimizeWindow('log')" title="Minimize" role="button" tabindex="0">🗕</span>
+                        <span class="lock-window" onclick="toggleWindowLock('log')" title="Lock editing, dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                        <span class="close-log" onclick="toggleLog()" title="Close" role="button" tabindex="0">×</span>
                     </div>
                 </div>
                 <div class="log-content">
@@ -3005,8 +3622,9 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
             `;
         windowsContainer.appendChild(newWindow);
         makeDraggable(newWindow);
-        newWindow.onclick = () => setActiveWindow("log");
+        wireWindowFocus(newWindow);
         setActiveWindow("log");
+        refreshChrome();
         const logInput = document.getElementById("log-input");
         logInput.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
@@ -3026,6 +3644,10 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
       function toggleLog() {
         const log = document.getElementById("log");
         const logButton = document.getElementById("log-toggle");
+        if (log && log.style.display === "none") {
+          restoreWindow("log");
+          return;
+        }
         if (log) {
           log.remove();
           logVisible = false;
@@ -3038,248 +3660,242 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         saveSession();
       }
 
+      // Single builder for new and restored entries so the two can't drift, and
+      // so both get the delete control the log previously lacked entirely - it
+      // was append-only with no way to remove a mistyped line.
+      function createLogItem(entry) {
+        const logItem = document.createElement("div");
+        logItem.className = "log-item";
+        const ts = document.createElement("span");
+        ts.className = "timestamp";
+        ts.textContent = entry.timestamp;
+        const sep = document.createTextNode(": ");
+        const desc = document.createElement("span");
+        desc.className = "description";
+        desc.textContent = entry.description;
+        const del = document.createElement("button");
+        del.className = "log-delete";
+        del.textContent = "×";
+        del.title = "Delete this entry";
+        del.setAttribute("aria-label", `Delete log entry: ${entry.description}`);
+        del.onclick = (e) => {
+          e.stopPropagation();
+          const i = logEntries.indexOf(entry);
+          if (i > -1) logEntries.splice(i, 1);
+          logItem.remove();
+          saveSession();
+          showStatus("Log entry deleted.");
+        };
+        logItem.appendChild(ts);
+        logItem.appendChild(sep);
+        logItem.appendChild(desc);
+        logItem.appendChild(del);
+        return logItem;
+      }
+
       function addLogEntry() {
         const logInput = document.getElementById("log-input");
         const logList = document.getElementById("log-list");
-        if (logInput && logList && logInput.value.trim()) {
-          const description = logInput.value.trim();
-          const now = new Date();
-          const timestamp = now.toLocaleString("en-US", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-            hour12: true,
-          });
-          const logEntry = { timestamp, description };
-          logEntries.push(logEntry);
-          const logItem = document.createElement("div");
-          logItem.className = "log-item";
-          const ts = document.createElement("span");
-          ts.className = "timestamp";
-          ts.textContent = timestamp;
-          const sep = document.createTextNode(": ");
-          const desc = document.createElement("span");
-          desc.className = "description";
-          desc.textContent = description;
-          logItem.appendChild(ts);
-          logItem.appendChild(sep);
-          logItem.appendChild(desc);
-          logList.appendChild(logItem);
-          logInput.value = "";
-          logList.scrollTop = logList.scrollHeight;
-          saveSession();
-          showStatus("Log entry added!");
+        if (!logInput || !logList) return;
+        const description = logInput.value.trim();
+        if (!description) {
+          showStatus("Log entry cannot be empty.");
+          logInput.focus();
+          return;
         }
+        const timestamp = new Date().toLocaleString("en-US", {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: true,
+        });
+        const entry = { timestamp, description };
+        logEntries.push(entry);
+        logList.appendChild(createLogItem(entry));
+        logInput.value = "";
+        logInput.focus();
+        logList.scrollTop = logList.scrollHeight;
+        saveSession();
+        showStatus("Log entry added.");
       }
 
       function restoreLogEntries() {
         const logList = document.getElementById("log-list");
-        if (logList) {
-          logList.innerHTML = "";
-          logEntries.forEach((entry) => {
-            const logItem = document.createElement("div");
-            logItem.className = "log-item";
-            const ts = document.createElement("span");
-            ts.className = "timestamp";
-            ts.textContent = entry.timestamp;
-            const sep = document.createTextNode(": ");
-            const desc = document.createElement("span");
-            desc.className = "description";
-            desc.textContent = entry.description;
-            logItem.appendChild(ts);
-            logItem.appendChild(sep);
-            logItem.appendChild(desc);
-            logList.appendChild(logItem);
-          });
-          logList.scrollTop = logList.scrollHeight;
-        }
+        if (!logList) return;
+        logList.innerHTML = "";
+        logEntries.forEach((entry) => logList.appendChild(createLogItem(entry)));
+        logList.scrollTop = logList.scrollHeight;
       }
 
+      // Pointer Events rather than mouse events: the old handler was
+      // mousedown/mousemove/mouseup only, so on a touch screen a window could
+      // not be moved at all. Pointer events cover mouse, touch and pen through
+      // one path, and setPointerCapture keeps the drag alive if the finger
+      // outruns the header.
       function makeDraggable(element) {
-        const header = element.querySelector(
-          ".window-header, .calculator-header, .task-header, .clock-header, .log-header, .drawing-header, .sticky-note-header"
-        );
+        const header = element.querySelector(HEADER_SELECTOR);
         if (!header) return;
 
-        let isDragging = false;
+        let dragPointerId = null;
         let offsetX = 0;
         let offsetY = 0;
 
-        header.onmousedown = function (e) {
-          isDragging = true;
+        const onPointerMove = (e) => {
+          if (e.pointerId !== dragPointerId) return;
+          const spot = clampToCanvas(
+            element.offsetWidth,
+            element.offsetHeight,
+            e.clientX - offsetX,
+            e.clientY - offsetY
+          );
+          element.style.left = `${spot.x}px`;
+          element.style.top = `${spot.y}px`;
+          element.dataset.x = spot.x;
+          element.dataset.y = spot.y;
+        };
 
-          element.style.zIndex = (zIndexCounter = Math.min(zIndexCounter + 1, 2147483640));
-          offsetX = e.clientX - element.getBoundingClientRect().left;
-          offsetY = e.clientY - element.getBoundingClientRect().top;
+        const endDrag = (e) => {
+          if (dragPointerId === null || (e && e.pointerId !== dragPointerId)) return;
+          try {
+            header.releasePointerCapture(dragPointerId);
+          } catch (err) {
+            /* capture may already be gone */
+          }
+          dragPointerId = null;
+          document.body.style.userSelect = "";
+          element.classList.remove("dragging");
+          header.removeEventListener("pointermove", onPointerMove);
+          header.removeEventListener("pointerup", endDrag);
+          header.removeEventListener("pointercancel", endDrag);
+          saveSession();
+        };
+
+        header.addEventListener("pointerdown", (e) => {
+          // A locked window simply refuses the drag here. This used to be done
+          // by nulling the handler and setting pointer-events:none on the
+          // header, which also killed the lock and close buttons inside it and
+          // forced toggleWindowLock to re-implement this whole handler.
+          if (element.dataset.locked === "true") return;
+          // Don't start a drag from a control in the title bar.
+          if (e.target.closest("[role='button'], button, input, select")) return;
+          if (e.button !== undefined && e.button !== 0) return; // left/primary only
+          if (dragPointerId !== null) return; // ignore a second finger
+
+          dragPointerId = e.pointerId;
+          const rect = element.getBoundingClientRect();
+          offsetX = e.clientX - rect.left;
+          offsetY = e.clientY - rect.top;
+          element.style.zIndex = nextWindowZ();
           document.body.style.userSelect = "none";
           element.classList.add("dragging");
-
-          function onMouseMove(e) {
-            if (!isDragging) return;
-            let newX = e.clientX - offsetX;
-            let newY = e.clientY - offsetY;
-            newX = Math.max(
-              0,
-              Math.min(window.innerWidth - element.offsetWidth, newX)
-            );
-            newY = Math.max(
-              0,
-              Math.min(window.innerHeight - element.offsetHeight, newY)
-            );
-            element.style.left = newX + "px";
-            element.style.top = newY + "px";
-            element.dataset.x = newX;
-            element.dataset.y = newY;
+          try {
+            header.setPointerCapture(e.pointerId);
+          } catch (err) {
+            /* not fatal - the listeners below still track the drag */
           }
-
-          function onMouseUp() {
-            if (isDragging) {
-              isDragging = false;
-              document.body.style.userSelect = "";
-              element.classList.remove("dragging");
-              document.removeEventListener("mousemove", onMouseMove);
-              document.removeEventListener("mouseup", onMouseUp);
-              if (typeof saveSession === "function") saveSession();
-            }
-          }
-
-          document.addEventListener("mousemove", onMouseMove);
-          document.addEventListener("mouseup", onMouseUp);
-        };
+          header.addEventListener("pointermove", onPointerMove);
+          header.addEventListener("pointerup", endDrag);
+          header.addEventListener("pointercancel", endDrag);
+        });
       }
 
-      function toggleWindowLock(windowId) {
-        const windowElement = document.getElementById(windowId);
-        if (!windowElement) return;
+      const HEADER_SELECTOR =
+        ".window-header, .task-header, .clock-header, .log-header, .calculator-header, .help-header, .sticky-note-header";
 
-        // Get elements based on window type
-        const isSticky = windowElement.classList.contains("sticky-note-window");
-        const content = isSticky
-          ? windowElement.querySelector(".sticky-note-content")
-          : document.getElementById(`clipboard-${windowId}`);
+      // What "locked" freezes inside a window. Text fields go readOnly rather
+      // than disabled so a locked note can still be read, scrolled and copied;
+      // everything else (buttons, checkboxes, selects, colour swatches) is
+      // disabled outright. Title-bar controls are excluded - you must always be
+      // able to unlock, minimize or close.
+      function lockableControls(windowElement) {
+        return Array.from(
+          windowElement.querySelectorAll("textarea, input, select, button")
+        ).filter((el) => !el.closest(HEADER_SELECTOR));
+      }
+
+      function applyWindowLock(windowElement, isLocked) {
+        windowElement.dataset.locked = isLocked;
+        // Unlocking must hand resize back to the stylesheet, not force "both"
+        // onto every type: a note frame has no resize handle (it grows from its
+        // inner .textarea-container), and the clock/calculator/log/help windows
+        // are fixed-size by design.
+        const resizables = [
+          windowElement,
+          ...windowElement.querySelectorAll(".textarea-container"),
+        ];
+        resizables.forEach((el) => {
+          if (isLocked) el.style.resize = "none";
+          else el.style.removeProperty("resize");
+        });
+
+        lockableControls(windowElement).forEach((el) => {
+          const isTextField =
+            el.tagName === "TEXTAREA" ||
+            (el.tagName === "INPUT" &&
+              ["text", "number", "search", ""].includes(el.type));
+          const prop = isTextField ? "readOnly" : "disabled";
+          if (isLocked) {
+            // Remember the pre-lock state so unlocking doesn't, say, make the
+            // calculator's always-readonly display editable.
+            if (el.dataset.prevLockState === undefined) {
+              el.dataset.prevLockState = el[prop] ? "1" : "0";
+            }
+            el[prop] = true;
+          } else if (el.dataset.prevLockState !== undefined) {
+            el[prop] = el.dataset.prevLockState === "1";
+            delete el.dataset.prevLockState;
+          }
+        });
+
         const lockBtn = windowElement.querySelector(
           ".lock-window, .sticky-lock-window"
         );
-        const closeBtn = windowElement.querySelector(
-          ".close-window, .close-sticky-note"
-        );
-        // Get minimize button (new)
-        const minimizeBtn = windowElement.querySelector(
-          ".minimize-window"
-        );
-        const controls = windowElement.querySelector(
-          ".window-controls, .sticky-note-controls"
-        );
-        const header = windowElement.querySelector(
-          ".window-header, .sticky-note-header"
-        );
-
-        // Toggle lock state
-        const isLocked = windowElement.dataset.locked !== "true";
-        windowElement.dataset.locked = isLocked;
-
-        // Lock/unlock content editing
-        if (content) {
-          content.readOnly = isLocked;
-          content.style.pointerEvents = isLocked ? "none" : "";
-        }
-
-        // Lock/unlock dragging and restore draggability
-        if (header) {
-          header.style.pointerEvents = isLocked ? "none" : "";
-          if (isLocked) {
-            header.onmousedown = null;
-          } else {
-            // Re-initialize dragging functionality
-            header.onmousedown = function (e) {
-              let isDragging = false;
-              const offsetX =
-                e.clientX - windowElement.getBoundingClientRect().left;
-              const offsetY =
-                e.clientY - windowElement.getBoundingClientRect().top;
-
-              windowElement.style.zIndex = (zIndexCounter = Math.min(zIndexCounter + 1, 2147483640));
-              document.body.style.userSelect = "none";
-              windowElement.classList.add("dragging");
-
-              function onMouseMove(e) {
-                isDragging = true;
-                let newX = e.clientX - offsetX;
-                let newY = e.clientY - offsetY;
-                newX = Math.max(
-                  0,
-                  Math.min(window.innerWidth - windowElement.offsetWidth, newX)
-                );
-                newY = Math.max(
-                  0,
-                  Math.min(window.innerHeight - windowElement.offsetHeight, newY)
-                );
-                windowElement.style.left = newX + "px";
-                windowElement.style.top = newY + "px";
-                windowElement.dataset.x = newX;
-                windowElement.dataset.y = newY;
-              }
-
-              function onMouseUp() {
-                isDragging = false;
-                document.body.style.userSelect = "";
-                windowElement.classList.remove("dragging");
-                document.removeEventListener("mousemove", onMouseMove);
-                document.removeEventListener("mouseup", onMouseUp);
-                saveSession();
-              }
-
-              document.addEventListener("mousemove", onMouseMove);
-              document.addEventListener("mouseup", onMouseUp);
-            };
-          }
-        }
-
-        // Lock/unlock resizing
-        windowElement.style.resize = isLocked ? "none" : "both";
-
-        // Lock/unlock controls
-        if (closeBtn) {
-          closeBtn.style.pointerEvents = isLocked ? "none" : "";
-          closeBtn.style.opacity = isLocked ? "0.5" : "1";
-        }
-
-        // --- Allow minimize button to always work, even when locked ---
-        if (minimizeBtn) {
-          minimizeBtn.style.pointerEvents = "auto";
-          minimizeBtn.style.opacity = "1";
-        }
-        // ---
-
-        // Update lock icon
         if (lockBtn) {
           lockBtn.textContent = isLocked ? "🔒" : "🔓";
           lockBtn.classList.toggle("locked", isLocked);
-          // Keep lock button clickable
-          lockBtn.style.pointerEvents = "auto";
-          lockBtn.style.opacity = "1";
+          lockBtn.title = isLocked
+            ? "Unlock this window"
+            : "Lock editing, dragging and resizing";
+          lockBtn.setAttribute("aria-pressed", String(isLocked));
         }
+      }
 
-        showStatus(
-          `${isSticky ? "Sticky Note" : "Window"} ${
-            isLocked ? "locked" : "unlocked"
-          }`
-        );
+      // Lock = frozen content, no dragging, no resizing. Everything hangs off
+      // dataset.locked, which makeDraggable() reads, so this no longer has to
+      // null out and rebuild the drag handler (a near-copy of makeDraggable
+      // that had already drifted from it).
+      function toggleWindowLock(windowId) {
+        const windowElement = document.getElementById(windowId);
+        if (!windowElement) return;
+        const isLocked = windowElement.dataset.locked !== "true";
+        applyWindowLock(windowElement, isLocked);
+        const label =
+          windowElement.querySelector(
+            ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calculator-title, .help-title"
+          )?.textContent || "Window";
+        showStatus(`${label} ${isLocked ? "locked" : "unlocked"}.`);
         saveSession();
       }
 
       function setActiveWindow(windowId) {
         const windowElement = document.getElementById(windowId);
         if (!windowElement) return;
+        // Already on top and already marked - don't churn the z-index counter
+        // on every mousedown, which used to inflate it without bound.
+        const alreadyActive = windowElement.classList.contains("active");
         activeWindow = windowId;
+        // The old selector omitted sticky notes, the calculator and help, so
+        // those could keep a stale .active while another window was focused.
         document
-          .querySelectorAll(".window, .task-window, .clock-window, .log-window")
+          .querySelectorAll(WINDOW_SELECTOR)
           .forEach((win) => win.classList.remove("active"));
         windowElement.classList.add("active");
-        windowElement.style.zIndex = (zIndexCounter = Math.min(zIndexCounter + 1, 2147483640));
+        if (!alreadyActive) {
+          windowElement.style.zIndex = nextWindowZ();
+        }
       }
 
       function updateLineNumbers(windowId) {
@@ -3305,15 +3921,23 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         if (windowElement) {
           disconnectResizeObserver(windowId);
           windowElement.remove();
-          delete lockedWindows[windowId];
           if (activeWindow === windowId) {
-            const remainingWindows = document.querySelectorAll(
-              ".window, .task-window, .clock-window, .log-window"
-            );
-            activeWindow =
-              remainingWindows.length > 0 ? remainingWindows[0].id : null;
-            if (activeWindow) setActiveWindow(activeWindow);
+            activeWindow = null;
+            // Fall back to whatever is visually on top, not to whichever
+            // happens to be first in document order.
+            const remaining = Array.from(
+              document.querySelectorAll(WINDOW_SELECTOR)
+            ).filter((el) => el.style.display !== "none");
+            if (remaining.length) {
+              const topMost = remaining.reduce((a, b) =>
+                (parseInt(b.style.zIndex) || 0) > (parseInt(a.style.zIndex) || 0)
+                  ? b
+                  : a
+              );
+              setActiveWindow(topMost.id);
+            }
           }
+          refreshChrome();
           debouncedSave(80);
         }
       }
@@ -3413,59 +4037,132 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
           saveSession();
         }
       }
-      function toggleLock(windowId) {
-        const textarea = document.getElementById(`clipboard-${windowId}`);
-        const lockIcon = document.querySelector(`#${windowId} .lock-window`);
-        if (textarea && lockIcon) {
-          lockedWindows[windowId] = !lockedWindows[windowId];
-          textarea.readOnly = lockedWindows[windowId];
-          lockIcon.textContent = lockedWindows[windowId] ? "🔒" : "🔓";
-          lockIcon.classList.toggle("locked", lockedWindows[windowId]);
-          showStatus(
-            `Window ${lockedWindows[windowId] ? "locked" : "unlocked"}.`
-          );
-          saveSession();
+      // One copy path for both buttons. Prefers the async Clipboard API and
+      // falls back to execCommand, which is what actually works under file://.
+      // The old code selected the textarea and left it selected, so a copy
+      // could be followed by a keystroke that wiped the note.
+      async function copyToClipboard(text, emptyMessage) {
+        if (!text) {
+          showStatus(emptyMessage || "Nothing to copy.");
+          return false;
         }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          try {
+            await navigator.clipboard.writeText(text);
+            showStatus("Copied to clipboard.");
+            return true;
+          } catch {
+            /* fall through to execCommand */
+          }
+        }
+        // Copy via an offscreen field so the user's own selection and caret in
+        // the note are left untouched.
+        const scratch = document.createElement("textarea");
+        scratch.value = text;
+        scratch.setAttribute("readonly", "");
+        scratch.style.cssText = "position:fixed;top:-1000px;opacity:0;";
+        document.body.appendChild(scratch);
+        scratch.select();
+        let ok = false;
+        try {
+          ok = document.execCommand("copy");
+        } catch {
+          ok = false;
+        }
+        document.body.removeChild(scratch);
+        showStatus(ok ? "Copied to clipboard." : "Copy failed — select and press Ctrl+C.");
+        return ok;
       }
 
       function copyText() {
         if (!activeWindow) {
-          showStatus("No active window selected.");
+          showStatus("Select a note first, then copy.");
           return;
         }
         const textarea = document.getElementById(`clipboard-${activeWindow}`);
-        if (textarea) {
-          textarea.select();
-          try {
-            document.execCommand("copy");
-            showStatus("Text copied to clipboard!");
-          } catch {
-            showStatus("Failed to copy text.");
-          }
-        }
-      }
-
-      async function pasteText() {
-        if (!activeWindow) {
-          showStatus("No active window selected.");
+        if (!textarea) {
+          showStatus("Copy only works on a note.");
           return;
         }
-        try {
-          const text = await navigator.clipboard.readText();
-          const textarea = document.getElementById(`clipboard-${activeWindow}`);
-          if (textarea && !textarea.readOnly) {
-            textarea.value = text;
-            updateLineNumbers(activeWindow);
-            updateCounts(activeWindow);
-            updateWindowSize(activeWindow);
-            saveSession();
-            showStatus("Text pasted from clipboard!");
-          } else {
-            showStatus("Cannot paste: Window is locked.");
-          }
-        } catch {
-          showStatus("Failed to paste text.");
+        copyToClipboard(textarea.value, "This note is empty.");
+      }
+
+      // Per-window one-click copy (the Copy button in each note/T2 format row).
+      // Targets its own window rather than relying on activeWindow.
+      function copyNoteText(windowId) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        if (!textarea) {
+          showStatus("Copy failed: note not found.");
+          return;
         }
+        copyToClipboard(textarea.value, "This note is empty.");
+      }
+
+      // Paste had three problems: navigator.clipboard.readText() does not exist
+      // under file:// (which is how this app is meant to be run), it silently
+      // REPLACED the note instead of inserting at the cursor, and every failure
+      // collapsed into one unhelpful "Failed to paste text."
+      async function pasteText() {
+        if (!activeWindow) {
+          showStatus("Select a note first, then paste.");
+          return;
+        }
+        const textarea = document.getElementById(`clipboard-${activeWindow}`);
+        if (!textarea) {
+          showStatus("Paste only works into a note.");
+          return;
+        }
+        if (textarea.readOnly) {
+          showStatus("Cannot paste: window is locked.");
+          return;
+        }
+
+        let text = null;
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          try {
+            text = await navigator.clipboard.readText();
+          } catch {
+            text = null; // blocked by permission, or unavailable on file://
+          }
+        }
+
+        if (text === null) {
+          // execCommand("paste") is disallowed from script in every current
+          // browser, so the honest fallback is to focus the field and let the
+          // user's own Ctrl+V through - the browser will then paste natively.
+          textarea.focus();
+          showStatus("Press Ctrl+V to paste into this note.");
+          return;
+        }
+
+        insertIntoNote(activeWindow, text);
+        showStatus("Pasted from clipboard.");
+      }
+
+      // Insert at the caret, replacing any selection, rather than overwriting
+      // the whole note - and keep undo history intact where the browser
+      // supports it.
+      function insertIntoNote(windowId, text) {
+        const textarea = document.getElementById(`clipboard-${windowId}`);
+        if (!textarea) return;
+        textarea.focus();
+        const start = textarea.selectionStart ?? textarea.value.length;
+        const end = textarea.selectionEnd ?? textarea.value.length;
+        let inserted = false;
+        try {
+          inserted = document.execCommand("insertText", false, text);
+        } catch {
+          inserted = false;
+        }
+        if (!inserted) {
+          textarea.value =
+            textarea.value.slice(0, start) + text + textarea.value.slice(end);
+          textarea.selectionStart = textarea.selectionEnd = start + text.length;
+        }
+        updateLineNumbers(windowId);
+        updateCounts(windowId);
+        updateWindowSize(windowId);
+        saveSession();
       }
 
       function toUpperCase(windowId) {
@@ -3517,31 +4214,63 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
         const searchInput = document.getElementById("search-input").value;
         const replaceInput = document.getElementById("replace-input").value;
         const textarea = document.getElementById(`clipboard-${activeWindow}`);
-        if (textarea && searchInput && !textarea.readOnly) {
-          textarea.value = textarea.value.replace(
-            new RegExp(searchInput, "g"),
-            replaceInput
-          );
-          updateLineNumbers(activeWindow);
-          updateCounts(activeWindow);
-          updateWindowSize(activeWindow);
-          saveSession();
-          showStatus("Replace completed!");
-        } else {
-          showStatus("Cannot replace: Window is locked.");
+        if (!textarea) {
+          showStatus("Search only works on a note. Select one first.");
+          return;
         }
+        if (textarea.readOnly) {
+          showStatus("Cannot replace: window is locked.");
+          return;
+        }
+        if (!searchInput) {
+          showStatus("Enter something to search for.");
+          document.getElementById("search-input").focus();
+          return;
+        }
+        // Users type literal text here, not regular expressions. Passing it
+        // straight to RegExp made "(" throw and characters like "." match
+        // anything. Escape it and count the hits so there's real feedback.
+        const escaped = searchInput.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const pattern = new RegExp(escaped, "g");
+        const matches = textarea.value.match(pattern);
+        if (!matches) {
+          showStatus(`No matches for "${searchInput}".`);
+          return;
+        }
+        textarea.value = textarea.value.replace(pattern, replaceInput);
+        updateLineNumbers(activeWindow);
+        updateCounts(activeWindow);
+        updateWindowSize(activeWindow);
+        saveSession();
+        showStatus(
+          `Replaced ${matches.length} match${matches.length === 1 ? "" : "es"}.`
+        );
       }
 
       function toggleSearchReplace() {
-        document.getElementById("search-replace").classList.toggle("active");
+        const panel = document.getElementById("search-replace");
+        const opened = panel.classList.toggle("active");
+        const searchBtn = document.getElementById("search-btn");
+        if (searchBtn) searchBtn.classList.toggle("active", opened);
+        if (opened) document.getElementById("search-input").focus();
       }
 
+      let _statusTimer = null;
       function showStatus(message) {
         const status = document.getElementById("status");
+        if (!status) return;
+        // Each call used to start its own un-cancelled 3s timer, so a burst of
+        // messages left earlier timers to hide the newest one early.
+        if (_statusTimer) clearTimeout(_statusTimer);
         status.textContent = message;
         status.style.display = "block";
-        setTimeout(() => {
+        status.classList.remove("showing");
+        void status.offsetWidth; // restart the entry animation
+        status.classList.add("showing");
+        _statusTimer = setTimeout(() => {
           status.style.display = "none";
+          status.classList.remove("showing");
+          _statusTimer = null;
         }, 3000);
       }
 
@@ -3577,10 +4306,20 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
 
       function toggleNavMenu() {
         const navMenu = document.querySelector(".nav-menu");
-        navMenu.classList.toggle("collapsed");
+        const collapsed = navMenu.classList.toggle("collapsed");
+        const toggle = navMenu.querySelector(".nav-toggle");
+        if (toggle) {
+          toggle.setAttribute("aria-expanded", String(!collapsed));
+          toggle.setAttribute(
+            "aria-label",
+            collapsed ? "Expand toolbar" : "Collapse toolbar"
+          );
+        }
       }
       function openInstructions(isT2 = false) {
         const windowElement = addWindow();
+        // addWindow() returns null at the window cap; it already showed why.
+        if (!windowElement) return;
         const windowId = windowElement.id;
         const textarea = document.getElementById(`clipboard-${windowId}`);
         if (textarea && windowElement) {
@@ -3589,71 +4328,35 @@ Keep cbapp.html in Documents for easy access. Must open in same Enterprise sessi
             const t2Label =
               t2Count > 1 ? `T2 Template ${t2Count}` : "T2 Template";
             const templateText = `Company URL Or Company ID -
-Case Number - 
-Customer Name - 
-Customer Issue/Concern - 
-Customer Goal - 
-How can T2 help? - 
-KB Articles Used - 
-Troubleshooting Steps Taken - 
-Possible INV Number (If possible) - 
+Case Number -
+Customer Name -
+Customer Issue/Concern -
+Customer Goal -
+How can T2 help? -
+KB Articles Used -
+Troubleshooting Steps Taken -
+Possible INV Number (If possible) -
 Glance Screen share Code - `;
-            windowElement.querySelector(".window-title").textContent =
-              t2Label;
-            windowElement.classList.add("t2-window");
-            // Lock T2 window to fixed dimensions
-            windowElement.style.width = "450px";
-            windowElement.style.height = "420px";
-            windowElement.dataset.width = 450;
-            windowElement.dataset.height = 420;
-            const t2Content = windowElement.querySelector(".window-content");
-            if (t2Content) {
-              t2Content.innerHTML = `
-                <div class="textarea-container" style="width: 350px; max-height: 220px; overflow: auto;">
-                  <div class="line-numbers" id="line-numbers-${windowId}">1</div>
-                  <textarea
-                    id="clipboard-${windowId}"
-                    class="t2-textarea"
-                    placeholder="Fill out the T2 template..."
-                    oninput="saveSession();"
-                  >${templateText}</textarea>
-                </div>
-                <div class="note-log-input-container">
-                  <input type="text" class="note-log-input" id="note-log-input-${windowId}" placeholder="Enter log description...">
-                  <button class="note-log-button" onclick="addNoteLogEntry('${windowId}')">Add Log</button>
-                </div>
-                <div class="clear-note-container">
-                  <button class="clear-note-button clear-note-button--mini" onclick="clearNoteText('${windowId}')">Clear</button>
-                </div>
-              `;
-
-              // Make T2 structurally consistent with a fresh Note for the grab handle (header)
-              // and modern listeners. Do not call updateWindowSize — we want the explicit size.
-              const t2Textarea = document.getElementById(`clipboard-${windowId}`);
-              if (t2Textarea) {
-                t2Textarea.addEventListener("scroll", () => syncScroll(windowId));
-                t2Textarea.addEventListener("input", () => debouncedSave(160), { passive: true });
-              }
-
-              const t2LogInput = document.getElementById(`note-log-input-${windowId}`);
-              if (t2LogInput) {
-                t2LogInput.addEventListener("keydown", (e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addNoteLogEntry(windowId);
-                  }
-                });
-              }
-
-              const t2TextareaContainer = windowElement.querySelector(".textarea-container");
-              if (t2TextareaContainer) {
-                const resizeObserver = new ResizeObserver(() => {
-                  debouncedSave(220);
-                });
-                registerResizeObserver(windowId, resizeObserver);
-                resizeObserver.observe(t2TextareaContainer);
-              }
-            }
+            // T2 is just a normal Note pre-filled with the template text — same
+            // structure, listeners, and persistence as any other note (it is created
+            // by addWindow() above), so it round-trips cleanly across refreshes.
+            textarea.value = templateText;
+            windowElement.querySelector(".window-title").textContent = t2Label;
+            // T2 holds 10 template fields, so it opens larger than a plain note.
+            // Drive the resizable container (903x470 -> 933x623 window-content),
+            // then let updateWindowSize fit the window and recenter for the final size.
+            const t2Container = windowElement.querySelector(".textarea-container");
+            t2Container.style.width = "903px";
+            t2Container.style.height = "470px";
+            updateWindowSize(windowId);
+            // Re-place at its final (much larger) size. This used to centre on
+            // the raw viewport, which ignored the toolbar and could park a
+            // 935x625 T2 window underneath it.
+            placeWindow(
+              windowElement,
+              windowElement.offsetWidth,
+              windowElement.offsetHeight
+            );
           } else {
             textarea.value = `CB App - Self-contained single file app
 
@@ -3682,11 +4385,24 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
-      function loadSession() {
+      // Bound to the Reset button. Destroys the saved session, so confirm
+      // first when there is actually something to lose.
+      function loadSession(skipConfirm = false) {
         try {
+          const hasWork =
+            document.querySelectorAll(WINDOW_SELECTOR).length > 0 ||
+            !!localStorage.getItem("notepadSession");
+          if (hasWork && skipConfirm !== true) {
+            if (
+              !confirm(
+                "Reset CB App?\n\nThis closes every window and deletes the session saved in this browser. Use Backup first if you want to keep it."
+              )
+            ) {
+              return;
+            }
+          }
           // Clear only this app's keys (safer than wiping the entire origin)
           localStorage.removeItem("notepadSession");
-          localStorage.removeItem("calendarEvents");
 
           // Reset UI state
           document.getElementById("windows").innerHTML = ""; // Remove all windows
@@ -3703,7 +4419,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           calculatorCount = 0;
           clockCount = 0;
           activeWindow = null;
-          lockedWindows = {};
           zIndexCounter = 1;
           calculatorVisible = false;
           clockVisible = false;
@@ -3728,6 +4443,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             logToggle.classList.remove("active");
           }
 
+          cascadeIndex = 0;
+          cascadeAnchor = null;
+          refreshChrome();
           showStatus("UI reset to fresh state!");
         } catch (e) {
           console.error("Failed to reset UI:", e);
@@ -3736,11 +4454,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       }
 
       function loadSessionFromStorage(session) {
+        // Rebuild quietly: suppress the add*() helpers' internal saveSession() calls
+        // so we never persist a half-built DOM, then write one complete snapshot below.
+        restoring = true;
+        let skippedOnRestore = 0;
+        try {
         // Restore theme
         document.body.className = session.theme || "light-mode";
-        if (document.getElementById("calendar-window")) {
-          try { loadCalendarEvents(); } catch (e) {}
-        }
 
         // Restore windows
         Object.keys(session).forEach((key) => {
@@ -3751,6 +4471,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               newWindow = addTaskWindow();
             } else {
               newWindow = addWindow();
+            }
+            // add*() returns null once MAX_WINDOWS is hit. A saved session can
+            // legitimately hold more windows than the current cap, and this
+            // used to dereference the null and abort the entire restore -
+            // losing every window after it, not just the extra one.
+            if (!newWindow) {
+              skippedOnRestore++;
+              return;
             }
             const windowElement = document.getElementById(newWindow.id);
 
@@ -3763,30 +4491,18 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             windowElement.dataset.y = windowData.position.top;
             windowElement.dataset.width = windowData.width;
             windowElement.dataset.height = windowData.height;
+            if (windowData.zIndex) windowElement.style.zIndex = windowData.zIndex;
+            if (windowData.minimized) windowElement.style.display = "none";
 
-            // Add to the window restoration logic in loadSessionFromStorage
-
-            if (windowData.locked) {
-              toggleWindowLock(newWindow.id);
-            }
             if (windowData.isTaskWindow) {
               // Restore tasks
               const taskList = windowElement.querySelector(".task-list");
               if (taskList && windowData.tasks) {
                 taskList.innerHTML = "";
                 windowData.tasks.forEach((task) => {
-                  const taskItem = document.createElement("div");
-                  taskItem.className =
-                    "task-item" + (task.completed ? " completed" : "");
-                  taskItem.innerHTML = `
-                        <input type="checkbox" ${
-                          task.completed ? "checked" : ""
-                        } onchange="toggleTaskCompletion('${
-                    newWindow.id
-                  }', this)">
-                        <span>${task.text}</span>
-                    `;
-                  taskList.appendChild(taskItem);
+                  taskList.appendChild(
+                    createTaskItem(newWindow.id, task.text, task.completed)
+                  );
                 });
               }
               const title = windowElement.querySelector(".task-title");
@@ -3801,6 +4517,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               updateLineNumbers(newWindow.id);
               updateCounts(newWindow.id);
             }
+            // Lock LAST. Applied before the content was rebuilt, it missed the
+            // task checkboxes and delete buttons created just above, leaving a
+            // "locked" task list whose items were still fully interactive.
+            // applyWindowLock, not toggleWindowLock: restoring sets the state
+            // directly rather than flipping it, and fires no status toast.
+            if (windowData.locked) {
+              applyWindowLock(windowElement, true);
+            }
           } else if (key === "clock" && session.clock.visible) {
             addClock();
             const clock = document.getElementById("clock");
@@ -3812,6 +4536,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               document.getElementById("clock-format-clock").value =
                 session.clock.clockFormat;
               updateClock("clock");
+              if (session.clock.minimized) clock.style.display = "none";
+              if (session.clock.locked) applyWindowLock(clock, true);
             }
           } else if (key === "calculator" && session.calculator.visible) {
             addCalculator();
@@ -3823,6 +4549,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               calculator.dataset.y = session.calculator.position.top;
               calculatorHistory = session.calculator.history || [];
               updateCalculatorHistory();
+              if (session.calculator.minimized)
+                calculator.style.display = "none";
+              if (session.calculator.locked) applyWindowLock(calculator, true);
             }
           } else if (key === "log" && session.log.visible) {
             addLog();
@@ -3834,10 +4563,27 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               log.dataset.y = session.log.position.top;
               logEntries = session.log.logs || [];
               restoreLogEntries();
+              if (session.log.minimized) log.style.display = "none";
+              if (session.log.locked) applyWindowLock(log, true);
+            }
+          } else if (key === "help" && session.help.visible) {
+            toggleHelpWindow();
+            const help = document.getElementById("help-window");
+            if (help) {
+              help.style.left = `${session.help.position.left}px`;
+              help.style.top = `${session.help.position.top}px`;
+              help.dataset.x = session.help.position.left;
+              help.dataset.y = session.help.position.top;
+              if (session.help.minimized) help.style.display = "none";
+              if (session.help.locked) applyWindowLock(help, true);
             }
           } else if (key.startsWith("sticky-note")) {
             const stickyNoteData = session[key];
             const newStickyNote = addStickyNote();
+            if (!newStickyNote) {
+              skippedOnRestore++;
+              return;
+            }
             const stickyNoteElement = document.getElementById(newStickyNote.id);
             stickyNoteElement.style.left = `${stickyNoteData.position.left}px`;
             stickyNoteElement.style.top = `${stickyNoteData.position.top}px`;
@@ -3845,60 +4591,90 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             stickyNoteElement.style.height = `${stickyNoteData.height}px`;
             stickyNoteElement.dataset.x = stickyNoteData.position.left;
             stickyNoteElement.dataset.y = stickyNoteData.position.top;
-
-            // Restore lock state
-            if (stickyNoteData.locked) {
-              stickyNoteElement.dataset.locked = "true";
-              toggleWindowLock(newStickyNote.id);
-            }
+            if (stickyNoteData.zIndex)
+              stickyNoteElement.style.zIndex = stickyNoteData.zIndex;
+            if (stickyNoteData.minimized)
+              stickyNoteElement.style.display = "none";
 
             const content = stickyNoteElement.querySelector(
               ".sticky-note-content"
             );
             if (content) {
               content.value = stickyNoteData.content;
-              content.style.color = stickyNoteData.textColor || "#000";
+              // Only reapply an explicitly chosen colour. The old fallback of
+              // "#000" forced black text onto every restored note, including
+              // ones that had never been recoloured.
+              if (stickyNoteData.textColor) {
+                content.style.color = stickyNoteData.textColor;
+              }
             }
 
-            stickyNoteElement.style.backgroundColor = stickyNoteData.color;
+            if (stickyNoteData.color) {
+              stickyNoteElement.style.backgroundColor = stickyNoteData.color;
+            }
             const title = stickyNoteElement.querySelector(".sticky-note-title");
             if (title && stickyNoteData.name) {
               title.textContent = stickyNoteData.name;
-              if (stickyNoteData.locked) {
-                stickyNoteElement.dataset.locked = "true";
-                const lockBtn = stickyNoteElement.querySelector(
-                  ".sticky-lock-window"
-                );
-                if (lockBtn) {
-                  lockBtn.textContent = "🔒";
-                  lockBtn.classList.add("locked");
-                }
-                const content = stickyNoteElement.querySelector(
-                  ".sticky-note-content"
-                );
-                if (content) {
-                  content.readOnly = true;
-                  content.style.pointerEvents = "none";
-                }
-                stickyNoteElement.style.resize = "none";
-                const header = stickyNoteElement.querySelector(
-                  ".sticky-note-header"
-                );
-                if (header) header.style.pointerEvents = "none";
-              }
+            }
+            // Lock last, after the content exists. This used to be applied
+            // twice - once here and again by a hand-rolled copy below - which
+            // toggled it straight back off. One call, one source of truth.
+            if (stickyNoteData.locked) {
+              applyWindowLock(stickyNoteElement, true);
             }
           }
         });
+        // Keep new windows above everything restored (clear the highest restored z).
+        const maxRestoredZ = Math.max(
+          0,
+          ...[...document.querySelectorAll(".window, .task-window, .sticky-note-window")]
+            .map((el) => parseInt(el.style.zIndex) || 0)
+        );
+        zIndexCounter = Math.max(
+          session.zIndexCounter || 0,
+          maxRestoredZ + 1,
+          zIndexCounter
+        );
+        // A session saved before the cap existed can carry huge z-indices that
+        // would sit above the toolbar; renumber everything into 1..n.
+        if (zIndexCounter >= WINDOW_Z_MAX) compactWindowZ();
+        } finally {
+          restoring = false;
+        }
+        // A session saved on a large display used to restore partly or wholly
+        // off-screen on a smaller one, with no way to drag anything back.
+        document
+          .querySelectorAll(WINDOW_SELECTOR)
+          .forEach((el) => clampWindowIntoView(el));
+        refreshChrome();
+        // One complete, consistent write now that the whole DOM is rebuilt.
+        saveSession();
+        // Reported by the caller so its own "Session restored!" doesn't
+        // immediately overwrite the warning.
+        return skippedOnRestore;
       }
 
       // No automatic session loading on page load
       window.onload = () => {
-        const savedSession = localStorage.getItem("notepadSession");
+        // One-time purge of the retired calendar feature's stale storage key.
+        localStorage.removeItem("calendarEvents");
+        // An exported copy carries its session inside the file; on first open
+        // that wins, so the download actually contains what it promised.
+        const embedded = readEmbeddedSession();
+        const savedSession = embedded
+          ? JSON.stringify(embedded)
+          : localStorage.getItem("notepadSession");
         if (savedSession) {
           try {
             const session = JSON.parse(savedSession);
-            loadSessionFromStorage(session);
-            showStatus("Session restored!");
+            const skipped = loadSessionFromStorage(session);
+            showStatus(
+              skipped
+                ? `Session restored — ${skipped} window${
+                    skipped === 1 ? "" : "s"
+                  } skipped (${MAX_WINDOWS}-window limit).`
+                : "Session restored."
+            );
           } catch (e) {
             console.error("Failed to load session:", e);
             showStatus("Failed to load session.");
@@ -3909,6 +4685,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           document.querySelector(".nav-menu").classList.remove("collapsed");
           document.getElementById("search-replace").classList.remove("active");
         }
+        refreshChrome();
       };
 
       // Save session automatically when the tab or browser closes
@@ -3979,21 +4756,86 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
+      const EMBEDDED_SESSION_ID = "cbapp-embedded-session";
+      const CONSUMED_EXPORT_KEY = "cbappConsumedExport";
+
+      // This used to serialise document.documentElement.outerHTML verbatim,
+      // which baked every open window into the file as static markup. Those
+      // copies had no event listeners (undraggable, unclosable), textarea
+      // .value doesn't serialise so they came back EMPTY, they duplicated the
+      // windows restored from localStorage, they carried a second #nav-tooltip
+      // with a duplicate id, and windowCount reset to 0 so new windows collided
+      // with the baked-in ids. Export a pristine document instead and carry the
+      // session as embedded JSON, so the copy boots exactly like the original.
       function downloadCurrentHtml() {
         try {
-          const html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
-          const blob = new Blob([html], { type: 'text/html' });
+          saveSession();
+          const clone = document.documentElement.cloneNode(true);
+
+          const clear = (sel) => {
+            const el = clone.querySelector(sel);
+            if (el) el.innerHTML = "";
+          };
+          clear("#windows");
+          clear("#minimized-bar");
+          clear("#status");
+          // Created by script at load; leaving it in yields two same-id nodes.
+          clone.querySelector("#nav-tooltip")?.remove();
+          clone.querySelector("#empty-state")?.removeAttribute("hidden");
+          clone.querySelector("#search-replace")?.classList.remove("active");
+          clone
+            .querySelectorAll(".nav-menu button.active")
+            .forEach((b) => b.classList.remove("active"));
+          clone.querySelector(".nav-menu")?.classList.remove("collapsed");
+          clone.querySelector(`#${EMBEDDED_SESSION_ID}`)?.remove();
+
+          const payload = {
+            // Lets a re-opened export tell "this is a new file to load" from
+            // "I already loaded this one, use my edits since".
+            exportId: `${Date.now()}-${windowCount}-${noteCount}`,
+            session: JSON.parse(localStorage.getItem("notepadSession") || "{}"),
+          };
+          const script = document.createElement("script");
+          script.type = "application/json";
+          script.id = EMBEDDED_SESSION_ID;
+          // Escape < so a note containing a closing script tag can't break out.
+          script.textContent = JSON.stringify(payload).replace(/</g, "\\u003c");
+          clone.querySelector("body")?.appendChild(script);
+
+          const html = "<!DOCTYPE html>\n" + clone.outerHTML;
+          const blob = new Blob([html], { type: "text/html" });
           const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
+          const a = document.createElement("a");
           a.href = url;
-          a.download = 'cbapp.html';
+          a.download = "cbapp.html";
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          showStatus('Downloaded cbapp.html');
+          showStatus("Downloaded cbapp.html with your session.");
         } catch (e) {
-          showStatus('Failed to download HTML.');
+          console.error("Export failed:", e);
+          showStatus("Failed to download HTML.");
+        }
+      }
+
+      // Returns the session carried inside an exported copy, but only the first
+      // time that particular export is opened - after that the user's own edits
+      // in localStorage take precedence.
+      function readEmbeddedSession() {
+        const node = document.getElementById(EMBEDDED_SESSION_ID);
+        if (!node) return null;
+        try {
+          const payload = JSON.parse(node.textContent);
+          if (!payload || typeof payload.session !== "object") return null;
+          if (localStorage.getItem(CONSUMED_EXPORT_KEY) === payload.exportId) {
+            return null;
+          }
+          localStorage.setItem(CONSUMED_EXPORT_KEY, payload.exportId);
+          return payload.session;
+        } catch (e) {
+          console.error("Embedded session unreadable:", e);
+          return null;
         }
       }
 
@@ -4021,7 +4863,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
                 return;
               }
               localStorage.setItem("notepadSession", JSON.stringify(session));
-              loadSession(); // Clear current UI
+              loadSession(true); // clear current UI; the file dialog was the confirmation
               loadSessionFromStorage(session); // Load imported session
               showStatus("Session imported!");
             } catch (err) {
@@ -4097,19 +4939,43 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
       }
 
+      let _titleFlash = null;
       function upliftingNotification() {
-        showStatus("🎉 Timer has been reached 🎉");
+        showStatus("🎉 Timer finished 🎉");
+        // Flash the tab title, because the most likely reason you set a timer
+        // is that you're looking at something else.
+        if (_titleFlash) clearInterval(_titleFlash);
+        const originalTitle = "CB App";
+        let on = false;
+        let ticks = 0;
+        _titleFlash = setInterval(() => {
+          on = !on;
+          document.title = on ? "⏰ Timer finished" : originalTitle;
+          if (++ticks >= 20) {
+            clearInterval(_titleFlash);
+            _titleFlash = null;
+            document.title = originalTitle;
+          }
+        }, 700);
+        const stopFlash = () => {
+          if (_titleFlash) {
+            clearInterval(_titleFlash);
+            _titleFlash = null;
+          }
+          document.title = originalTitle;
+          window.removeEventListener("focus", stopFlash);
+        };
+        window.addEventListener("focus", stopFlash);
+
+        // Only use the OS notification if permission was already granted.
+        // Firing requestPermission() here threw a browser permission dialog at
+        // the user at a moment they never asked for one.
         if (window.Notification && Notification.permission === "granted") {
-          new Notification("Timer has been reached");
-        } else if (
-          window.Notification &&
-          Notification.permission !== "denied"
-        ) {
-          Notification.requestPermission().then((permission) => {
-            if (permission === "granted") {
-              new Notification("Timer has been reached");
-            }
-          });
+          try {
+            new Notification("CB App", { body: "Timer finished." });
+          } catch (e) {
+            /* some browsers require a service worker; the toast already fired */
+          }
         }
       }
 
@@ -4141,144 +5007,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
-      function addCalendarWindow() {
-        try {
-        if (document.getElementById("calendar-window")) {
-          setActiveWindow("calendar-window");
-          return;
-        }
-
-        const windowsContainer = document.getElementById("windows");
-        const calendarWindow = document.createElement("div");
-        calendarWindow.className = "window calendar-window";
-        calendarWindow.id = "calendar-window";
-
-        // Center the window
-        const defaultWidth = 400;
-        const defaultHeight = 600;
-        const left = Math.max(0, (window.innerWidth - defaultWidth) / 2);
-        const top = Math.max(0, (window.innerHeight - defaultHeight) / 2);
-
-        calendarWindow.style.left = `${left}px`;
-        calendarWindow.style.top = `${top}px`;
-        calendarWindow.style.zIndex = zIndexCounter++;
-        calendarWindow.dataset.x = left;
-        calendarWindow.dataset.y = top;
-        calendarWindow.dataset.width = defaultWidth;
-        calendarWindow.dataset.height = defaultHeight;
-        calendarWindow.style.width = `${defaultWidth}px`;
-        calendarWindow.style.height = `${defaultHeight}px`;
-        calendarWindow.dataset.year = new Date().getFullYear();
-        calendarWindow.dataset.month = new Date().getMonth();
-
-        calendarWindow.innerHTML = `
-        <div class="window-header">
-            <span class="window-title">Calendar</span>
-            <div class="window-controls">
-                <span class="edit-window" onclick="startRename('calendar-window')">✏️</span>
-                <span class="close-window" onclick="closeWindow('calendar-window')">×</span>
-            </div>
-        </div>
-        <div class="window-content">
-            <div class="today-events">
-                <h3>Today's Events</h3>
-                <ul id="today-events-list"></ul>
-            </div>
-            <div class="calendar-header">
-                <button onclick="navigateMonth(-1)">←</button>
-                <span id="month-year"></span>
-                <button onclick="goToToday()">Today</button>
-                <button onclick="navigateMonth(1)">→</button>
-            </div>
-            <div class="calendar-grid" id="calendar-grid"></div>
-            <div class="events-section">
-                <h3>Events for <span id="selected-date"></span></h3>
-                <ul id="events-list"></ul>
-                <div style="display: flex; gap: 5px; margin-top: 10px;">
-                    <input type="text" id="new-event" placeholder="Add new event" style="flex: 1;">
-                    <button onclick="addCalendarEvent()">Add</button>
-                </div>
-            </div>
-        </div>
-    `;
-
-        windowsContainer.appendChild(calendarWindow);
-        makeDraggable(calendarWindow);
-        calendarWindow.onclick = () => setActiveWindow("calendar-window");
-        setActiveWindow("calendar-window");
-
-        renderCalendar();
-        updateTodayEvents();
-        saveSession();
-        showStatus("Calendar window created!");
-        return calendarWindow;
-        } catch (e) {
-          console.warn("Calendar feature encountered an error (non-fatal):", e);
-          showStatus("Calendar is not available.");
-        }
-      }
-      function addCalendarEvent() {
-        try {
-        const date = document.getElementById("calendar-date")?.value;
-        const descEl = document.getElementById("calendar-event");
-        const desc = descEl ? descEl.value.trim() : "";
-        if (!date || !desc) {
-          showStatus("Please enter a date and event.");
-          return;
-        }
-        let events = JSON.parse(localStorage.getItem("calendarEvents") || "{}");
-        if (!events[date]) events[date] = [];
-        events[date].push(desc);
-        localStorage.setItem("calendarEvents", JSON.stringify(events));
-        document.getElementById("calendar-event").value = "";
-        loadCalendarEvents();
-        showStatus("Event added!");
-        saveSession();
-        } catch (e) { console.warn("addCalendarEvent error (non-fatal)"); }
-      }
-
-      function loadCalendarEvents() {
-        try {
-        const dateEl = document.getElementById("calendar-date");
-        const list = document.getElementById("calendar-events-list");
-        if (!dateEl || !list) return;
-        const date = dateEl.value;
-        let events = JSON.parse(localStorage.getItem("calendarEvents") || "{}");
-        let html = "";
-        if (date && events[date]) {
-          html = events[date]
-            .map(
-              (e, i) =>
-                `<div>${e} <button onclick="deleteCalendarEvent('${date}',${i})">🗑️</button></div>`
-            )
-            .join("");
-        } else {
-          html = "<em>No events for this date.</em>";
-        }
-        list.innerHTML = html;
-        } catch (e) { console.warn("loadCalendarEvents error (non-fatal)"); }
-      }
-
-      function deleteCalendarEvent(date, idx) {
-        try {
-        let events = JSON.parse(localStorage.getItem("calendarEvents") || "{}");
-        if (events[date]) {
-          events[date].splice(idx, 1);
-          if (events[date].length === 0) delete events[date];
-          localStorage.setItem("calendarEvents", JSON.stringify(events));
-          loadCalendarEvents();
-          showStatus("Event deleted!");
-          saveSession();
-        }
-        } catch (e) { console.warn("deleteCalendarEvent error (non-fatal)"); }
-      }
-
-      document.addEventListener("change", function (e) {
-        if (e.target && e.target.id === "calendar-date") {
-          try { loadCalendarEvents(); } catch (e) {}
-        }
-      });
-
       // --- Nav Tooltips ---
       const navTooltip = document.createElement("div");
       navTooltip.id = "nav-tooltip";
@@ -4290,6 +5018,16 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         if (!text) return;
         const type = target.getAttribute("data-tooltip-type");
         let html = `<div class="nav-tooltip-title">${text}</div>`;
+        // Calc, Clock and Help can only ever have one window, so their list was
+        // always a single entry restating the title above it ("Toggle Clock" /
+        // "- Clock") - it read as two stacked tooltips. Only list a singleton
+        // when it is minimized, where the entry does something the button
+        // can't: bring it back rather than toggle it.
+        const SINGLETON_TYPES = ["calculator", "clock", "help"];
+        const singletonHidden = (sel) => {
+          const el = document.querySelector(sel);
+          return !!el && el.style.display === "none";
+        };
         if (type) {
           let selector = "";
           let titleSelector = "";
@@ -4319,14 +5057,25 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             titleSelector = ".help-title";
             filter = () => true;
           }
-          const items = Array.from(document.querySelectorAll(selector));
-          if (items.length > 0) {
+          const listWorthShowing =
+            selector &&
+            (!SINGLETON_TYPES.includes(type) || singletonHidden(selector));
+          const items = listWorthShowing
+            ? Array.from(document.querySelectorAll(selector))
+            : [];
+          const entries = items
+            .map((win) => ({
+              id: win.id,
+              name: win.querySelector(titleSelector)?.textContent || win.id,
+              hidden: win.style.display === "none",
+            }))
+            .filter((e) => !filter || filter(e.name));
+          if (entries.length > 0) {
             html += '<div class="nav-tooltip-list">';
-            items.forEach((win) => {
-              const name =
-                win.querySelector(titleSelector)?.textContent || win.id;
-              if (filter && !filter(name)) return;
-              html += `<button class="nav-tooltip-link" data-target-id="${win.id}">- ${name}</button>`;
+            entries.forEach((e) => {
+              html += `<button class="nav-tooltip-link" data-target-id="${e.id}">- ${e.name}${
+                e.hidden ? " (minimized)" : ""
+              }</button>`;
             });
             html += "</div>";
           }
@@ -4338,27 +5087,59 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             link.addEventListener("click", (event) => {
               event.preventDefault();
               event.stopPropagation();
-              const targetId = link.getAttribute("data-target-id");
-              const win = document.getElementById(targetId);
-              if (win) {
-                win.style.display = "";
-                setActiveWindow(targetId);
-              }
+              restoreWindow(link.getAttribute("data-target-id"));
+              hideNavTooltip();
             });
           });
+        // Anchoring to the button's own top edge meant a bottom-row tooltip
+        // rendered straight over the top row's buttons. Clear the whole
+        // toolbar instead, and flip below it when the toolbar is top-anchored.
         const rect = target.getBoundingClientRect();
-        const top = rect.top - 8;
-        navTooltip.style.left = `${rect.left + rect.width / 2}px`;
-        navTooltip.style.top = `${top}px`;
-        navTooltip.style.transform = "translate(-50%, -100%)";
+        const nav = navMenuBounds();
+        const gap = 10;
+        const navIsTopAnchored = nav && nav.top < window.innerHeight / 2;
+
         navTooltip.classList.add("visible");
+        navTooltip.style.transform = "none";
+        navTooltip.style.left = "0px";
+        navTooltip.style.top = "0px";
+        const tip = navTooltip.getBoundingClientRect();
+
+        let left = rect.left + rect.width / 2 - tip.width / 2;
+        left = Math.min(
+          Math.max(8, left),
+          Math.max(8, window.innerWidth - tip.width - 8)
+        );
+
+        const anchor = nav || rect;
+        let top = navIsTopAnchored
+          ? anchor.bottom + gap
+          : anchor.top - tip.height - gap;
+        top = Math.min(
+          Math.max(8, top),
+          Math.max(8, window.innerHeight - tip.height - 8)
+        );
+
+        navTooltip.style.left = `${left}px`;
+        navTooltip.style.top = `${top}px`;
       }
 
       function hideNavTooltip() {
         navTooltip.classList.remove("visible");
       }
 
+      // Every toolbar button already carries a full description in
+      // data-tooltip, but that is a custom div a screen reader never sees, and
+      // the visible labels ("T2", "Calc") don't stand on their own. Derive the
+      // accessible name from the tooltip instead of hand-writing 16 of them.
       document.querySelectorAll(".nav-menu [data-tooltip]").forEach((el) => {
+        el.setAttribute("aria-label", el.getAttribute("data-tooltip"));
+        if (el.tagName === "BUTTON") el.setAttribute("type", "button");
+      });
+
+      document.querySelectorAll(".nav-menu [data-tooltip]").forEach((el) => {
+        el.addEventListener("focus", () => showNavTooltip(el));
+        el.addEventListener("blur", hideNavTooltip);
         el.addEventListener("mouseenter", () => {
           if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
           showNavTooltip(el);
@@ -4375,136 +5156,86 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       });
       navTooltip.addEventListener("mouseleave", hideNavTooltip);
 
+      // Minimizing used to hide a window with the only route back being an
+      // undiscoverable hover tooltip. refreshChrome() puts a restore chip in
+      // the bottom-left bar so a minimized window is never lost.
       function minimizeWindow(windowId) {
         const win = document.getElementById(windowId);
-        if (win) {
-          win.style.display = "none";
-          saveSession();
-        }
+        if (!win) return;
+        win.style.display = "none";
+        win.classList.remove("active");
+        if (activeWindow === windowId) activeWindow = null;
+        refreshChrome();
+        showStatus("Minimized — click the chip below-left to restore.");
+        saveSession();
       }
 
       function minimizeStickyNote(windowId) {
-        const win = document.getElementById(windowId);
-        if (win) {
-          win.style.display = "none";
-          saveSession();
-        }
+        minimizeWindow(windowId);
       }
 
-      // --- Calendar hardening stubs (prevent crashes from incomplete feature) ---
-      function updateTodayEvents() {
-        // No-op stub: the calendar UI is not fully wired in this build.
-        // Prevents ReferenceError if renderCalendar or load paths are reached.
-      }
-      function showEvents(dateStr) {
-        // Safe stub — shows a gentle message instead of throwing.
-        try { showStatus("Calendar view is not available in this version."); } catch (e) {}
-      }
-
-      function renderCalendar() {
-        try {
-        const calendarWindow = document.getElementById("calendar-window");
-        if (!calendarWindow) return;
-
-        const year = parseInt(calendarWindow.dataset.year);
-        const month = parseInt(calendarWindow.dataset.month);
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const events = JSON.parse(
-          localStorage.getItem("calendarEvents") || "{}"
-        );
-
-        let daysHTML = "";
-        for (let i = 0; i < firstDay; i++) {
-          daysHTML += '<div class="day empty"></div>';
+      // --- Keyboard ---
+      // The app was mouse-only: no shortcuts, and no way to dismiss the search
+      // panel or an in-progress rename from the keyboard.
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          if (currentEditable) {
+            cancelRename();
+            return;
+          }
+          const panel = document.getElementById("search-replace");
+          if (panel && panel.classList.contains("active")) {
+            toggleSearchReplace();
+            return;
+          }
+          hideNavTooltip();
+          return;
         }
 
-        const today = new Date().toISOString().split("T")[0];
-        for (let day = 1; day <= daysInMonth; day++) {
-          const dateStr = `${year}-${String(month + 1).padStart(
-            2,
-            "0"
-          )}-${String(day).padStart(2, "0")}`;
-          const hasEvents = events[dateStr] && events[dateStr].length > 0;
-          const isToday = dateStr === today;
-          daysHTML += `
-            <div class="day${hasEvents ? " has-events" : ""}${
-            isToday ? " today" : ""
-          }" 
-                 onclick="showEvents('${dateStr}')" 
-                 data-date="${dateStr}">
-                ${day}
-            </div>`;
+        if (!e.ctrlKey || !e.shiftKey || e.altKey) return;
+        switch (e.key.toLowerCase()) {
+          case "n":
+            e.preventDefault();
+            addWindow();
+            break;
+          case "t":
+            e.preventDefault();
+            addTaskWindow();
+            break;
+          case "f":
+            e.preventDefault();
+            toggleSearchReplace();
+            break;
+          case "w":
+            e.preventDefault();
+            if (activeWindow) closeWindow(activeWindow);
+            break;
         }
+      });
 
-        const monthNames = [
-          "January",
-          "February",
-          "March",
-          "April",
-          "May",
-          "June",
-          "July",
-          "August",
-          "September",
-          "October",
-          "November",
-          "December",
-        ];
+      // Header control glyphs are spans acting as buttons; give them Enter and
+      // Space so they aren't mouse-only for keyboard users.
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        const target = e.target;
+        if (!target.matches || !target.matches('[role="button"][tabindex]')) return;
+        e.preventDefault();
+        target.click();
+      });
 
-        document.getElementById(
-          "month-year"
-        ).textContent = `${monthNames[month]} ${year}`;
-        document.getElementById("calendar-grid").innerHTML = `
-        <div class="day-name">Sun</div>
-        <div class="day-name">Mon</div>
-        <div class="day-name">Tue</div>
-        <div class="day-name">Wed</div>
-        <div class="day-name">Thu</div>
-        <div class="day-name">Fri</div>
-        <div class="day-name">Sat</div>
-        ${daysHTML}
-    `;
-
-        updateTodayEvents();
-        } catch (e) { console.warn("renderCalendar error (non-fatal)"); }
-      }
-
-      function navigateMonth(delta) {
-        try {
-        const calendarWindow = document.getElementById("calendar-window");
-        if (!calendarWindow) return;
-
-        let year = parseInt(calendarWindow.dataset.year);
-        let month = parseInt(calendarWindow.dataset.month);
-
-        month += delta;
-        if (month < 0) {
-          month = 11;
-          year--;
-        } else if (month > 11) {
-          month = 0;
-          year++;
-        }
-
-        calendarWindow.dataset.year = year;
-        calendarWindow.dataset.month = month;
-        renderCalendar();
-        } catch (e) { console.warn("navigateMonth error (non-fatal)"); }
-      }
-
-      function goToToday() {
-        try {
-        const calendarWindow = document.getElementById("calendar-window");
-        if (!calendarWindow) return;
-
-        const today = new Date();
-        calendarWindow.dataset.year = today.getFullYear();
-        calendarWindow.dataset.month = today.getMonth();
-        renderCalendar();
-        showStatus("Navigated to today");
-        } catch (e) { console.warn("goToToday error (non-fatal)"); }
-      }
+      // A window parked near an edge could end up unreachable after the
+      // viewport shrank; pull everything back into the usable canvas.
+      let _resizeTimer = null;
+      window.addEventListener("resize", () => {
+        if (_resizeTimer) clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(() => {
+          document
+            .querySelectorAll(WINDOW_SELECTOR)
+            .forEach((el) => clampWindowIntoView(el));
+          setMaxDimensions();
+          debouncedSave(200);
+        }, 150);
+      });
 
       (function logConsoleEasterEgg() {
         try {
