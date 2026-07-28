@@ -19,7 +19,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.0.2 — 2026-07-28. See CHANGELOG.md for release history. -->
+    <!-- CB App v3.0.3 — 2026-07-28. See CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -64,13 +64,9 @@
         transition: opacity 0.3s ease;
         transform: translate(0, 0);
       }
-      .window.dragging,
-      .calculator.dragging,
-      .task-window.dragging,
-      .clock-window.dragging,
-      .log-window.dragging {
-        opacity: 0.8;
-      }
+      /* Drag feedback lives in the UX pass near the end of this stylesheet.
+         The old rule here was `opacity: 0.8` on five of the seven window
+         types. */
       /* The `.dark-mode X` legacy rules that used to live here outranked the
          token-based system further down purely on specificity (0,0,2,0 beats
          0,0,1,0), so windows were still painting rgba(0,0,0,0.3) over a
@@ -1742,6 +1738,47 @@
       .dragging > .help-header,
       .dragging > .sticky-note-header {
         cursor: grabbing;
+      }
+
+      /* --- Drag feedback ---
+         This used to be `opacity: 0.8` alone, which only ever read as a drag
+         cue by accident. Compositing a white window over the light canvas at
+         0.8 lands on rgb(253,253,254) — a 2/255 shift, invisible — so in light
+         mode the only visible effect was windows underneath bleeding through,
+         which looks like a rendering fault rather than "picked up". Dark mode
+         got away with it because light text dims noticeably on a dark ground.
+         A lift reads identically in both themes; the opacity is now a light
+         seasoning rather than the whole effect. It also covers sticky notes and
+         the help window, which the original rule omitted entirely. */
+      .window.dragging,
+      .calculator.dragging,
+      .task-window.dragging,
+      .clock-window.dragging,
+      .log-window.dragging,
+      .sticky-note-window.dragging,
+      .help-window.dragging {
+        opacity: 0.94;
+        transform: scale(1.015);
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent), 0 30px 60px rgba(0, 0, 0, 0.5);
+        /* Don't animate the lift — a transition here lags the cursor. */
+        transition: none;
+      }
+
+      .light-mode .window.dragging,
+      .light-mode .calculator.dragging,
+      .light-mode .task-window.dragging,
+      .light-mode .clock-window.dragging,
+      .light-mode .log-window.dragging,
+      .light-mode .sticky-note-window.dragging,
+      .light-mode .help-window.dragging {
+        box-shadow: 0 0 0 1px var(--accent), 0 30px 60px rgba(15, 23, 42, 0.32);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .dragging {
+          transform: none !important;
+        }
       }
 
       [data-locked="true"] > .window-header,

@@ -7,6 +7,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.0.3] — 2026-07-28
+
+### Fixed
+
+- **Dragging a window gave no visible feedback in light mode.** The drag state
+  was `opacity: 0.8` and nothing else, which only ever worked by accident:
+  compositing a white window over the light canvas at 0.8 lands on
+  `rgb(253,253,254)`, a 2/255 shift that is invisible, so the only visible
+  result was windows underneath bleeding through — closer to a rendering fault
+  than to "picked up". Dark mode got away with it because light text dims
+  noticeably against a dark ground. Dragging now lifts the window with an
+  accent ring, a raised shadow and a slight scale, which reads the same in both
+  themes, with the opacity reduced to a seasoning.
+- Sticky notes and the help window had no drag feedback at all — the original
+  rule covered only five of the seven window types.
+
+---
+
 ## [3.0.2] — 2026-07-28
 
 ### Fixed
