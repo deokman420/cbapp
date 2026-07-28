@@ -7,6 +7,34 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.0.1] — 2026-07-28
+
+### Fixed
+
+- **Sticky notes created before v3.0 stayed dark after switching to light
+  mode.** v3.0 stopped baking theme colours into new notes, but sessions saved
+  earlier already contained them, and the restore path reapplied them
+  faithfully — so an existing note kept its dark background while the rest of
+  the app went light, with near-invisible toolbar labels on top of it. Notes
+  now record whether a colour was a deliberate choice; a stored colour matching
+  any default this app has ever shipped is treated as "no choice" and released
+  to the theme. Notes you actually recoloured keep their colours.
+- A note's title, toolbar labels and buttons now follow its custom text colour
+  instead of the theme's, so they stay readable on any background you pick.
+- The colour swatches no longer read a mid-transition value (the note animates
+  its background over 0.3s, so they could show a colour like `#9a9475` that was
+  never chosen and never displayed).
+
+### Added
+
+- **Copy button on sticky notes**, next to Reset — one click copies the note's
+  text.
+- **Reset button on sticky notes**, returning a note to the theme colours.
+  Without it, recolouring a note dark and then switching to light mode (or the
+  reverse) left it unreadable with no way back.
+
+---
+
 ## [3.0] — 2026-07-28
 
 A UX and accessibility overhaul. Every change below was verified in a real

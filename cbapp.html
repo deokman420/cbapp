@@ -19,7 +19,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.0 — 2026-07-28. See CHANGELOG.md for release history. -->
+    <!-- CB App v3.0.1 — 2026-07-28. See CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -1024,9 +1024,25 @@
         border-bottom-color: rgba(255, 255, 255, 0.12);
       }
 
-      .sticky-note-window,
-      .sticky-note-toolbar label {
+      /* Only the note itself carries a colour; everything inside inherits it.
+         Giving the label and textarea their own `color` declarations meant an
+         inline colour set on the note could never reach them (inheritance
+         loses to a matching rule), so a custom text colour left the toolbar
+         and title on the theme token — unreadable on a custom background. */
+      .sticky-note-window {
         color: var(--sticky-text);
+      }
+
+      .sticky-note-toolbar label,
+      .sticky-note-window .sticky-note-content,
+      .sticky-note-window .sticky-note-title {
+        color: inherit;
+      }
+
+      /* The active-window accent is skipped on a recoloured note — teal on an
+         arbitrary user background is a contrast gamble the ring already covers. */
+      .sticky-note-window[data-custom-color="true"].active > * > .sticky-note-title {
+        color: inherit;
       }
 
       .sticky-note-window .edit-window,
@@ -1075,6 +1091,45 @@
         height: 20px;
         padding: 0 2px;
         cursor: pointer;
+      }
+
+      /* Copy is the common action, so it sits first. Reset is the escape hatch:
+         a note recoloured dark then viewed in light mode (or vice versa) would
+         otherwise be unreadable with no way back. Both inherit currentColor so
+         they stay legible against a custom note background. */
+      .sticky-toolbar-actions {
+        margin-left: auto;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .sticky-note-toolbar .sticky-copy,
+      .sticky-note-toolbar .sticky-reset-colors {
+        background: transparent;
+        border: 1px solid currentColor;
+        color: inherit;
+        /* 0.7 measured 3.94:1 in light mode */
+        opacity: 0.88;
+        font-size: 9px;
+        letter-spacing: 0.06em;
+        padding: 3px 8px;
+        border-radius: 999px;
+      }
+
+      .sticky-note-toolbar .sticky-copy:hover,
+      .sticky-note-toolbar .sticky-reset-colors:hover {
+        opacity: 1;
+        background: rgba(0, 0, 0, 0.12);
+        color: inherit;
+        border-color: currentColor;
+        transform: none;
+        box-shadow: none;
+      }
+
+      .dark-mode .sticky-note-toolbar .sticky-copy:hover,
+      .dark-mode .sticky-note-toolbar .sticky-reset-colors:hover {
+        background: rgba(255, 255, 255, 0.12);
       }
 
       .sticky-note-toolbar input[type="color"],
@@ -2234,24 +2289,145 @@
       </a>
     </div>
     <script type="text/javascript">
+      // Normalise "rgb(43, 39, 24)" / "#2B2718" / "" to "#2b2718" so stored
+      // colours can be compared against the theme defaults.
+      function normalizeColor(value) {
+        if (!value) return "";
+        const v = String(value).trim().toLowerCase();
+        const rgb = v.match(/^rgba?\(([^)]+)\)$/);
+        if (rgb) {
+          const [r, g, b] = rgb[1].split(",").map((n) => parseInt(n, 10));
+          if ([r, g, b].some(Number.isNaN)) return v;
+          return (
+            "#" +
+            [r, g, b].map((n) => n.toString(16).padStart(2, "0")).join("")
+          );
+        }
+        if (/^#[0-9a-f]{3}$/.test(v)) {
+          return "#" + v[1] + v[1] + v[2] + v[2] + v[3] + v[3];
+        }
+        return v;
+      }
+
+      // Every sticky-note colour this app has ever used as a *default*. A
+      // stored colour matching one of these was never a deliberate choice - it
+      // was just whatever the theme happened to be when the note was made -
+      // so it must not be reapplied over the current theme.
+      const DEFAULT_STICKY_COLORS = new Set([
+        "#2b2718", "#fff6c9", // current --sticky-bg
+        "#f6ecd2", "#3b3210", // current --sticky-text
+        "#141820", "#ffffff", // --bg-card, used as the default before v3.0
+        "#e2e8f0", "#0f172a", // --text, likewise
+        "#444444", "#ffff88", // pre-v2 sticky background
+        "#000000",            // pre-v2 fallback text colour
+      ]);
+
+      function isDefaultStickyColor(value) {
+        return DEFAULT_STICKY_COLORS.has(normalizeColor(value));
+      }
+
+      // Mark the note as deliberately recoloured. Without this flag there is no
+      // way to tell a user's choice from a baked-in theme default, which is why
+      // notes created before v3.0 stayed dark forever after switching to light.
       function changeStickyNoteColor(windowId, color) {
         const stickyNote = document.getElementById(windowId);
         if (stickyNote) {
           stickyNote.style.backgroundColor = color;
+          stickyNote.dataset.customColor = "true";
           saveSession();
-          showStatus("Sticky note color changed!");
+          showStatus("Sticky note colour changed.");
         }
       }
 
       function changeStickyNoteTextColor(windowId, color) {
-        const stickyNoteContent = document.querySelector(
-          `#${windowId} .sticky-note-content`
+        const stickyNote = document.getElementById(windowId);
+        const stickyNoteContent = stickyNote?.querySelector(
+          ".sticky-note-content"
         );
         if (stickyNoteContent) {
           stickyNoteContent.style.color = color;
+          // Also set it on the note itself so the title, the toolbar labels and
+          // the Reset button inherit it. They otherwise stay on the theme token
+          // and go unreadable against a custom background - dark brown text on
+          // a purple note, for instance.
+          stickyNote.style.color = color;
+          stickyNote.dataset.customColor = "true";
           saveSession();
-          showStatus("Sticky note text color changed!");
+          showStatus("Sticky note text colour changed.");
         }
+      }
+
+      // Drop a note's inline colours so it inherits the theme tokens again.
+      function resetStickyColors(windowId) {
+        const stickyNote = document.getElementById(windowId);
+        if (!stickyNote) return;
+        stickyNote.style.removeProperty("background-color");
+        stickyNote.style.removeProperty("color");
+        stickyNote
+          .querySelector(".sticky-note-content")
+          ?.style.removeProperty("color");
+        delete stickyNote.dataset.customColor;
+        syncStickySwatches(stickyNote);
+        saveSession();
+        showStatus("Sticky note follows the theme again.");
+      }
+
+      // One-click copy of a sticky note's body text.
+      function copyStickyNoteText(windowId) {
+        const content = document
+          .getElementById(windowId)
+          ?.querySelector(".sticky-note-content");
+        if (!content) {
+          showStatus("Copy failed: sticky note not found.");
+          return;
+        }
+        copyToClipboard(content.value, "This sticky note is empty.");
+      }
+
+      // Point the two swatch inputs at what the note will settle on.
+      // Deliberately reads the inline style or the theme *token* rather than
+      // the computed colour: .sticky-note-window transitions its background
+      // over 0.3s, so sampling getComputedStyle mid-switch captures a garbage
+      // intermediate value like #9a9475.
+      function syncStickySwatches(stickyNote) {
+        const contentEl = stickyNote.querySelector(".sticky-note-content");
+        const bg = stickyNote.querySelector('input[type="color"][id^="sticky-note-color-"]');
+        const fg = stickyNote.querySelector('input[type="color"][id^="sticky-note-text-color-"]');
+        const tokens = getComputedStyle(document.body);
+        if (bg) {
+          bg.value =
+            normalizeColor(stickyNote.style.backgroundColor) ||
+            normalizeColor(tokens.getPropertyValue("--sticky-bg")) ||
+            "#2b2718";
+        }
+        if (fg) {
+          fg.value =
+            normalizeColor(contentEl && contentEl.style.color) ||
+            normalizeColor(tokens.getPropertyValue("--sticky-text")) ||
+            "#f6ecd2";
+        }
+      }
+
+      // Sticky notes that were never deliberately recoloured must follow the
+      // theme; ones the user painted keep their colours.
+      function refreshStickyThemeColors() {
+        const notes = document.querySelectorAll(".sticky-note-window");
+        notes.forEach((note) => {
+          if (note.dataset.customColor !== "true") {
+            note.style.removeProperty("background-color");
+            note.style.removeProperty("color");
+            note
+              .querySelector(".sticky-note-content")
+              ?.style.removeProperty("color");
+          }
+        });
+        // Read the swatches back on the next frame. Custom properties changed
+        // on <body> do not resolve synchronously - reading getComputedStyle in
+        // the same pass (even after forcing layout) returns the *previous*
+        // theme's colours, leaving the pickers one theme behind.
+        requestAnimationFrame(() =>
+          notes.forEach((note) => syncStickySwatches(note))
+        );
       }
 
       let windowCount = 0;
@@ -2575,6 +2751,10 @@
         <input type="color" id="sticky-note-color-${windowId}" value="${defaultBgColor}" onchange="changeStickyNoteColor('${windowId}', this.value)">
         <label for="sticky-note-text-color-${windowId}">Text:</label>
         <input type="color" id="sticky-note-text-color-${windowId}" value="${defaultTextColor}" onchange="changeStickyNoteTextColor('${windowId}', this.value)">
+        <div class="sticky-toolbar-actions">
+            <button class="sticky-copy" onclick="copyStickyNoteText('${windowId}')" title="Copy this note's text" aria-label="Copy sticky note text">Copy</button>
+            <button class="sticky-reset-colors" onclick="resetStickyColors('${windowId}')" title="Reset colours to follow the theme" aria-label="Reset sticky note colours to follow the theme">Reset</button>
+        </div>
     </div>
     <textarea class="sticky-note-content" placeholder="Write something..."></textarea>
 `;
@@ -2738,6 +2918,10 @@
               content,
               color: bgColor,
               textColor,
+              // Distinguishes a deliberate colour choice from a theme default
+              // that merely happened to be inline. Absent in pre-v3.0 sessions,
+              // which is what the restore heuristic is for.
+              customColor: stickyNote.dataset.customColor === "true",
               name: title,
             };
           });
@@ -4300,8 +4484,14 @@ Enterprise browser
           newMode === "dark-mode" ? darkIconSvg : lightIconSvg
         }`;
 
+        // Sticky notes carry inline colours; the ones that were never
+        // deliberately recoloured have to be released so the new theme's
+        // tokens apply, otherwise they stay dark on a light canvas.
+        refreshStickyThemeColors();
         saveSession();
-        showStatus(`Switched to ${newMode} mode!`);
+        showStatus(
+          `Switched to ${newMode === "dark-mode" ? "dark" : "light"} mode.`
+        );
       }
 
       function toggleNavMenu() {
@@ -4599,19 +4789,33 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             const content = stickyNoteElement.querySelector(
               ".sticky-note-content"
             );
-            if (content) {
-              content.value = stickyNoteData.content;
-              // Only reapply an explicitly chosen colour. The old fallback of
-              // "#000" forced black text onto every restored note, including
-              // ones that had never been recoloured.
-              if (stickyNoteData.textColor) {
-                content.style.color = stickyNoteData.textColor;
-              }
-            }
+            if (content) content.value = stickyNoteData.content;
 
-            if (stickyNoteData.color) {
+            // Reapply colours only when they were a deliberate choice.
+            // Sessions written before v3.0 have no customColor flag and stored
+            // whatever the theme default was at creation time; reapplying those
+            // is what left old notes stuck dark on a light canvas. Treat a
+            // stored colour matching any known default as "not a choice".
+            const bgIsChoice = stickyNoteData.customColor
+              ? !!stickyNoteData.color
+              : !!stickyNoteData.color && !isDefaultStickyColor(stickyNoteData.color);
+            const fgIsChoice = stickyNoteData.customColor
+              ? !!stickyNoteData.textColor
+              : !!stickyNoteData.textColor &&
+                !isDefaultStickyColor(stickyNoteData.textColor);
+
+            if (bgIsChoice) {
               stickyNoteElement.style.backgroundColor = stickyNoteData.color;
             }
+            if (fgIsChoice && content) {
+              content.style.color = stickyNoteData.textColor;
+              // Keep the title/toolbar legible against a custom background.
+              stickyNoteElement.style.color = stickyNoteData.textColor;
+            }
+            if (bgIsChoice || fgIsChoice) {
+              stickyNoteElement.dataset.customColor = "true";
+            }
+            syncStickySwatches(stickyNoteElement);
             const title = stickyNoteElement.querySelector(".sticky-note-title");
             if (title && stickyNoteData.name) {
               title.textContent = stickyNoteData.name;
