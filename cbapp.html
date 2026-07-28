@@ -19,7 +19,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.0.3 — 2026-07-28. See CHANGELOG.md for release history. -->
+    <!-- CB App v3.0.4 — 2026-07-28. See CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -478,7 +478,13 @@
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         overflow: hidden;
         resize: both;
-        transition: background 0.3s ease, box-shadow 0.3s ease;
+        /* Only the background transitions. Sticky notes were the one window
+           type that also animated box-shadow, so the .active accent ring faded
+           in and out over 0.3s while the border-color underneath snapped —
+           two steps out of sync, which reads as the border pulsing on every
+           focus change (loudest in dark mode, where the ring is high contrast
+           against the canvas). Every other window snaps; now these do too. */
+        transition: background 0.3s ease;
       }
 
 
@@ -1747,9 +1753,11 @@
          mode the only visible effect was windows underneath bleeding through,
          which looks like a rendering fault rather than "picked up". Dark mode
          got away with it because light text dims noticeably on a dark ground.
-         A lift reads identically in both themes; the opacity is now a light
-         seasoning rather than the whole effect. It also covers sticky notes and
-         the help window, which the original rule omitted entirely. */
+         A lift reads identically in both themes, so the ring and the scale do
+         the load-bearing work and the opacity is free to go properly
+         translucent — 0.8 in both themes, enough that the canvas reads through
+         a window in flight. It also covers sticky notes and the help window,
+         which the original rule omitted entirely. */
       .window.dragging,
       .calculator.dragging,
       .task-window.dragging,
@@ -1757,7 +1765,7 @@
       .log-window.dragging,
       .sticky-note-window.dragging,
       .help-window.dragging {
-        opacity: 0.94;
+        opacity: 0.8;
         transform: scale(1.015);
         border-color: var(--accent);
         box-shadow: 0 0 0 1px var(--accent), 0 30px 60px rgba(0, 0, 0, 0.5);

@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v3.0.3`  
+**Version:** `v3.0.4`  
 **Released:** July 28, 2026  
 **Size:** ~185 KB (single file)  
 **License:** Provided as-is
@@ -40,7 +40,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.0.3)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.0.4)
 
 Simply save the file and open it in your browser.
 
@@ -114,11 +114,12 @@ A UX and accessibility overhaul. Highlights:
   and a responsive toolbar that fits a phone screen.
 - **Removed:** the Calendar window, and the long-dead Drawing window.
 
-**v3.0.1–3.0.3** fix sticky notes created before v3.0 staying dark after
+**v3.0.1–3.0.4** fix sticky notes created before v3.0 staying dark after
 switching to light mode, restore the hover and active highlight on the Calc,
 Clock, Log, Theme and Search buttons, give dragging a window visible feedback
-in light mode, and add one-click **Copy** and **Reset** buttons to the sticky
-note toolbar.
+in light mode, stop a sticky note's border pulsing on every focus change, make
+a window properly translucent while it is being dragged, and add one-click
+**Copy** and **Reset** buttons to the sticky note toolbar.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
@@ -138,7 +139,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v3.0.3)
+├── cbapp.html          # The complete application (v3.0.4)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -151,4 +152,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v3.0.3** — A self-contained productivity workspace that just works.
+**CB App v3.0.4** — A self-contained productivity workspace that just works.

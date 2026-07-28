@@ -7,6 +7,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.0.4] — 2026-07-28
+
+### Fixed
+
+- **A sticky note's border pulsed every time it gained or lost focus, worst in
+  dark mode.** Sticky notes were the only window type whose `transition`
+  included `box-shadow`, so the `.active` accent ring faded in and out over
+  0.3s while the `border-color` underneath it switched instantly — the two
+  edges of the same 1px line moving out of step, which reads as a pulse. It was
+  loudest in dark mode, where the teal ring is high contrast against the
+  canvas. Focus now snaps on sticky notes exactly as it does on every other
+  window; the background still transitions, so the colour swatch keeps its
+  fade.
+
+### Changed
+
+- **Windows are properly translucent while being dragged**, in both themes
+  (`opacity: 0.94` → `0.8`). The accent ring and the slight scale added in
+  3.0.3 carry the "picked up" read on their own, which frees the opacity to do
+  what it looks like it should: let the canvas show through a window in flight.
+
+---
+
 ## [3.0.3] — 2026-07-28
 
 ### Fixed
