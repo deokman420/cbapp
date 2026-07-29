@@ -7,6 +7,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.1.2] — 2026-07-28
+
+### Added
+
+- **Source link in the help window.** The help text now ends with a `Source`
+  section pointing at `https://github.com/deokman420/cbapp`, so anyone handed
+  a copy of the file can find where it came from. Plain text rather than an
+  anchor — the help body is a `<pre>`, and a default-styled link would sit
+  badly against the dark theme.
+
+---
+
 ## [3.1.1] — 2026-07-28
 
 ### Fixed
