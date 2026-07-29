@@ -7,6 +7,130 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.1.3] — 2026-07-29
+
+A critical-review pass over the whole file. Two persistent script-injection
+sinks, one data-loss bug in the app's core object, and the last of the
+dark-first colour debt.
+
+### Security
+
+- **The calculator history executed whatever you typed into it.** The history
+  rows were built by interpolating the expression into `innerHTML`, and the
+  expression is stored on the *error* path too — so it did not even have to be
+  valid arithmetic. It was persisted verbatim, replayed by `addCalculator()` on
+  every restore, and carried inside both `Backup` and `Download .html`. Since
+  the whole point of the file is that you hand a copy to someone, that copy ran
+  arbitrary script in the recipient's origin, where it could read every note in
+  their `localStorage`. The CSP allows `'unsafe-inline'`, so it offered no
+  mitigation. Rows are now built with `createElement` + `textContent`.
+- **A renamed window title did the same thing from the nav tooltip.** Titles are
+  user-editable (`contentEditable` behind the ✏️), persisted, and were
+  interpolated into the tooltip's `innerHTML` — so the payload fired on nothing
+  more than hovering a toolbar button. The tooltip's list is now built as real
+  nodes.
+
+### Fixed
+
+- **Resizing a note was destroyed by the next reload.** A note's size lives on
+  its `.textarea-container`; the window box is *derived* from it. Only the
+  derived box was saved, so restore rebuilt the container at its hardcoded
+  525×287 default, the `ResizeObserver`'s first callback recomputed the window
+  from that default, and the debounced save then wrote the shrunken size back
+  over the real one. An 880×560 note came back at 525×287 **and** lost its saved
+  size permanently. The container's own box is now persisted and reapplied
+  before the observer's first callback. Sessions written before this release
+  keep the old behaviour rather than being resized to something arbitrary.
+- **The Log window's rename did nothing.** `startRename()` looked for
+  `.window-title, .task-title, .sticky-note-title`; the log's title is
+  `.log-title`, so clicking its ✏️ threw on a null element and the exception was
+  swallowed by the inline `onclick`. `endRename()` has had a dedicated `"log"`
+  branch the whole time, so this was intended to work.
+- **Ctrl+Shift+W on the Clock, Calculator or Log leaked state.** `closeWindow()`
+  only removed the element, while the singleton bookkeeping lives in the
+  `toggle*()` functions — so the toolbar button stayed lit as though the window
+  were still open, and the clock's 1-second interval ran for the rest of the
+  tab's life. Those three ids now route through the toggle that owns their
+  state.
+- **Zoom was never saved.** `setZoom()` and `zoomToFit()` both ended at the view
+  update, and the wheel handler's save sits *after* its `if (e.ctrlKey) … return`
+  — so Ctrl+wheel, the `+`/`−` buttons and `Fit` all reverted to 100% on reload,
+  at a pan that *had* been saved. You came back somewhere you had never been.
+- **A failed save was completely silent.** Above 4.5 MB `saveSession()` returned
+  without a word, so every subsequent write — including the one on
+  `beforeunload` — was a no-op while the app looked entirely normal, and the
+  next reload dropped everything since the threshold was crossed. There is now a
+  sticky **⚠ Not saving** badge and a one-time toast, cleared when a save
+  succeeds.
+- **An exported copy could burn its own payload.** The "already consumed" flag
+  was written *before* the restore ran, so a restore that threw made the
+  embedded session permanently unreachable — every later open took the
+  already-consumed branch. It is now set only after the restore returns.
+  Opening an export also no longer silently overwrites a newer session on that
+  origin: the outgoing one is kept under `notepadSession.prev`.
+
+### Accessibility
+
+- **Windows can be moved and resized from the keyboard.** `makeDraggable` is
+  pointer-only and the resize grip is `aria-hidden` with no tab stop, while CSS
+  turns off native `resize` — so a keyboard-only user could create, lock,
+  minimise and close a window but never move or size one. `Ctrl+Shift+Arrow`
+  moves the active window, `Ctrl+Alt+Arrow` sizes it, both in 20px steps, both
+  respecting the lock and the canvas clamp. Arrow keys inside a textarea are
+  untouched.
+- **The overview map answers the keyboard.** It advertised `role="button"` and
+  sat in the tab order with only pointer handlers bound — reachable and
+  completely inert, which is worse than not being focusable. Arrows now pan;
+  Enter and Space fit every window on screen.
+- **The timer no longer flashes the tab title under `prefers-reduced-motion`.**
+  The CSS reduced-motion block cannot reach `document.title`, so the 14-second,
+  20-cycle flash was the one piece of motion that ignored the preference
+  outright. It now settles on a single title; the toast and the OS notification
+  already carry the message.
+- The calculator's result field had no accessible name — it is now labelled and
+  announced politely.
+
+### Contrast
+
+Every one of these was measured live rather than eyeballed. The app now has
+**zero** WCAG AA failures across all eight window types in both themes.
+
+- **Calculator key hovers: 1.87:1 → 8.63:1 (dark), 4.66:1 → 6.92:1 (light).**
+  Two legacy `:hover` rules at `(0,3,0)` out-specified the token rule at
+  `(0,2,1)` — but only on `background`, so the modern rule still won `color`.
+  Every operator key hovered accent teal on raw orange. Deleted; the token rules
+  already cover both states.
+- **Placeholders: 3.86:1 → 5.62:1 (dark), 3.24:1 → 4.73:1 (dark sticky note).**
+  The app had no `::placeholder` rule *anywhere*, so every prompt in it fell
+  through to the UA default `#757575` in both themes — under AA in the theme the
+  app boots into. Now routed through `--text-dim`. `color-scheme` is also
+  declared per theme so native widget chrome follows.
+- **Completed tasks: 3.54:1 → 7.5:1 (light).** `#888`, hardcoded and never
+  themed, so a ticked task was struck through *and* under-contrast.
+- **Minimap blocks: 1.54:1 → ~4.6:1.** `--text-muted` at `opacity: 0.55` on a
+  dim panel made the blocks — the map's entire payload — effectively invisible,
+  so the map read as "one window exists".
+- **Log row dividers** were `rgba(255,255,255,0.1)` with no light-mode override:
+  white on white.
+
+### Changed
+
+- The overview map and the zoom widget now change layout at 720px, matching the
+  toolbar's own breakpoint. Between 721 and 760px the map used to disappear
+  while the toolbar was still bottom-anchored, for no reason.
+- Exporting within the 3 seconds a toast is up no longer ships a file that opens
+  with a blank status pill pinned top-centre and no timer to clear it.
+
+### Known, not fixed
+
+- On the big canvas a window can still be parked under the toolbar. The world
+  clamp carries no toolbar band, because the toolbar is screen-fixed while
+  windows live in world space — "under the toolbar" moves as you pan. It is
+  recoverable by panning or by `Fit`, and a wrong fix here would break the
+  drag-tracking maths, so it is left alone deliberately.
+
+---
+
 ## [3.1.2] — 2026-07-28
 
 ### Added

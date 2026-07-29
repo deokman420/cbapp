@@ -19,7 +19,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.1.2 — 2026-07-28. See CHANGELOG.md for release history. -->
+    <!-- CB App v3.1.3 — 2026-07-29. See CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -207,16 +207,14 @@
       .log-input-container button {
         background: rgba(255, 165, 0, 0.5);
       }
-      .calculator-buttons .operation:hover,
-      .log-input-container button:hover {
-        background: rgba(255, 165, 0, 0.7);
-      }
       .calculator-buttons .special {
         background: rgba(255, 0, 0, 0.5);
       }
-      .calculator-buttons .special:hover {
-        background: rgba(255, 0, 0, 0.7);
-      }
+      /* The legacy .operation:hover / .special:hover rules that sat here were
+         (0,3,0) and out-specified the token rule `.calculator-buttons
+         button:hover` (0,2,1) — but only on `background`, so the modern rule
+         still won `color`. Every operator key hovered accent teal on raw
+         orange: 1.87:1 in dark mode. The token rules cover both states. */
       /* Legacy .calculator-history / .log-list background rules removed - unified in modern phbeks section */
       .nav-menu {
         position: fixed;
@@ -393,7 +391,9 @@
       }
       .task-item.completed {
         text-decoration: line-through;
-        color: #888;
+        /* #888 was hardcoded and never themed: 3.54:1 on the white light-mode
+           card, so a ticked task was struck through AND under-contrast. */
+        color: var(--text-dim);
       }
       .task-item input[type="checkbox"] {
         cursor: pointer;
@@ -438,7 +438,8 @@
       .log-item {
         padding: 5px;
         font-size: 14px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        /* White-on-white in light mode: the dividers simply weren't there. */
+        border-bottom: 1px solid var(--border);
       }
       .log-item:last-child {
         border-bottom: none;
@@ -733,6 +734,27 @@
         background: var(--bg);
         color: var(--text);
         font-family: var(--font);
+      }
+
+      /* The app never styled ::placeholder at all, so every prompt in it fell
+         through to the UA default (#757575) in BOTH themes — 3.86:1 on the dark
+         card the app boots into, 3.24:1 on a dark sticky note. --text-dim
+         measures 5.6:1 dark / 7.5:1 light, and 4.7:1 / 7.0:1 on the sticky
+         note's own background. opacity is reset for Firefox, which dims
+         placeholders by default. */
+      ::placeholder {
+        color: var(--text-dim);
+        opacity: 1;
+      }
+
+      /* Tells the UA which way scrollbars, spinners and other native widget
+         chrome should render. Without it Chromium drew light-mode controls over
+         the dark theme. */
+      .dark-mode {
+        color-scheme: dark;
+      }
+      .light-mode {
+        color-scheme: light;
       }
 
       a {
@@ -2375,11 +2397,34 @@
         height: 100%;
       }
 
+      /* Sticky, deliberately unmissable: it means work is no longer being
+         persisted. Sits clear of the toolbar island and the status toast. */
+      #save-warning {
+        display: none;
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 1200;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--danger);
+        background: var(--bg-card);
+        color: var(--danger);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        cursor: default;
+      }
+
       .map-window {
         position: absolute;
-        background: var(--text-muted);
+        /* --text-muted at 0.55 blended to 1.54:1 against the map panel — the
+           blocks ARE the minimap's payload, and at that ratio the map read as
+           "one window exists". Full-opacity --text-dim measures ~4.6:1, with a
+           hairline border so adjacent blocks still separate. */
+        background: var(--text-dim);
+        border: 1px solid var(--bg-card);
         border-radius: 1px;
-        opacity: 0.55;
       }
 
       .map-window.map-active {
@@ -2395,7 +2440,10 @@
         pointer-events: none;
       }
 
-      @media (max-width: 760px) {
+      /* 720, matching the toolbar's own breakpoint. At 760 the map vanished
+         while the toolbar was still bottom-anchored, so between 721 and 760px
+         you lost the overview for no reason. */
+      @media (max-width: 720px) {
         /* The widget moves to the bottom on narrow screens; the map would
            cover the canvas, so it goes away entirely. */
         #canvas-map {
@@ -2457,7 +2505,7 @@
 
       /* On a narrow screen the toolbar is top-anchored, so drop the widget
          below it rather than letting the two stack on top of each other. */
-      @media (max-width: 760px) {
+      @media (max-width: 720px) {
         #canvas-controls {
           top: auto;
           bottom: 108px;
@@ -2612,6 +2660,7 @@
       </div>
       <div id="minimized-bar" aria-label="Minimized windows"></div>
       <p id="status" role="status" aria-live="polite"></p>
+      <div id="save-warning" role="alert"></div>
       <a
         href="#"
         class="download-html-link"
@@ -3085,6 +3134,28 @@
         };
         map.addEventListener("pointerup", stop);
         map.addEventListener("pointercancel", stop);
+
+        // The map advertises role="button" and sits in the tab order, but only
+        // pointer events were bound — so it was reachable by keyboard and did
+        // nothing at all, which is worse than not being focusable. Arrows pan;
+        // Enter/Space recentres on the windows.
+        map.addEventListener("keydown", (e) => {
+          if (!view.on) return;
+          const PAN = 80;
+          const nudge = { ArrowLeft: [PAN, 0], ArrowRight: [-PAN, 0], ArrowUp: [0, PAN], ArrowDown: [0, -PAN] }[e.key];
+          if (nudge) {
+            e.preventDefault();
+            view.x += nudge[0];
+            view.y += nudge[1];
+            scheduleView();
+            debouncedSave(300);
+            return;
+          }
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            zoomToFit();
+          }
+        });
       })();
 
       // Gestures mark themselves as in-flight so the compositor hint goes on
@@ -3112,6 +3183,12 @@
         view.x = ax - before.x * z;
         view.y = ay - before.y * z;
         scheduleView();
+        // Neither setZoom nor zoomToFit persisted anything, and the wheel
+        // handler's debouncedSave sits AFTER its `if (e.ctrlKey) … return`, so
+        // Ctrl+wheel, the +/− buttons and Fit all reverted to 100% on reload —
+        // at a pan that HAD been saved, so you came back somewhere you never
+        // were. Debounced: zooming is a stream of small steps.
+        debouncedSave(400);
       }
 
       function zoomBy(direction, anchorX, anchorY) {
@@ -3163,6 +3240,7 @@
         view.x = (vw - (maxX - minX) * zoom) / 2 - minX * zoom;
         view.y = (vh - (maxY - minY) * zoom) / 2 - minY * zoom;
         applyView();
+        saveSession();
         showStatus(`Fitted ${windows.length} window${windows.length === 1 ? "" : "s"}.`);
       }
 
@@ -3613,6 +3691,32 @@
         return newStickyNote;
       }
 
+      // A failed save is silent by nature — nothing on screen changes — so it
+      // gets a sticky badge rather than a toast that scrolls away. The toast
+      // fires only on the transition into failure, because saveSession() runs
+      // on almost every keystroke and would otherwise shout continuously.
+      let saveFailed = false;
+
+      function reportSaveFailure(message) {
+        if (saveFailed) return;
+        saveFailed = true;
+        const badge = document.getElementById("save-warning");
+        if (badge) {
+          badge.textContent = "⚠ Not saving";
+          badge.title = message;
+          badge.style.display = "block";
+        }
+        showStatus(message);
+      }
+
+      function clearSaveFailure() {
+        if (!saveFailed) return;
+        saveFailed = false;
+        const badge = document.getElementById("save-warning");
+        if (badge) badge.style.display = "none";
+        showStatus("Saving again — the session was written successfully.");
+      }
+
       function saveSession() {
         // While restoring we rebuild the DOM by replaying add*() helpers, each of
         // which calls saveSession(); skip those so we never persist a partial
@@ -3627,7 +3731,22 @@
             const title = windowElement.querySelector(
               ".window-title, .task-title, .sticky-note-title"
             ).textContent;
+            // A note's size lives on its .textarea-container — the window box
+            // is DERIVED from it by updateWindowSize(). Saving only the derived
+            // box meant restore rebuilt the container at its hardcoded default,
+            // the ResizeObserver's first callback recomputed the window from
+            // that default, and the debounced save then wrote the shrunken size
+            // back over the real one. One reload destroyed the resize for good.
+            const sizeTarget = resizeTargetFor(windowElement);
+            const ownSize =
+              sizeTarget && sizeTarget !== windowElement
+                ? {
+                    containerWidth: sizeTarget.offsetWidth,
+                    containerHeight: sizeTarget.offsetHeight,
+                  }
+                : null;
             session[windowId] = {
+              ...(ownSize || {}),
               position: {
                 left: windowElement.dataset.x || "50",
                 top: windowElement.dataset.y || "50",
@@ -3773,12 +3892,22 @@
           // Guard against localStorage quota exhaustion (typical limit ~5-10MB)
           if (serialized.length > 4500000) {
             console.warn("Session too large to save safely, skipping write.");
+            // This used to return silently. The app's one promise is that what
+            // you type is kept — so every save after the threshold, including
+            // the one on beforeunload, was a no-op while the UI looked
+            // completely normal, and the next reload dropped the lot.
+            reportSaveFailure(
+              "Session too large to save — export a backup, then close or trim a window."
+            );
             return;
           }
           localStorage.setItem("notepadSession", serialized);
+          clearSaveFailure();
         } catch (e) {
           console.error("Failed to save session to localStorage:", e);
-          showStatus("Failed to save session.");
+          reportSaveFailure(
+            "Failed to save session — export a backup before closing this tab."
+          );
         }
       }
 
@@ -4236,7 +4365,7 @@ Source
         </div>
         <div class="calculator-content">
             <input type="text" class="calculator-input" id="calculator-input" placeholder="Enter expression...">
-            <input type="text" class="calculator-display" id="calculator-display" readonly value="0">
+            <input type="text" class="calculator-display" id="calculator-display" readonly value="0" aria-label="Result" aria-live="polite">
             <div class="calculator-buttons">
                 <button class="special" onclick="clearCalculator()">C</button>
                 <button class="operation" onclick="appendToDisplay('√')">√</button>
@@ -4334,11 +4463,18 @@ Source
 
       function updateCalculatorHistory() {
         const historyDiv = document.getElementById("calculator-history");
-        if (historyDiv) {
-          historyDiv.innerHTML = calculatorHistory
-            .map((entry) => `<p>${entry.expression} = ${entry.result}</p>`)
-            .join("");
-        }
+        if (!historyDiv) return;
+        // textContent, not innerHTML: the expression is whatever was typed into
+        // the calculator, it is stored verbatim on the error path too, and it is
+        // replayed on every restore. Interpolated into markup it was a script
+        // sink that survived a reload and rode along inside Backup and
+        // Download .html — i.e. it executed in the recipient's origin.
+        historyDiv.textContent = "";
+        calculatorHistory.forEach((entry) => {
+          const row = document.createElement("p");
+          row.textContent = `${entry.expression} = ${entry.result}`;
+          historyDiv.appendChild(row);
+        });
       }
 
       function calculate() {
@@ -5145,7 +5281,31 @@ Source
         }
       }
 
+      // Clock, Calculator and Log are singletons whose bookkeeping — the
+      // toolbar button's lit state, the *Visible flag, and the clock's 1s
+      // interval — lives in their toggle*() functions. closeWindow() only
+      // removed the element, so Ctrl+Shift+W on one of them left a stuck
+      // toolbar button and, for the clock, an interval ticking for the life of
+      // the tab. Route the singletons through the toggle that owns their state.
+      const SINGLETON_CLOSERS = {
+        clock: () => toggleClock(),
+        calculator: () => toggleCalculator(),
+        log: () => toggleLog(),
+      };
+
       function closeWindow(windowId) {
+        const singletonClose = SINGLETON_CLOSERS[windowId];
+        const singletonEl = singletonClose && document.getElementById(windowId);
+        if (singletonEl) {
+          disconnectResizeObserver(windowId);
+          if (activeWindow === windowId) activeWindow = null;
+          // Each toggle treats display:none as "minimized — bring it back", so
+          // clear that first or closing a minimized singleton would reopen it.
+          singletonEl.style.display = "";
+          singletonClose();
+          refreshChrome();
+          return;
+        }
         const windowElement = document.getElementById(windowId);
         if (windowElement) {
           disconnectResizeObserver(windowId);
@@ -5173,13 +5333,18 @@ Source
 
       let currentEditable = null;
 
+      // The Log window carries a ✏️ like any other and endRename() has a
+      // dedicated "log" default-name branch, but .log-title was missing from
+      // this list — so clicking it threw on a null titleSpan and did nothing.
+      const RENAME_TITLE_SELECTOR =
+        ".window-title, .task-title, .sticky-note-title, .log-title";
+
       function startRename(windowId) {
         if (currentEditable) endRename();
         const windowElement = document.getElementById(windowId);
         if (windowElement) {
-          const titleSpan = windowElement.querySelector(
-            ".window-title, .task-title, .sticky-note-title"
-          );
+          const titleSpan = windowElement.querySelector(RENAME_TITLE_SELECTOR);
+          if (!titleSpan) return;
           titleSpan.contentEditable = true;
           titleSpan.focus();
           document.execCommand("selectAll", false, null); // Select all text for easy editing
@@ -5203,10 +5368,7 @@ Source
       }
 
       function handleOutsideClick(e) {
-        if (
-          currentEditable &&
-          !e.target.closest(".window-title, .task-title, .sticky-note-title")
-        ) {
+        if (currentEditable && !e.target.closest(RENAME_TITLE_SELECTOR)) {
           endRename();
         }
       }
@@ -5746,6 +5908,21 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             windowElement.dataset.y = windowData.position.top;
             windowElement.dataset.width = windowData.width;
             windowElement.dataset.height = windowData.height;
+            // Reapply the resize target's OWN box before the ResizeObserver's
+            // first callback runs, so updateWindowSize() derives the window
+            // from the size the user actually chose rather than the default the
+            // markup ships with. Absent in pre-3.1.3 sessions — those keep the
+            // old behaviour rather than being resized to something arbitrary.
+            const restoreTarget = resizeTargetFor(windowElement);
+            if (
+              restoreTarget &&
+              restoreTarget !== windowElement &&
+              windowData.containerWidth &&
+              windowData.containerHeight
+            ) {
+              restoreTarget.style.width = `${windowData.containerWidth}px`;
+              restoreTarget.style.height = `${windowData.containerHeight}px`;
+            }
             if (windowData.zIndex) windowElement.style.zIndex = windowData.zIndex;
             if (windowData.minimized) windowElement.style.display = "none";
 
@@ -5951,18 +6128,36 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         // An exported copy carries its session inside the file; on first open
         // that wins, so the download actually contains what it promised.
         const embedded = readEmbeddedSession();
+        // An embedded session replaces whatever this origin already had. Keep
+        // the outgoing one under a side key first: opening a downloaded copy to
+        // spot-check it used to silently overwrite newer work in the original
+        // with no prompt and no way back.
+        const existing = localStorage.getItem("notepadSession");
+        if (embedded && existing) {
+          try {
+            localStorage.setItem("notepadSession.prev", existing);
+          } catch (e) {
+            console.warn("Could not stash the previous session:", e);
+          }
+        }
         const savedSession = embedded
-          ? JSON.stringify(embedded)
-          : localStorage.getItem("notepadSession");
+          ? JSON.stringify(embedded.session)
+          : existing;
         if (savedSession) {
           try {
             const session = JSON.parse(savedSession);
             const skipped = loadSessionFromStorage(session);
+            // Only now is the embedded payload known to have restored cleanly.
+            if (embedded) {
+              localStorage.setItem(CONSUMED_EXPORT_KEY, embedded.exportId);
+            }
             showStatus(
               skipped
                 ? `Session restored — ${skipped} window${
                     skipped === 1 ? "" : "s"
                   } skipped (${MAX_WINDOWS}-window limit).`
+                : embedded && existing
+                ? "Session restored from this file — your previous session was kept as a backup."
                 : "Session restored."
             );
           } catch (e) {
@@ -6069,6 +6264,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           clear("#windows");
           clear("#minimized-bar");
           clear("#status");
+          // Emptying #status left its inline display:block behind, so exporting
+          // within the 3s a toast is up shipped a file that opens with a blank
+          // bordered pill pinned top-centre and no timer to clear it.
+          clone.querySelector("#status")?.removeAttribute("style");
+          clone.querySelector("#save-warning")?.removeAttribute("style");
           // The canvas view is state, not markup. Leaving the pan/zoom
           // transform and the mode class baked into the file would make the
           // export open on a stale viewport for the moment before its embedded
@@ -6139,8 +6339,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           if (localStorage.getItem(CONSUMED_EXPORT_KEY) === payload.exportId) {
             return null;
           }
-          localStorage.setItem(CONSUMED_EXPORT_KEY, payload.exportId);
-          return payload.session;
+          // Marking it consumed HERE meant a restore that then threw — a
+          // hand-edited or pre-v3 payload missing `position` on any window key
+          // is enough — burned the payload permanently: every later open took
+          // the branch above and the file's contents became unreachable
+          // without editing the HTML by hand. The caller marks it once the
+          // restore has actually returned.
+          return { session: payload.session, exportId: payload.exportId };
         } catch (e) {
           console.error("Embedded session unreadable:", e);
           return null;
@@ -6254,6 +6459,18 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         // is that you're looking at something else.
         if (_titleFlash) clearInterval(_titleFlash);
         const originalTitle = "CB App";
+        // The CSS reduced-motion block can't reach document.title, so this
+        // 14-second flash was the one piece of motion that ignored the
+        // preference outright. The toast and the OS notification already carry
+        // the message; a settled title is enough.
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          document.title = "⏰ Timer finished";
+          const restore = () => {
+            document.title = originalTitle;
+            window.removeEventListener("focus", restore);
+          };
+          window.addEventListener("focus", restore);
+        } else {
         let on = false;
         let ticks = 0;
         _titleFlash = setInterval(() => {
@@ -6274,6 +6491,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           window.removeEventListener("focus", stopFlash);
         };
         window.addEventListener("focus", stopFlash);
+        }
 
         // Only use the OS notification if permission was already granted.
         // Firing requestPermission() here threw a browser permission dialog at
@@ -6326,6 +6544,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         if (!text) return;
         const type = target.getAttribute("data-tooltip-type");
         let html = `<div class="nav-tooltip-title">${text}</div>`;
+        let pendingEntries = [];
         // Calc, Clock and Help can only ever have one window, so their list was
         // always a single entry restating the title above it ("Toggle Clock" /
         // "- Clock") - it read as two stacked tooltips. Only list a singleton
@@ -6378,17 +6597,26 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               hidden: win.style.display === "none",
             }))
             .filter((e) => !filter || filter(e.name));
+          // The list is emitted empty and filled with real nodes below. A window
+          // title is user-typed (the ✏️ rename is contentEditable) and persists
+          // across reloads, so interpolating e.name into markup here was a
+          // script sink that fired on nothing more than a hover.
           if (entries.length > 0) {
-            html += '<div class="nav-tooltip-list">';
-            entries.forEach((e) => {
-              html += `<button class="nav-tooltip-link" data-target-id="${e.id}">- ${e.name}${
-                e.hidden ? " (minimized)" : ""
-              }</button>`;
-            });
-            html += "</div>";
+            pendingEntries = entries;
+            html += '<div class="nav-tooltip-list"></div>';
           }
         }
         navTooltip.innerHTML = html;
+        const list = navTooltip.querySelector(".nav-tooltip-list");
+        if (list) {
+          pendingEntries.forEach((e) => {
+            const link = document.createElement("button");
+            link.className = "nav-tooltip-link";
+            link.setAttribute("data-target-id", e.id);
+            link.textContent = `- ${e.name}${e.hidden ? " (minimized)" : ""}`;
+            list.appendChild(link);
+          });
+        }
         navTooltip
           .querySelectorAll(".nav-tooltip-link")
           .forEach((link) => {
@@ -6497,6 +6725,54 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             return;
           }
           hideNavTooltip();
+          return;
+        }
+
+        // Moving and resizing were pointer-only: makeDraggable is a pointer
+        // handler and the .resize-grip is aria-hidden with no tabindex, while
+        // CSS turns off native `resize` on every resizable type. So a
+        // keyboard-only user could create, lock, minimise and close a window
+        // but never move or size one. Ctrl+Shift+Arrow moves the active window,
+        // Ctrl+Alt+Arrow sizes it, both in 20px steps.
+        const ARROWS = {
+          ArrowLeft: [-1, 0],
+          ArrowRight: [1, 0],
+          ArrowUp: [0, -1],
+          ArrowDown: [0, 1],
+        };
+        const arrow = ARROWS[e.key];
+        if (arrow && e.ctrlKey && (e.shiftKey || e.altKey) && activeWindow) {
+          const el = document.getElementById(activeWindow);
+          if (!el || el.dataset.locked === "true" || el.style.display === "none")
+            return;
+          e.preventDefault();
+          const STEP = 20;
+          const [dx, dy] = arrow;
+          if (e.shiftKey && !e.altKey) {
+            const x = (parseFloat(el.dataset.x) || 0) + dx * STEP;
+            const y = (parseFloat(el.dataset.y) || 0) + dy * STEP;
+            const spot = clampToCanvas(el.offsetWidth, el.offsetHeight, x, y);
+            el.style.left = `${spot.x}px`;
+            el.style.top = `${spot.y}px`;
+            el.dataset.x = spot.x;
+            el.dataset.y = spot.y;
+            if (view.on) scheduleMapWindows();
+          } else if (e.altKey && !e.shiftKey) {
+            // Size the element the grip sizes, so the window stays derived from
+            // it exactly as it is after a pointer resize.
+            const target = resizeTargetFor(el);
+            if (!target) return;
+            target.style.width = `${Math.max(
+              GRIP_MIN_W,
+              target.offsetWidth + dx * STEP
+            )}px`;
+            target.style.height = `${Math.max(
+              GRIP_MIN_H,
+              target.offsetHeight + dy * STEP
+            )}px`;
+            if (target !== el) updateWindowSize(activeWindow);
+          }
+          debouncedSave(220);
           return;
         }
 
