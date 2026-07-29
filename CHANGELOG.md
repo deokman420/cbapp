@@ -7,6 +7,58 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.1.0] — 2026-07-28
+
+### Added
+
+- **A big canvas.** `Canvas` in the toolbar turns on a work surface three
+  screens wide and three tall. It is **off by default**, and while it is off
+  the app behaves exactly as it did before — the view is the identity
+  transform, so world and screen coordinates are the same number and every
+  existing path, including sessions saved by earlier versions, is untouched.
+  - Pan by dragging the empty background, middle-dragging, holding Space while
+    you drag (only when you aren't typing), or with the wheel. `Shift`+wheel
+    pans sideways.
+  - `Ctrl`+wheel — and a trackpad pinch — zooms around the pointer,
+    continuously rather than in steps.
+  - A zoom widget in the top-right corner zooms, fits every open window on
+    screen, or snaps back to 100%. `Ctrl+Shift+=`, `-`, `9` and `0` do the
+    same.
+  - An overview map below it shows every window as a block and the part of the
+    canvas you are looking at as a frame. Click or drag it to jump.
+  - Turning the canvas off pulls any window parked off-screen back into view
+    and says how many it moved, so nothing can be stranded out there.
+  - The view is saved with your session and restored on load.
+
+### Changed
+
+- **Resizing a window is no longer the browser's native corner.** Native
+  `resize` takes its delta in screen pixels and applies it to layout pixels —
+  identical until the canvas introduced a scale, after which it ran at 1/zoom
+  speed. A custom grip replaces it in both states, converting the delta the
+  same way dragging does. It also restores resizing on touch devices, which
+  had none: the native corner is unusable with a finger and was already
+  switched off there, with nothing in its place.
+- Dragging a window no longer measures itself on every pointer event. It read
+  the window's size immediately after writing its position, which forces a
+  synchronous re-layout each time, and with the canvas off it measured the
+  toolbar too. Both are now taken once when the drag starts, and the paint is
+  deferred to the animation frame.
+
+### Fixed
+
+- Switching theme wiped the canvas state off `<body>`, so the grid, overview
+  map, zoom widget and grab cursor all disappeared until the next pan or zoom
+  quietly restored them.
+- Wheeling over a note that had nothing to scroll, or was already at its end,
+  did nothing at all: the note ignored the event and the canvas never saw it.
+  The canvas now takes over at the end of a scroll.
+- A sticky note is the one resizable window with no minimum size of its own,
+  and could be dragged down to a sliver with its own header clipped out of
+  sight.
+
+---
+
 ## [3.0.4] — 2026-07-28
 
 ### Fixed

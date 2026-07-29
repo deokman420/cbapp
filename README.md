@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v3.0.4`  
+**Version:** `v3.1.0`  
 **Released:** July 28, 2026  
 **Size:** ~185 KB (single file)  
 **License:** Provided as-is
@@ -40,7 +40,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.0.4)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.1.0)
 
 Simply save the file and open it in your browser.
 
@@ -121,6 +121,30 @@ in light mode, stop a sticky note's border pulsing on every focus change, make
 a window properly translucent while it is being dragged, and add one-click
 **Copy** and **Reset** buttons to the sticky note toolbar.
 
+## What's New in v3.1
+
+**A big canvas.** `Canvas` in the toolbar turns on a work surface three screens
+wide and three tall, so a session can be laid out rather than stacked.
+
+- **Off by default.** While it is off, the app behaves exactly as it did
+  before — the view is the identity transform, so window coordinates are the
+  same numbers they always were and old sessions are untouched.
+- **Pan** by dragging the empty background, middle-dragging, holding `Space`
+  while you drag (only when you aren't typing), or with the wheel.
+  `Shift`+wheel pans sideways.
+- **Zoom** with `Ctrl`+wheel or a trackpad pinch, around the pointer.
+- A **zoom widget** zooms, fits every open window on screen, or snaps back to
+  100% — `Ctrl+Shift+=`, `-`, `9`, `0` do the same.
+- An **overview map** shows every window and where you are looking. Click or
+  drag it to jump.
+- Turning the canvas off **pulls any off-screen window back into view**, so
+  nothing can be stranded out there.
+
+Resizing also changed: the browser's native corner ran at the wrong speed once
+a zoom existed, so a custom grip replaces it everywhere. That also restores
+resizing on touch devices, which never had it — the native corner is unusable
+with a finger and was already disabled there.
+
 See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
@@ -139,7 +163,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v3.0.4)
+├── cbapp.html          # The complete application (v3.1.0)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -152,4 +176,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v3.0.4** — A self-contained productivity workspace that just works.
+**CB App v3.1.0** — A self-contained productivity workspace that just works.

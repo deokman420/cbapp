@@ -19,7 +19,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.0.4 — 2026-07-28. See CHANGELOG.md for release history. -->
+    <!-- CB App v3.1.0 — 2026-07-28. See CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -1807,7 +1807,11 @@
         .log-window,
         .calculator,
         .sticky-note-window,
-        .help-window {
+        .help-window,
+        /* The note's real resize handle is on its container, which this rule
+           always missed — so a touch device still showed one unusable native
+           corner. The grip above replaces it. */
+        .textarea-container {
           resize: none;
         }
       }
@@ -2193,6 +2197,273 @@
           bottom: 64px;
         }
       }
+
+      /* ==========================================================
+         BIG CANVAS (experimental)
+         ----------------------------------------------------------
+         #windows already wrapped every window, so it becomes the pan/zoom
+         layer as-is: one transform on it moves notes, sticky notes, the
+         calculator, clock, log and help window together, while the toolbar,
+         search bar, minimised chips and status line stay outside it and
+         therefore stay screen-fixed at a constant size.
+
+         It has to be `position: absolute` rather than the static div it was:
+         a transformed element becomes the containing block for its
+         absolutely-positioned descendants, so without this every window's
+         left/top would silently re-anchor from .whiteboard to #windows the
+         moment the canvas switched on. Sized to the viewport and untransformed
+         while the canvas is off, which is byte-for-byte today's geometry.
+         ========================================================== */
+      #windows {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        transform-origin: 0 0;
+        /* Below the chrome layer (nav and friends start at 1000) but above the
+           whiteboard background. Windows themselves run 1..900 inside here. */
+        z-index: 1;
+      }
+
+      /* Panning has to feel like grabbing the surface, so the layer itself
+         takes the pointer while the canvas is on. Windows re-enable it. */
+      body.canvas-on #windows {
+        cursor: grab;
+        outline: 1px solid var(--border);
+      }
+
+      body.canvas-on.canvas-panning #windows {
+        cursor: grabbing;
+      }
+
+      /* Hint the compositor only while a gesture is actually in flight. Left on
+         permanently it costs a promoted layer the size of the whole world for
+         nothing; switched on at gesture start it keeps pan and zoom off the
+         main thread's paint path, which is most of what made them stutter. */
+      body.canvas-interacting #windows {
+        will-change: transform;
+      }
+
+      /* --- Dot grid ---
+         A viewport-sized *fixed* backdrop, with the view driven through
+         background-position and background-size, rather than a background on
+         #windows itself. Painted on #windows it was a ~13 Mpx surface that had
+         to repaint on every single transform change — the single biggest cause
+         of the stutter — and it also stopped dead at the world edge. One
+         screenful repaints instead of nine, and the grid now runs forever. */
+      #canvas-grid {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        display: none;
+        pointer-events: none;
+        background-image: radial-gradient(
+          circle at center,
+          var(--canvas-dot) 1.5px,
+          transparent 1.6px
+        );
+      }
+
+      body.canvas-on #canvas-grid {
+        display: block;
+      }
+
+      :root {
+        /* Started at 0.07/0.09, which measured under one step of 8-bit contrast
+           against the canvas — invisible in both themes. The light value then
+           needed a second pass: a dark dot at 0.24 over the near-white canvas
+           lands around #c0c2c7, which is legible on a dim panel and gone on a
+           bright one. Both are now pitched to hold up at any brightness while
+           staying calm enough to sit behind text. */
+        --canvas-dot: rgba(255, 255, 255, 0.28);
+      }
+
+      .light-mode {
+        --canvas-dot: rgba(15, 23, 42, 0.42);
+      }
+
+      /* --- Resize grip ---
+         Native CSS `resize` takes its delta in screen pixels and applies it to
+         layout pixels. Those are the same thing until a scale exists, after
+         which resizing runs at 1/zoom speed — half speed at 50%, double at
+         200%. The delta has to go through the same screen->world conversion as
+         dragging, and there is no hook into the native behaviour, so the corner
+         becomes ours whenever the native one can't be trusted.
+
+         That also covers touch, which has never been able to resize at all:
+         the (pointer: coarse) rule below turns the native corner off because it
+         is unusable with a finger, and nothing replaced it until now. */
+      .resize-grip {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 18px;
+        height: 18px;
+        display: block;
+        cursor: nwse-resize;
+        touch-action: none;
+        z-index: 2;
+      }
+
+      .resize-grip::before {
+        content: "";
+        position: absolute;
+        right: 3px;
+        bottom: 3px;
+        width: 8px;
+        height: 8px;
+        border-right: 2px solid var(--text-muted);
+        border-bottom: 2px solid var(--text-muted);
+        opacity: 0.75;
+      }
+
+      .resize-grip:hover::before,
+      .resize-grip:focus-visible::before {
+        border-color: var(--accent);
+        opacity: 1;
+      }
+
+      /* Two corners, one of them broken, is worse than one — and one mechanism
+         everywhere beats a corner that changes behaviour with the mode. The
+         grip is the only resize handle now, in both states. */
+      .textarea-container,
+      .sticky-note-window,
+      .task-window {
+        resize: none;
+      }
+
+      @media (pointer: coarse) {
+        .resize-grip {
+          display: block;
+          width: 28px;
+          height: 28px;
+        }
+        .resize-grip::before {
+          right: 7px;
+          bottom: 7px;
+          width: 11px;
+          height: 11px;
+        }
+      }
+
+      /* --- Minimap ---
+         Sits under the zoom widget. Shows every open window as a block and the
+         current viewport as a frame, and is click/drag targetable so it doubles
+         as the way to jump across the canvas. */
+      #canvas-map {
+        position: fixed;
+        top: 52px;
+        right: 12px;
+        z-index: 1002;
+        display: none;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        overflow: hidden;
+        cursor: pointer;
+      }
+
+      body.canvas-on #canvas-map {
+        display: block;
+      }
+
+      #canvas-map-inner {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      .map-window {
+        position: absolute;
+        background: var(--text-muted);
+        border-radius: 1px;
+        opacity: 0.55;
+      }
+
+      .map-window.map-active {
+        background: var(--accent);
+        opacity: 1;
+      }
+
+      #map-viewport {
+        position: absolute;
+        border: 1.5px solid var(--accent);
+        border-radius: 2px;
+        background: var(--accent-dim);
+        pointer-events: none;
+      }
+
+      @media (max-width: 760px) {
+        /* The widget moves to the bottom on narrow screens; the map would
+           cover the canvas, so it goes away entirely. */
+        #canvas-map {
+          display: none !important;
+        }
+      }
+
+      /* --- Zoom widget ---
+         Top-right: the toolbar owns the bottom centre, the minimised chips own
+         the bottom left and the Download .html chip owns the bottom right. */
+      #canvas-controls {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        z-index: 1002;
+        display: none;
+        align-items: center;
+        gap: 4px;
+        padding: 4px;
+        border-radius: 10px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        font-family: var(--mono);
+      }
+
+      body.canvas-on #canvas-controls {
+        display: flex;
+      }
+
+      #canvas-controls button {
+        min-width: 30px;
+        height: 28px;
+        padding: 0 7px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--text-dim);
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: color 0.15s ease, background 0.15s ease,
+          border-color 0.15s ease;
+      }
+
+      #canvas-controls button:hover {
+        color: var(--accent);
+        background: var(--accent-dim);
+        border-color: var(--accent);
+      }
+
+      #zoom-level {
+        min-width: 52px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--text);
+        letter-spacing: 0.02em;
+      }
+
+      /* On a narrow screen the toolbar is top-anchored, so drop the widget
+         below it rather than letting the two stack on top of each other. */
+      @media (max-width: 760px) {
+        #canvas-controls {
+          top: auto;
+          bottom: 108px;
+          right: 12px;
+        }
+      }
     </style>
   </head>
   <body class="dark-mode">
@@ -2299,6 +2570,14 @@
             >
               Help
             </button>
+            <button
+              id="canvas-toggle"
+              onclick="toggleCanvasMode()"
+              data-tooltip="Toggle the big pannable canvas"
+              aria-pressed="false"
+            >
+              Canvas
+            </button>
             <button onclick="loadSession()" data-tooltip="Reset to Fresh UI">
               Reset
             </button>
@@ -2319,6 +2598,17 @@
         <input type="text" id="replace-input" placeholder="Replace with..." aria-label="Replace with" />
         <button onclick="searchReplace()">Apply</button>
         <button onclick="toggleSearchReplace()" aria-label="Close search">Close</button>
+      </div>
+      <div id="canvas-grid" aria-hidden="true"></div>
+      <div id="canvas-map" role="button" tabindex="0" aria-label="Canvas overview — click to jump">
+        <div id="canvas-map-inner"><div id="map-viewport"></div></div>
+      </div>
+      <div id="canvas-controls" role="group" aria-label="Canvas zoom">
+        <button type="button" onclick="zoomBy(-1)" title="Zoom out (Ctrl+Shift+-)" aria-label="Zoom out">−</button>
+        <span id="zoom-level" role="status" aria-live="off">100%</span>
+        <button type="button" onclick="zoomBy(1)" title="Zoom in (Ctrl+Shift+=)" aria-label="Zoom in">+</button>
+        <button type="button" onclick="zoomToFit()" title="Fit all windows (Ctrl+Shift+9)" aria-label="Fit all windows">Fit</button>
+        <button type="button" onclick="resetView()" title="Back to 100% (Ctrl+Shift+0)" aria-label="Reset zoom to 100 percent">1:1</button>
       </div>
       <div id="minimized-bar" aria-label="Minimized windows"></div>
       <p id="status" role="status" aria-live="polite"></p>
@@ -2534,7 +2824,428 @@
         return nav ? nav.getBoundingClientRect() : null;
       }
 
-      // Usable canvas: the viewport minus whatever edge the toolbar occupies.
+      /* ==========================================================
+         BIG CANVAS (experimental) — view state
+         ----------------------------------------------------------
+         Window left/top have always been screen pixels, because nothing could
+         scroll or scale. They are now *world* pixels, and the view is what maps
+         world to screen:
+
+             screen = world * zoom + pan
+
+         While the canvas is off the view is the identity transform (pan 0,
+         zoom 1), so world and screen coordinates are the same number and every
+         existing code path — including sessions saved by earlier versions —
+         behaves exactly as it did before. That is the whole reason the maths is
+         written as one path rather than branching on the mode everywhere.
+         ========================================================== */
+      const CANVAS_MULTIPLE = 3; // world is 3 viewports wide and tall
+      const ZOOM_MIN = 0.25;
+      const ZOOM_MAX = 2;
+      const ZOOM_STEP = 1.15;
+      const view = { on: false, x: 0, y: 0, zoom: 1 };
+
+      // Grow-only: shrinking the world after windows have been parked out
+      // there would strand them past the clamp, with no way to reach them.
+      let worldSize = { w: 0, h: 0 };
+
+      function computeWorldSize() {
+        const w = Math.max(
+          worldSize.w,
+          Math.round(window.innerWidth * CANVAS_MULTIPLE)
+        );
+        const h = Math.max(
+          worldSize.h,
+          Math.round(window.innerHeight * CANVAS_MULTIPLE)
+        );
+        worldSize = { w, h };
+        return worldSize;
+      }
+
+      function screenToWorld(clientX, clientY) {
+        return {
+          x: (clientX - view.x) / view.zoom,
+          y: (clientY - view.y) / view.zoom,
+        };
+      }
+
+      // Hard limits for dragging: the world while the canvas is on, the visible
+      // viewport while it is off. Distinct from canvasBounds(), which answers a
+      // different question — where a *new* window should be dropped so the user
+      // can see it. The two were the same rect until the canvas existed.
+      function clampBounds() {
+        if (!view.on) return canvasBounds();
+        const world = computeWorldSize();
+        const pad = 12;
+        return {
+          left: pad,
+          top: pad,
+          right: world.w - pad,
+          bottom: world.h - pad,
+        };
+      }
+
+      // Keep the world covering the viewport: pan can never open a gap at an
+      // edge, and once the whole world fits on screen it is centred instead.
+      function clampPan() {
+        const world = computeWorldSize();
+        const scaledW = world.w * view.zoom;
+        const scaledH = world.h * view.zoom;
+        view.x =
+          scaledW <= window.innerWidth
+            ? (window.innerWidth - scaledW) / 2
+            : Math.min(0, Math.max(window.innerWidth - scaledW, view.x));
+        view.y =
+          scaledH <= window.innerHeight
+            ? (window.innerHeight - scaledH) / 2
+            : Math.min(0, Math.max(window.innerHeight - scaledH, view.y));
+      }
+
+      /* The first version of this ran synchronously from every pointermove and
+         wheel event, and rewrote the layer's width, height, transform and the
+         zoom label on each one. Pointer events fire faster than the screen
+         refreshes, so that was several full style-and-layout passes per frame,
+         and setting width/height on a 3700px layer holding every open window
+         invalidated layout for that whole subtree each time. That is what made
+         panning and zooming feel like they were skipping.
+
+         Now: coalesce to one write per animation frame, and inside that write
+         only touch what actually changed. The transform is the only thing that
+         changes on a normal pan, and on its own it is compositor work rather
+         than layout work. */
+      let viewFrame = null;
+      let lastGeometry = "";
+      let lastLabel = "";
+
+      function scheduleView() {
+        if (viewFrame !== null) return;
+        viewFrame = requestAnimationFrame(() => {
+          viewFrame = null;
+          applyView();
+        });
+      }
+
+      function applyView() {
+        const layer = document.getElementById("windows");
+        if (!layer) return;
+        document.body.classList.toggle("canvas-on", view.on);
+        const toggle = document.getElementById("canvas-toggle");
+        if (toggle) {
+          toggle.classList.toggle("active", view.on);
+          toggle.setAttribute("aria-pressed", String(view.on));
+        }
+        const grid = document.getElementById("canvas-grid");
+        if (!view.on) {
+          // Back to the plain full-screen layer, with no transform at all
+          // rather than a scale(1) — an identity transform still creates a
+          // containing block and a stacking context, and the point of the off
+          // state is that it is indistinguishable from the old build.
+          layer.style.transform = "";
+          layer.style.width = "";
+          layer.style.height = "";
+          lastGeometry = "";
+          return;
+        }
+        const world = computeWorldSize();
+        clampPan();
+
+        // Layout-invalidating writes, skipped unless the world actually grew.
+        const geometry = `${world.w}x${world.h}`;
+        if (geometry !== lastGeometry) {
+          layer.style.width = `${world.w}px`;
+          layer.style.height = `${world.h}px`;
+          lastGeometry = geometry;
+        }
+
+        // translate3d rather than translate: the z-component is what gets this
+        // onto its own compositor layer on most engines.
+        layer.style.transform = `translate3d(${view.x}px, ${view.y}px, 0) scale(${view.zoom})`;
+
+        // The grid is a fixed backdrop, so the view moves it by shifting the
+        // pattern rather than by transforming a giant painted surface.
+        if (grid) {
+          const cell = 48 * view.zoom;
+          grid.style.backgroundSize = `${cell}px ${cell}px`;
+          grid.style.backgroundPosition = `${view.x}px ${view.y}px`;
+        }
+
+        const label = document.getElementById("zoom-level");
+        const text = `${Math.round(view.zoom * 100)}%`;
+        if (label && text !== lastLabel) {
+          label.textContent = text;
+          lastLabel = text;
+        }
+        drawMapViewport();
+      }
+
+      /* ==========================================================
+         Minimap
+         ----------------------------------------------------------
+         Two update paths on purpose. The viewport frame moves on every pan and
+         zoom, so it is one style write per frame. The window blocks only change
+         when a window is added, closed, moved or resized, so they are rebuilt
+         on a debounce — rebuilding 25 nodes inside the pan loop would put back
+         exactly the per-frame DOM churn the render loop above removes.
+         ========================================================== */
+      const MAP_WIDTH = 168;
+
+      function mapScale() {
+        const world = computeWorldSize();
+        return MAP_WIDTH / world.w;
+      }
+
+      function sizeMap() {
+        const map = document.getElementById("canvas-map");
+        if (!map) return null;
+        const world = computeWorldSize();
+        const s = mapScale();
+        map.style.width = `${MAP_WIDTH}px`;
+        map.style.height = `${Math.round(world.h * s)}px`;
+        return s;
+      }
+
+      function drawMapViewport() {
+        const frame = document.getElementById("map-viewport");
+        if (!frame || !view.on) return;
+        const s = sizeMap();
+        if (!s) return;
+        // The world rectangle currently on screen, in map pixels.
+        const tl = screenToWorld(0, 0);
+        const br = screenToWorld(window.innerWidth, window.innerHeight);
+        frame.style.left = `${tl.x * s}px`;
+        frame.style.top = `${tl.y * s}px`;
+        frame.style.width = `${Math.max(4, (br.x - tl.x) * s)}px`;
+        frame.style.height = `${Math.max(4, (br.y - tl.y) * s)}px`;
+      }
+
+      let mapTimer = null;
+      function scheduleMapWindows() {
+        if (mapTimer) clearTimeout(mapTimer);
+        mapTimer = setTimeout(() => {
+          mapTimer = null;
+          drawMapWindows();
+        }, 120);
+      }
+
+      function drawMapWindows() {
+        const inner = document.getElementById("canvas-map-inner");
+        if (!inner || !view.on) return;
+        const s = sizeMap();
+        if (!s) return;
+        inner.querySelectorAll(".map-window").forEach((n) => n.remove());
+        const frame = document.getElementById("map-viewport");
+        document.querySelectorAll(WINDOW_SELECTOR).forEach((el) => {
+          if (el.style.display === "none") return; // minimised
+          const block = document.createElement("div");
+          block.className = "map-window";
+          if (el.classList.contains("active")) block.classList.add("map-active");
+          block.style.left = `${(parseFloat(el.dataset.x) || 0) * s}px`;
+          block.style.top = `${(parseFloat(el.dataset.y) || 0) * s}px`;
+          block.style.width = `${Math.max(2, el.offsetWidth * s)}px`;
+          block.style.height = `${Math.max(2, el.offsetHeight * s)}px`;
+          inner.insertBefore(block, frame);
+        });
+        drawMapViewport();
+      }
+
+      // Click or drag the map to jump — the fastest way back to a window you
+      // have panned away from, and the reason the map is a control and not
+      // just a readout.
+      (function wireMap() {
+        const map = document.getElementById("canvas-map");
+        if (!map) return;
+        let dragging = false;
+        const jumpTo = (e) => {
+          const s = mapScale();
+          const r = map.getBoundingClientRect();
+          // Centre the viewport on the clicked world point.
+          const worldX = (e.clientX - r.left) / s;
+          const worldY = (e.clientY - r.top) / s;
+          view.x = window.innerWidth / 2 - worldX * view.zoom;
+          view.y = window.innerHeight / 2 - worldY * view.zoom;
+          scheduleView();
+        };
+        map.addEventListener("pointerdown", (e) => {
+          if (!view.on) return;
+          dragging = true;
+          try {
+            map.setPointerCapture(e.pointerId);
+          } catch (err) {
+            /* not fatal */
+          }
+          jumpTo(e);
+        });
+        map.addEventListener("pointermove", (e) => {
+          if (dragging && view.on) jumpTo(e);
+        });
+        const stop = () => {
+          if (!dragging) return;
+          dragging = false;
+          saveSession();
+        };
+        map.addEventListener("pointerup", stop);
+        map.addEventListener("pointercancel", stop);
+      })();
+
+      // Gestures mark themselves as in-flight so the compositor hint goes on
+      // for the duration and comes off shortly after the last event.
+      let interactionTimer = null;
+      function markInteracting() {
+        document.body.classList.add("canvas-interacting");
+        if (interactionTimer) clearTimeout(interactionTimer);
+        interactionTimer = setTimeout(() => {
+          document.body.classList.remove("canvas-interacting");
+          interactionTimer = null;
+        }, 220);
+      }
+
+      // Zoom about a fixed screen point, so the thing under the cursor (or the
+      // centre of the screen, for the buttons) stays under it.
+      function setZoom(nextZoom, anchorX, anchorY) {
+        if (!view.on) return;
+        const z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, nextZoom));
+        if (z === view.zoom) return;
+        const ax = anchorX === undefined ? window.innerWidth / 2 : anchorX;
+        const ay = anchorY === undefined ? window.innerHeight / 2 : anchorY;
+        const before = screenToWorld(ax, ay);
+        view.zoom = z;
+        view.x = ax - before.x * z;
+        view.y = ay - before.y * z;
+        scheduleView();
+      }
+
+      function zoomBy(direction, anchorX, anchorY) {
+        setZoom(
+          direction > 0 ? view.zoom * ZOOM_STEP : view.zoom / ZOOM_STEP,
+          anchorX,
+          anchorY
+        );
+      }
+
+      // The answer to "where did my window go" on a canvas three times the
+      // size of the screen.
+      function zoomToFit() {
+        if (!view.on) return;
+        const windows = Array.from(
+          document.querySelectorAll(WINDOW_SELECTOR)
+        ).filter((el) => el.style.display !== "none");
+        if (!windows.length) {
+          resetView();
+          return;
+        }
+        let minX = Infinity,
+          minY = Infinity,
+          maxX = -Infinity,
+          maxY = -Infinity;
+        windows.forEach((el) => {
+          const x = parseFloat(el.dataset.x) || 0;
+          const y = parseFloat(el.dataset.y) || 0;
+          minX = Math.min(minX, x);
+          minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x + el.offsetWidth);
+          maxY = Math.max(maxY, y + el.offsetHeight);
+        });
+        const margin = 40;
+        const vw = window.innerWidth;
+        const nav = navMenuBounds();
+        const vh = nav && nav.height ? window.innerHeight - nav.height - 24 : window.innerHeight;
+        const zoom = Math.min(
+          ZOOM_MAX,
+          Math.max(
+            ZOOM_MIN,
+            Math.min(
+              (vw - margin * 2) / Math.max(1, maxX - minX),
+              (vh - margin * 2) / Math.max(1, maxY - minY)
+            )
+          )
+        );
+        view.zoom = zoom;
+        view.x = (vw - (maxX - minX) * zoom) / 2 - minX * zoom;
+        view.y = (vh - (maxY - minY) * zoom) / 2 - minY * zoom;
+        applyView();
+        showStatus(`Fitted ${windows.length} window${windows.length === 1 ? "" : "s"}.`);
+      }
+
+      function resetView() {
+        if (!view.on) return;
+        view.zoom = 1;
+        // Centre on the middle of the world rather than its corner: the corner
+        // is empty, and windows are placed into whatever is on screen.
+        const world = computeWorldSize();
+        view.x = (window.innerWidth - world.w) / 2;
+        view.y = (window.innerHeight - world.h) / 2;
+        applyView();
+        saveSession();
+      }
+
+      function toggleCanvasMode(force) {
+        const next = force === undefined ? !view.on : !!force;
+        if (next === view.on) return;
+        view.on = next;
+        if (next) {
+          const world = computeWorldSize();
+          /* Entering used to just set pan to (0,0), which is the world's
+             top-left CORNER — and since clampPan() caps pan at 0, that left no
+             world above or to the left, so dragging down and to the right was
+             dead on arrival. Half the directions simply did not work.
+
+             The windows are in screen coordinates, i.e. world coordinates in
+             the first viewport-sized cell of a 3x3 world. Shift every one of
+             them into the middle cell and cancel the shift in the pan: the
+             screen position of everything is unchanged to the pixel
+             (screen = world + pan, and both terms moved by equal and opposite
+             amounts), but now there is a full viewport of canvas in every
+             direction. */
+          const offsetX = Math.round((world.w - window.innerWidth) / 2);
+          const offsetY = Math.round((world.h - window.innerHeight) / 2);
+          document.querySelectorAll(WINDOW_SELECTOR).forEach((el) => {
+            const x = (parseFloat(el.dataset.x) || 0) + offsetX;
+            const y = (parseFloat(el.dataset.y) || 0) + offsetY;
+            el.style.left = `${x}px`;
+            el.style.top = `${y}px`;
+            el.dataset.x = x;
+            el.dataset.y = y;
+          });
+          view.zoom = 1;
+          view.x = -offsetX;
+          view.y = -offsetY;
+          // The staircase anchor is a world coordinate from before the shift,
+          // so leaving it set would drop the next window a full viewport away
+          // from the pile it is supposed to cascade from.
+          cascadeAnchor = null;
+          applyView();
+          drawMapWindows();
+          showStatus("Big canvas on — drag the background to pan, Ctrl+wheel to zoom.");
+        } else {
+          // Leaving: anything parked outside the viewport would be unreachable
+          // with no way to pan to it, so pull it all back in and say so.
+          view.zoom = 1;
+          view.x = 0;
+          view.y = 0;
+          applyView();
+          let moved = 0;
+          document.querySelectorAll(WINDOW_SELECTOR).forEach((el) => {
+            const beforeX = parseFloat(el.dataset.x) || 0;
+            const beforeY = parseFloat(el.dataset.y) || 0;
+            clampWindowIntoView(el);
+            if (
+              Math.abs((parseFloat(el.dataset.x) || 0) - beforeX) > 0.5 ||
+              Math.abs((parseFloat(el.dataset.y) || 0) - beforeY) > 0.5
+            )
+              moved++;
+          });
+          showStatus(
+            moved
+              ? `Big canvas off — ${moved} window${moved === 1 ? "" : "s"} pulled back on screen.`
+              : "Big canvas off."
+          );
+        }
+        saveSession();
+      }
+
+      // Usable canvas: where a new window should be dropped so it lands in
+      // sight. Off, that is the viewport minus whatever edge the toolbar
+      // occupies; on, it is the slice of the world currently on screen.
       function canvasBounds() {
         const pad = 12;
         const nav = navMenuBounds();
@@ -2545,11 +3256,16 @@
           if (nav.top > window.innerHeight / 2) bottom = nav.top - pad;
           else top = nav.bottom + pad;
         }
+        if (view.on) {
+          const tl = screenToWorld(pad, top);
+          const br = screenToWorld(window.innerWidth - pad, bottom);
+          return { left: tl.x, top: tl.y, right: br.x, bottom: br.y };
+        }
         return { left: pad, top, right: window.innerWidth - pad, bottom };
       }
 
       function clampToCanvas(width, height, x, y) {
-        const b = canvasBounds();
+        const b = clampBounds();
         const maxX = Math.max(b.left, b.right - width);
         const maxY = Math.max(b.top, b.bottom - height);
         return {
@@ -2568,6 +3284,21 @@
       function placeWindow(element, width, height) {
         const b = canvasBounds();
         const openCount = document.querySelectorAll(WINDOW_SELECTOR).length;
+
+        // The anchor is a world coordinate, and on the big canvas the visible
+        // slice of the world moves. An anchor left over from before a pan would
+        // put the new window somewhere off-screen — you press Note and nothing
+        // appears. If it is no longer in view, start the staircase again here.
+        if (
+          view.on &&
+          cascadeAnchor &&
+          (cascadeAnchor.x < b.left ||
+            cascadeAnchor.y < b.top ||
+            cascadeAnchor.x > b.right ||
+            cascadeAnchor.y > b.bottom)
+        ) {
+          cascadeAnchor = null;
+        }
 
         if (openCount === 0 || !cascadeAnchor) {
           cascadeAnchor = {
@@ -2636,6 +3367,9 @@
         const all = Array.from(document.querySelectorAll(WINDOW_SELECTOR));
         const emptyState = document.getElementById("empty-state");
         if (emptyState) emptyState.hidden = all.length > 0;
+        // Everything that adds, closes, minimises or restores a window already
+        // funnels through here, so the minimap gets one hook instead of six.
+        if (view.on) scheduleMapWindows();
 
         const bar = document.getElementById("minimized-bar");
         if (!bar) return;
@@ -2693,7 +3427,20 @@
         }
       }
 
+      // How large a window is allowed to grow. The viewport is the right answer
+      // only while the viewport *is* the canvas; once the world is three
+      // screens across, capping a note at one screen is an arbitrary ceiling on
+      // the whole point of the feature.
+      function sizingBasis() {
+        if (!view.on) {
+          return { w: window.innerWidth, h: window.innerHeight };
+        }
+        const world = computeWorldSize();
+        return { w: world.w, h: world.h };
+      }
+
       function setMaxDimensions() {
+        const basis = sizingBasis();
         const textareaContainers = document.querySelectorAll(
           ".textarea-container"
         );
@@ -2711,22 +3458,22 @@
               windowElement.querySelector(".note-log-input-container")
                 ?.offsetHeight || 0;
             const maxHeight =
-              window.innerHeight -
+              basis.h -
               headerHeight -
               paddingAndBorders -
               buttonsHeight -
               countsHeight -
               logInputHeight -
               20;
-            const maxWidth = window.innerWidth - 32 - 20;
+            const maxWidth = basis.w - 32 - 20;
             container.style.maxHeight = `${maxHeight}px`;
             container.style.maxWidth = `${Math.min(
               maxWidth,
-              window.innerWidth - 50
+              basis.w - 50
             )}px`;
             windowElement.style.maxWidth = `${Math.min(
               maxWidth + 32,
-              window.innerWidth - 30
+              basis.w - 30
             )}px`;
             windowElement.style.maxHeight = `${
               maxHeight +
@@ -2808,11 +3555,14 @@
         setActiveWindow(windowId);
         refreshChrome();
         const resizeObserver = new ResizeObserver(() => {
-          const rect = newStickyNote.getBoundingClientRect();
           newStickyNote.dataset.width = newStickyNote.offsetWidth;
           newStickyNote.dataset.height = newStickyNote.offsetHeight;
-          newStickyNote.dataset.x = rect.left;
-          newStickyNote.dataset.y = rect.top;
+          // style.left, not getBoundingClientRect().left: the rect is the
+          // *transformed* box, so on a zoomed canvas every resize would write a
+          // screen coordinate back into a world-coordinate field and walk the
+          // note across the canvas. Resizing does not move a window anyway.
+          newStickyNote.dataset.x = parseFloat(newStickyNote.style.left) || 0;
+          newStickyNote.dataset.y = parseFloat(newStickyNote.style.top) || 0;
           debouncedSave(220);
         });
         registerResizeObserver(windowId, resizeObserver);
@@ -2933,7 +3683,13 @@
               locked: help.dataset.locked === "true",
             }
           : { visible: false };
-        session.theme = document.body.className || "light-mode";
+        // The theme token only. <body> now also carries the transient canvas
+        // classes, and persisting the whole className would save "canvas-panning"
+        // if the tab closed mid-drag and restore a stuck grabbing cursor.
+        session.theme = document.body.classList.contains("dark-mode")
+          ? "dark-mode"
+          : "light-mode";
+        session.canvas = { on: view.on, x: view.x, y: view.y, zoom: view.zoom };
         document
           .querySelectorAll(".sticky-note-window")
           .forEach((stickyNote) => {
@@ -3292,11 +4048,31 @@ Windows
   bring the window back. 🔓 locks a window against editing, dragging and
   resizing. ✏️ renames it.
 
+Big canvas (experimental)
+- Canvas in the toolbar turns on a work surface three screens wide and
+  three tall. Off by default; the app behaves exactly as before while
+  it is off.
+- Drag the empty background to pan. Middle-drag works anywhere, and so
+  does holding Space while you drag (as long as you aren't typing).
+- Wheel scrolls the canvas, Shift+wheel scrolls it sideways, and
+  Ctrl+wheel (or a trackpad pinch) zooms around the pointer.
+- The widget in the top-right corner zooms, fits every open window on
+  screen, or snaps back to 100%.
+- Below it, the overview map shows every window as a block and the part
+  of the canvas you are looking at as a frame. Click or drag the map to
+  jump straight there.
+- Turning the canvas off pulls any window parked off-screen back into
+  view, so nothing is ever stranded out there.
+
 Keyboard
 - Ctrl+Shift+N    new note
 - Ctrl+Shift+T    new task list
 - Ctrl+Shift+F    search / replace
 - Ctrl+Shift+W    close the active window
+- Ctrl+Shift+=    zoom in          (big canvas)
+- Ctrl+Shift+-    zoom out         (big canvas)
+- Ctrl+Shift+9    fit all windows  (big canvas)
+- Ctrl+Shift+0    back to 100%     (big canvas)
 - Escape          close search, or cancel a rename
 
 Saving
@@ -3340,9 +4116,13 @@ Enterprise browser
         );
         const windowElement = document.getElementById(windowId);
         if (textareaContainer && windowElement) {
+          // sizingBasis(), not window.innerWidth: on the big canvas the note
+          // can legitimately be wider than the screen, and clamping to the
+          // viewport here silently undid any resize past it — the one place
+          // that still disagreed with setMaxDimensions().
           const containerWidth = Math.min(
             textareaContainer.offsetWidth,
-            window.innerWidth - 50
+            sizingBasis().w - 50
           );
           const containerHeight = textareaContainer.offsetHeight;
           const newWidth = containerWidth + 32;
@@ -3368,7 +4148,7 @@ Enterprise browser
             logInputHeight;
           windowElement.style.width = `${Math.min(
             newWidth,
-            window.innerWidth - 30
+            sizingBasis().w - 30
           )}px`;
           windowElement.style.height = `${newHeight}px`;
           windowElement.dataset.width = newWidth;
@@ -3962,26 +4742,177 @@ Enterprise browser
       // not be moved at all. Pointer events cover mouse, touch and pen through
       // one path, and setPointerCapture keeps the drag alive if the finger
       // outruns the header.
+      /* Which element actually carries a window's size. For a note it is the
+         .textarea-container — the window sizes itself to fit via
+         updateWindowSize(), so resizing the window directly would be undone on
+         the next sync. Sticky notes and task lists size themselves. Everything
+         else (calculator, clock, log, help) has never been resizable. */
+      function resizeTargetFor(element) {
+        if (
+          element.classList.contains("sticky-note-window") ||
+          element.classList.contains("task-window")
+        ) {
+          return element;
+        }
+        return element.querySelector(".textarea-container");
+      }
+
+      /* Floor for anything that declares no min-* of its own. .sticky-note-window
+         is the one resizable type missing from the min-width/min-height rule the
+         other six share, so without this a note could be dragged down to a
+         sliver with its own header clipped out of sight. Applied in the grip
+         rather than in CSS deliberately: a min-* on the element would also
+         change native resize in the off state, and could inflate a sticky note
+         restored from an older session. */
+      const GRIP_MIN_W = 240;
+      const GRIP_MIN_H = 140;
+
+      function attachResizeGrip(element) {
+        const target = resizeTargetFor(element);
+        if (!target) return;
+        if (element.querySelector(":scope > .resize-grip")) return;
+
+        const grip = document.createElement("div");
+        grip.className = "resize-grip";
+        grip.setAttribute("aria-hidden", "true");
+        element.appendChild(grip);
+
+        let gripPointerId = null;
+        let start = null;
+
+        let gripFrame = null;
+        let pending = null;
+
+        const paint = () => {
+          gripFrame = null;
+          if (!pending) return;
+          target.style.width = `${pending.w}px`;
+          target.style.height = `${pending.h}px`;
+        };
+
+        const onMove = (e) => {
+          if (e.pointerId !== gripPointerId) return;
+          // Same screen->world conversion as dragging. This is the whole fix:
+          // the pointer delta is divided by the zoom, so the corner tracks the
+          // cursor instead of running at 1/zoom speed.
+          const p = screenToWorld(e.clientX, e.clientY);
+          pending = {
+            w: Math.max(start.minW, start.w + (p.x - start.px)),
+            h: Math.max(start.minH, start.h + (p.y - start.py)),
+          };
+          // Deferred to the frame like the drag: a resize writes width and
+          // height, which relayouts the window and everything inside it, so
+          // doing it per pointer event rather than per frame is the most
+          // expensive thing either gesture could do.
+          if (gripFrame === null) gripFrame = requestAnimationFrame(paint);
+        };
+
+        const end = (e) => {
+          if (gripPointerId === null || (e && e.pointerId !== gripPointerId))
+            return;
+          try {
+            grip.releasePointerCapture(gripPointerId);
+          } catch (err) {
+            /* capture may already be gone */
+          }
+          gripPointerId = null;
+          document.body.style.userSelect = "";
+          if (gripFrame !== null) {
+            cancelAnimationFrame(gripFrame);
+            gripFrame = null;
+          }
+          paint(); // land the final size, never a frame behind the pointer
+          pending = null;
+          grip.removeEventListener("pointermove", onMove);
+          grip.removeEventListener("pointerup", end);
+          grip.removeEventListener("pointercancel", end);
+          // The size itself is persisted by each window type's existing
+          // ResizeObserver; this is for the map, which has no observer.
+          if (view.on) scheduleMapWindows();
+          saveSession();
+        };
+
+        grip.addEventListener("pointerdown", (e) => {
+          if (element.dataset.locked === "true") return;
+          if (gripPointerId !== null) return;
+          if (e.button !== undefined && e.button !== 0) return;
+          // Never let this reach the header drag or the canvas pan.
+          e.preventDefault();
+          e.stopPropagation();
+          gripPointerId = e.pointerId;
+          const cs = getComputedStyle(target);
+          const p = screenToWorld(e.clientX, e.clientY);
+          start = {
+            px: p.x,
+            py: p.y,
+            w: target.offsetWidth,
+            h: target.offsetHeight,
+            // The min-* the element already declares, so the grip can't shrink
+            // a window past what CSS would have stopped at anyway, falling back
+            // to the floor above for the types that declare none. max-* needs
+            // no handling: it still clamps the width we set.
+            minW: parseFloat(cs.minWidth) || GRIP_MIN_W,
+            minH: parseFloat(cs.minHeight) || GRIP_MIN_H,
+          };
+          element.style.zIndex = nextWindowZ();
+          document.body.style.userSelect = "none";
+          try {
+            grip.setPointerCapture(e.pointerId);
+          } catch (err) {
+            /* the listeners below still track it */
+          }
+          grip.addEventListener("pointermove", onMove);
+          grip.addEventListener("pointerup", end);
+          grip.addEventListener("pointercancel", end);
+        });
+      }
+
       function makeDraggable(element) {
         const header = element.querySelector(HEADER_SELECTOR);
         if (!header) return;
+        // Every window type already funnels through here, so the grip needs no
+        // separate wiring in each of the seven add* functions.
+        attachResizeGrip(element);
 
         let dragPointerId = null;
         let offsetX = 0;
         let offsetY = 0;
+        // Measured once per drag. Reading offsetWidth/offsetHeight inside the
+        // move handler was a layout read immediately after a style write, which
+        // forces a synchronous re-layout on every single pointer event — the
+        // classic thrash, and the reason dragging felt heavier than panning
+        // did. Neither the window's size nor the clamp can change mid-drag, so
+        // neither needs re-reading. In the off state clampBounds() also calls
+        // getBoundingClientRect() on the toolbar, so this removes a second
+        // forced layout per event.
+        let dragW = 0;
+        let dragH = 0;
+        let dragBounds = null;
+        let dragFrame = null;
 
         const onPointerMove = (e) => {
           if (e.pointerId !== dragPointerId) return;
-          const spot = clampToCanvas(
-            element.offsetWidth,
-            element.offsetHeight,
-            e.clientX - offsetX,
-            e.clientY - offsetY
-          );
-          element.style.left = `${spot.x}px`;
-          element.style.top = `${spot.y}px`;
-          element.dataset.x = spot.x;
-          element.dataset.y = spot.y;
+          // The grab offset and the pointer are both converted to world
+          // coordinates, so a drag tracks the cursor exactly at any zoom.
+          // offsetWidth/offsetHeight are layout pixels, which are already world
+          // units — the scale lives on the parent, not on the window.
+          const p = screenToWorld(e.clientX, e.clientY);
+          const b = dragBounds;
+          const maxX = Math.max(b.left, b.right - dragW);
+          const maxY = Math.max(b.top, b.bottom - dragH);
+          const x = Math.min(Math.max(b.left, p.x - offsetX), maxX);
+          const y = Math.min(Math.max(b.top, p.y - offsetY), maxY);
+          // dataset stays synchronous — it is the source of truth and costs no
+          // layout. Only the paint is deferred to the frame.
+          element.dataset.x = x;
+          element.dataset.y = y;
+          if (dragFrame === null) {
+            dragFrame = requestAnimationFrame(() => {
+              dragFrame = null;
+              element.style.left = `${element.dataset.x}px`;
+              element.style.top = `${element.dataset.y}px`;
+            });
+          }
         };
 
         const endDrag = (e) => {
@@ -3994,6 +4925,15 @@ Enterprise browser
           dragPointerId = null;
           document.body.style.userSelect = "";
           element.classList.remove("dragging");
+          // A frame may still be queued holding the last position; land it now
+          // so the window can never settle a pixel behind where it was dropped.
+          if (dragFrame !== null) {
+            cancelAnimationFrame(dragFrame);
+            dragFrame = null;
+          }
+          element.style.left = `${element.dataset.x}px`;
+          element.style.top = `${element.dataset.y}px`;
+          if (view.on) scheduleMapWindows();
           header.removeEventListener("pointermove", onPointerMove);
           header.removeEventListener("pointerup", endDrag);
           header.removeEventListener("pointercancel", endDrag);
@@ -4010,11 +4950,20 @@ Enterprise browser
           if (e.target.closest("[role='button'], button, input, select")) return;
           if (e.button !== undefined && e.button !== 0) return; // left/primary only
           if (dragPointerId !== null) return; // ignore a second finger
+          if (spacePanHeld) return; // space is held: the gesture is a pan
 
           dragPointerId = e.pointerId;
-          const rect = element.getBoundingClientRect();
-          offsetX = e.clientX - rect.left;
-          offsetY = e.clientY - rect.top;
+          // Where inside the window the grab happened, in world units. Read
+          // from dataset rather than getBoundingClientRect(), which reports the
+          // *transformed* box once the canvas is zoomed and would make the
+          // window jump to the cursor by the scale factor on the first move.
+          const p = screenToWorld(e.clientX, e.clientY);
+          offsetX = p.x - (parseFloat(element.dataset.x) || 0);
+          offsetY = p.y - (parseFloat(element.dataset.y) || 0);
+          // Every layout read the drag needs, taken once, before any writes.
+          dragW = element.offsetWidth;
+          dragH = element.offsetHeight;
+          dragBounds = clampBounds();
           element.style.zIndex = nextWindowZ();
           document.body.style.userSelect = "none";
           element.classList.add("dragging");
@@ -4120,6 +5069,7 @@ Enterprise browser
           .querySelectorAll(WINDOW_SELECTOR)
           .forEach((win) => win.classList.remove("active"));
         windowElement.classList.add("active");
+        if (view.on) scheduleMapWindows(); // repaint the highlighted block
         if (!alreadyActive) {
           windowElement.style.zIndex = nextWindowZ();
         }
@@ -4506,7 +5456,15 @@ Enterprise browser
         const newMode = body.classList.contains("light-mode")
           ? "dark-mode"
           : "light-mode";
-        body.className = newMode;
+        /* Swap the theme token, don't overwrite className. <body> is no longer
+           only a theme flag — it also carries canvas-on — and assigning the
+           whole className wiped that, so switching theme while the big canvas
+           was on silently took the grid, the minimap, the zoom widget and the
+           grab cursor with it. view.on stayed true, so panning and zooming kept
+           working with none of their chrome, and the next applyView() put it
+           all back, which made it look intermittent rather than broken. */
+        body.classList.remove("light-mode", "dark-mode");
+        body.classList.add(newMode);
 
         // Update favicon based on theme
         let link = document.querySelector("link[rel~='icon']");
@@ -4640,6 +5598,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // Reset UI state
           document.getElementById("windows").innerHTML = ""; // Remove all windows
           document.body.className = "dark-mode"; // Set default theme
+          // "Fresh UI" includes the view: a reset that left you panned into an
+          // empty corner of a three-screen canvas would look like a blank page.
+          view.on = false;
+          view.x = 0;
+          view.y = 0;
+          view.zoom = 1;
+          worldSize = { w: 0, h: 0 };
+          applyView();
           document.querySelector(".nav-menu").classList.remove("collapsed"); // Expand nav menu
           document.getElementById("search-replace").classList.remove("active"); // Hide search/replace
 
@@ -4692,8 +5658,12 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         restoring = true;
         let skippedOnRestore = 0;
         try {
-        // Restore theme
-        document.body.className = session.theme || "light-mode";
+        // Restore theme — the token only, for the same reason toggleTheme()
+        // does: the canvas classes on <body> are not the theme's to clear.
+        document.body.classList.remove("light-mode", "dark-mode");
+        document.body.classList.add(
+          session.theme === "dark-mode" ? "dark-mode" : "light-mode"
+        );
 
         // Restore windows
         Object.keys(session).forEach((key) => {
@@ -4888,6 +5858,27 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         } finally {
           restoring = false;
         }
+        // Restore the canvas view *before* the clamp below. That clamp pulls
+        // every window into bounds, and which bounds apply depends entirely on
+        // whether the big canvas is on — restoring the view afterwards would
+        // drag every far-flung window back into a single screen on each reload
+        // and silently collapse the canvas.
+        const savedView = session.canvas;
+        view.on = !!(savedView && savedView.on);
+        if (view.on) {
+          computeWorldSize();
+          view.zoom = Math.min(
+            ZOOM_MAX,
+            Math.max(ZOOM_MIN, parseFloat(savedView.zoom) || 1)
+          );
+          view.x = parseFloat(savedView.x) || 0;
+          view.y = parseFloat(savedView.y) || 0;
+        } else {
+          view.zoom = 1;
+          view.x = 0;
+          view.y = 0;
+        }
+        applyView();
         // A session saved on a large display used to restore partly or wholly
         // off-screen on a smaller one, with no way to drag anything back.
         document
@@ -5026,6 +6017,24 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           clear("#windows");
           clear("#minimized-bar");
           clear("#status");
+          // The canvas view is state, not markup. Leaving the pan/zoom
+          // transform and the mode class baked into the file would make the
+          // export open on a stale viewport for the moment before its embedded
+          // session boots and sets the real one.
+          clone.querySelector("#windows")?.removeAttribute("style");
+          clone.querySelector("#canvas-grid")?.removeAttribute("style");
+          clone.querySelector("#canvas-map")?.removeAttribute("style");
+          clone.querySelector("#map-viewport")?.removeAttribute("style");
+          // Minimap blocks are generated from the live windows, exactly like
+          // the windows themselves, so they must not travel with the file.
+          clone.querySelectorAll(".map-window").forEach((n) => n.remove());
+          clone
+            .querySelector("body")
+            ?.classList.remove(
+              "canvas-on",
+              "canvas-panning",
+              "canvas-interacting"
+            );
           // Created by script at load; leaving it in yields two same-id nodes.
           clone.querySelector("#nav-tooltip")?.remove();
           clone.querySelector("#empty-state")?.removeAttribute("hidden");
@@ -5460,6 +6469,185 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       });
 
+      /* ==========================================================
+         BIG CANVAS (experimental) — input
+         ----------------------------------------------------------
+         Four ways in, because no single one is safe on every machine this app
+         runs on: drag the empty background, middle-drag anywhere, wheel, and
+         the on-screen widget. Ctrl+wheel zooms (which is also what a trackpad
+         pinch reports), plain wheel pans.
+         ========================================================== */
+      let spacePanHeld = false;
+      let panPointerId = null;
+      let panStart = null;
+
+      function isTextEntry(el) {
+        if (!el) return false;
+        return (
+          el.tagName === "TEXTAREA" ||
+          el.tagName === "INPUT" ||
+          el.isContentEditable
+        );
+      }
+
+      (function wireCanvasInput() {
+        const layer = document.getElementById("windows");
+        if (!layer) return;
+
+        const startPan = (e) => {
+          panPointerId = e.pointerId;
+          panStart = { x: e.clientX, y: e.clientY, viewX: view.x, viewY: view.y };
+          document.body.classList.add("canvas-panning");
+          try {
+            layer.setPointerCapture(e.pointerId);
+          } catch (err) {
+            /* the listeners below still track it */
+          }
+        };
+
+        layer.addEventListener("pointerdown", (e) => {
+          if (!view.on) return;
+          const middle = e.button === 1;
+          // Left-drag pans only on the bare surface. Starting one on a window
+          // would fight that window's own drag handler.
+          const onBackground = e.target === layer && e.button === 0;
+          if (!middle && !onBackground && !(spacePanHeld && e.button === 0)) return;
+          e.preventDefault();
+          startPan(e);
+        });
+
+        layer.addEventListener("pointermove", (e) => {
+          if (panPointerId === null || e.pointerId !== panPointerId) return;
+          view.x = panStart.viewX + (e.clientX - panStart.x);
+          view.y = panStart.viewY + (e.clientY - panStart.y);
+          // scheduleView(), not applyView(): pointermove outruns the display,
+          // and doing the work per event instead of per frame is what made
+          // panning stutter.
+          markInteracting();
+          scheduleView();
+        });
+
+        const endPan = (e) => {
+          if (panPointerId === null || (e && e.pointerId !== panPointerId)) return;
+          try {
+            layer.releasePointerCapture(panPointerId);
+          } catch (err) {
+            /* capture may already be gone */
+          }
+          panPointerId = null;
+          document.body.classList.remove("canvas-panning");
+          saveSession();
+        };
+        layer.addEventListener("pointerup", endPan);
+        layer.addEventListener("pointercancel", endPan);
+
+        // Passive:false because both branches preventDefault — otherwise the
+        // browser zooms the whole page on Ctrl+wheel and we fight it.
+        layer.addEventListener(
+          "wheel",
+          (e) => {
+            if (!view.on) return;
+            // deltaMode 1 is lines and 2 is pages; a mouse wheel and a trackpad
+            // report wildly different magnitudes in different units, and taking
+            // deltaY raw made the same gesture jump on one device and crawl on
+            // another.
+            const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 100 : 1;
+            const dx = e.deltaX * unit;
+            const dy = e.deltaY * unit;
+
+            /* A note's textarea, a task list and the log all scroll, so the
+               wheel belongs to them — but only while they can actually use it.
+               The first version handed the event over whenever the pointer was
+               over one of them, so wheeling across a note that had nothing to
+               scroll, or was already at its end, did nothing at all: the
+               scroller ignored it and the canvas never saw it. A dead patch
+               over every note reads as the canvas randomly not responding.
+               Now the handover is conditional on there being somewhere to go,
+               and the canvas takes over at the end of the scroll. Ctrl always
+               means zoom and never hands over. */
+            if (!e.ctrlKey) {
+              const scroller = e.target.closest(
+                "textarea, .task-list, .log-list, .help-content"
+              );
+              if (scroller) {
+                const room = scroller.scrollHeight - scroller.clientHeight;
+                const atTop = scroller.scrollTop <= 0;
+                const atEnd = scroller.scrollTop >= room - 1;
+                const canTakeIt =
+                  room > 1 && !((dy < 0 && atTop) || (dy > 0 && atEnd));
+                if (canTakeIt) return; // let it scroll natively
+              }
+            }
+            e.preventDefault();
+            markInteracting();
+            if (e.ctrlKey) {
+              // Continuous rather than a fixed 1.15 step per notch: stepping
+              // quantised the zoom so a smooth trackpad pinch arrived as a
+              // stack of jumps. Exponential so each unit of scroll is the same
+              // proportional change at any zoom.
+              setZoom(view.zoom * Math.exp(-dy * 0.0015), e.clientX, e.clientY);
+              return;
+            }
+            if (e.shiftKey) view.x -= dy;
+            else {
+              view.x -= dx;
+              view.y -= dy;
+            }
+            scheduleView();
+            debouncedSave(400);
+          },
+          { passive: false }
+        );
+      })();
+
+      // Space-to-pan, but only when the caret is not in a text field — this is
+      // a notes app, so a textarea is focused most of the time and swallowing
+      // the space bar there would be unforgivable.
+      document.addEventListener("keydown", (e) => {
+        if (e.code !== "Space" || !view.on || spacePanHeld) return;
+        // Both the event target and the focused element: the target is the
+        // right answer for a real keypress, but checking activeElement too
+        // means the caret's location decides this, not how the event was
+        // routed. Swallowing a space inside a note would be unforgivable in a
+        // notes app, so this errs firmly toward not arming.
+        if (isTextEntry(e.target) || isTextEntry(document.activeElement)) return;
+        if (e.target.matches && e.target.matches('[role="button"][tabindex]')) return;
+        spacePanHeld = true;
+        document.body.classList.add("canvas-panning");
+      });
+
+      document.addEventListener("keyup", (e) => {
+        if (e.code !== "Space") return;
+        spacePanHeld = false;
+        if (panPointerId === null) document.body.classList.remove("canvas-panning");
+      });
+
+      // Ctrl+Shift to match every other shortcut in the app, and to stay clear
+      // of the browser's own Ctrl+= / Ctrl+- page zoom.
+      document.addEventListener("keydown", (e) => {
+        if (!e.ctrlKey || !e.shiftKey || e.altKey || !view.on) return;
+        switch (e.key) {
+          case "+":
+          case "=":
+            e.preventDefault();
+            zoomBy(1);
+            break;
+          case "_":
+          case "-":
+            e.preventDefault();
+            zoomBy(-1);
+            break;
+          case "0":
+            e.preventDefault();
+            resetView();
+            break;
+          case "9":
+            e.preventDefault();
+            zoomToFit();
+            break;
+        }
+      });
+
       // Header control glyphs are spans acting as buttons; give them Enter and
       // Space so they aren't mouse-only for keyboard users.
       document.addEventListener("keydown", (e) => {
@@ -5476,6 +6664,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       window.addEventListener("resize", () => {
         if (_resizeTimer) clearTimeout(_resizeTimer);
         _resizeTimer = setTimeout(() => {
+          // The world is sized from the viewport, so a resize can grow it (it
+          // never shrinks) and always invalidates the pan clamp.
+          if (view.on) applyView();
           document
             .querySelectorAll(WINDOW_SELECTOR)
             .forEach((el) => clampWindowIntoView(el));
