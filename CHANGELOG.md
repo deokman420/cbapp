@@ -7,6 +7,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.1.1] — 2026-07-28
+
+### Fixed
+
+- **Windows could not be moved into the bottom corners of the screen.** The
+  toolbar is a centred island — on a 1900px display it spans about 560 to 1340,
+  roughly 41% of the width — but the drag clamp treated its top edge as a floor
+  across the *entire* width. A window parked at the far left, its right edge
+  400px clear of the toolbar, still stopped level with the toolbar's top, with
+  ~120px of completely empty canvas beneath it. Two dead strips, one down each
+  side, for an obstacle that wasn't there. The vertical limit is now resolved
+  per window position: anything clear of the toolbar's column gets the full
+  height of the viewport, and a window dragged sideways out of that column
+  opens up as it goes. A window still can't be pushed under the toolbar itself.
+  On a narrow screen the toolbar genuinely does span the full width, so it
+  still bounds everything — the rule is geometric, not a special case.
+  (Present since 3.0; the big canvas only made the wasted space obvious.)
+
+---
+
 ## [3.1.0] — 2026-07-28
 
 ### Added

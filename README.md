@@ -2,9 +2,9 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v3.1.0`  
+**Version:** `v3.1.1`  
 **Released:** July 28, 2026  
-**Size:** ~185 KB (single file)  
+**Size:** ~253 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
@@ -40,7 +40,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.1.0)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.1.1)
 
 Simply save the file and open it in your browser.
 
@@ -60,6 +60,7 @@ No installation or server required.
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
 - [What's New in v3.0](#whats-new-in-v30)
+- [What's New in v3.1](#whats-new-in-v31)
 - [Technical Notes](#technical-notes)
 
 ---
@@ -151,7 +152,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ## Technical Notes
 
-- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~185KB` file.
+- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~253KB` file.
 - **Persistence** — Uses `localStorage` under the key `notepadSession`.
 - **Download behavior** — "Download .html" writes a pristine copy of the app with your session embedded as JSON. Opening that file restores the session once; edits you make inside it take precedence from then on.
 - **Window limit** — 25 windows. A session containing more restores what fits and reports what was skipped.
@@ -163,7 +164,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v3.1.0)
+├── cbapp.html          # The complete application (v3.1.1)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -176,4 +177,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v3.1.0** — A self-contained productivity workspace that just works.
+**CB App v3.1.1** — A self-contained productivity workspace that just works.

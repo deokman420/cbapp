@@ -19,7 +19,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.1.0 — 2026-07-28. See CHANGELOG.md for release history. -->
+    <!-- CB App v3.1.1 — 2026-07-28. See CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -3249,8 +3249,10 @@
       function canvasBounds() {
         const pad = 12;
         const nav = navMenuBounds();
-        let top = pad;
-        let bottom = window.innerHeight - pad;
+        const openTop = pad;
+        const openBottom = window.innerHeight - pad;
+        let top = openTop;
+        let bottom = openBottom;
         if (nav && nav.height) {
           // Toolbar is bottom-anchored on desktop, top-anchored on narrow screens.
           if (nav.top > window.innerHeight / 2) bottom = nav.top - pad;
@@ -3261,17 +3263,58 @@
           const br = screenToWorld(window.innerWidth - pad, bottom);
           return { left: tl.x, top: tl.y, right: br.x, bottom: br.y };
         }
-        return { left: pad, top, right: window.innerWidth - pad, bottom };
+        return {
+          left: pad,
+          top,
+          right: window.innerWidth - pad,
+          bottom,
+          // The toolbar's column, plus the limits that apply outside it, so
+          // clampSpot() can give back the strip down each side. Only meaningful
+          // off-canvas: on the big canvas the toolbar floats over world space
+          // rather than bounding it, and the world clamp has no nav at all.
+          openTop,
+          openBottom,
+          nav:
+            nav && nav.height
+              ? { left: nav.left - pad, right: nav.right + pad }
+              : null,
+        };
+      }
+
+      /* Clamp a window into bounds, keeping it clear of the toolbar — but only
+         where the toolbar actually is.
+
+         The toolbar is a centred island: on a 1900px screen it spans about 560
+         to 1340, roughly 41% of the width. The clamp treated its top edge as a
+         floor across the *whole* width, so a window parked at the far left —
+         its right edge 400px clear of the toolbar — still stopped dead level
+         with the toolbar's top, with ~120px of completely empty canvas beneath
+         it. Two dead strips, one down each side, for an obstacle that isn't
+         there. (Pre-existing since v3.0; the big canvas just made the wasted
+         space easier to see.)
+
+         So the horizontal clamp is resolved first, and the vertical limits are
+         then chosen based on whether the window overlaps the toolbar's column
+         at that x. Anything clear of it gets the full viewport. */
+      function clampSpot(width, height, x, y, b) {
+        const maxX = Math.max(b.left, b.right - width);
+        const cx = Math.min(Math.max(b.left, x), maxX);
+
+        let top = b.top;
+        let bottom = b.bottom;
+        if (b.nav) {
+          const clearsToolbar = cx + width <= b.nav.left || cx >= b.nav.right;
+          if (clearsToolbar) {
+            top = b.openTop;
+            bottom = b.openBottom;
+          }
+        }
+        const maxY = Math.max(top, bottom - height);
+        return { x: cx, y: Math.min(Math.max(top, y), maxY) };
       }
 
       function clampToCanvas(width, height, x, y) {
-        const b = clampBounds();
-        const maxX = Math.max(b.left, b.right - width);
-        const maxY = Math.max(b.top, b.bottom - height);
-        return {
-          x: Math.min(Math.max(b.left, x), maxX),
-          y: Math.min(Math.max(b.top, y), maxY),
-        };
+        return clampSpot(width, height, x, y, clampBounds());
       }
 
       // Position a freshly created window. The first one on an empty canvas is
@@ -4897,11 +4940,17 @@ Enterprise browser
           // offsetWidth/offsetHeight are layout pixels, which are already world
           // units — the scale lives on the parent, not on the window.
           const p = screenToWorld(e.clientX, e.clientY);
-          const b = dragBounds;
-          const maxX = Math.max(b.left, b.right - dragW);
-          const maxY = Math.max(b.top, b.bottom - dragH);
-          const x = Math.min(Math.max(b.left, p.x - offsetX), maxX);
-          const y = Math.min(Math.max(b.top, p.y - offsetY), maxY);
+          // clampSpot() rather than an inlined clamp: the vertical limit now
+          // depends on the window's x (it opens up either side of the toolbar),
+          // so it has to be resolved per move, not frozen at pointerdown. The
+          // bounds object it reads is still measured once — no layout here.
+          const { x, y } = clampSpot(
+            dragW,
+            dragH,
+            p.x - offsetX,
+            p.y - offsetY,
+            dragBounds
+          );
           // dataset stays synchronous — it is the source of truth and costs no
           // layout. Only the paint is deferred to the frame.
           element.dataset.x = x;
