@@ -5,21 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="CB App - A browser-based notepad and productivity tool">
     <meta name="theme-color" content="#007bff">
-    <!-- Add CSP for security -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com https://fonts.gstatic.com data:;">
-    <title>CB App</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    <!--
+      CSP (meta): split by directive so data: cannot load scripts; unused CDN
+      allowlists removed; fonts are system-only (no third-party network).
+      'unsafe-inline' remains because this single-file app uses inline script
+      and onclick handlers. frame-ancestors is not enforced by meta CSP —
+      set it via HTTP headers when hosting (see vercel.json).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; manifest-src 'self';"
     />
+    <title>CB App</title>
     <link
       rel="icon"
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.1.3 — 2026-07-29. See CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.2 — 2026-07-29. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -697,8 +700,10 @@
         --text: #e2e8f0;
         --text-dim: #8492a6;
         --text-muted: #4a5568;
-        --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        --mono: "JetBrains Mono", "Consolas", monospace;
+        /* System font stack only — no Google Fonts / third-party CSS (privacy,
+           offline integrity, and a tighter CSP without font CDNs). */
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --mono: ui-monospace, "Cascadia Code", "Segoe UI Mono", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
         /* A sticky note defaulted to --bg-card, making it pixel-identical to
            every other window - the one window type whose whole point is that
            you can pick it out at a glance. Warm, solid, high-contrast. */
@@ -2512,6 +2517,138 @@
           right: 12px;
         }
       }
+
+      /* Passphrase dialog. window.prompt() renders the passphrase as plain
+         text on screen — fine for a URL, wrong for the one string that guards
+         the whole session. This replaces it with a masked field plus a Show
+         toggle. It lives outside .whiteboard so canvas pan/zoom transforms
+         never move it. */
+      #pass-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 10000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: rgba(4, 6, 10, 0.6);
+      }
+
+      #pass-modal.open {
+        display: flex;
+      }
+
+      #pass-modal .pass-card {
+        width: 100%;
+        max-width: 420px;
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.45);
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      #pass-modal h2 {
+        margin: 0;
+        font-size: 16px;
+        color: var(--text);
+      }
+
+      #pass-modal .pass-message {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--text-dim);
+        white-space: pre-line;
+      }
+
+      #pass-modal label {
+        font-size: 12px;
+        color: var(--text-dim);
+      }
+
+      #pass-modal .pass-field {
+        display: flex;
+        gap: 6px;
+      }
+
+      #pass-modal input {
+        flex: 1;
+        min-width: 0;
+        padding: 9px 10px;
+        font-family: var(--mono);
+        font-size: 14px;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+      }
+
+      #pass-modal input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 2px var(--accent-dim);
+      }
+
+      #pass-modal button {
+        padding: 9px 14px;
+        font-family: var(--font);
+        font-size: 13px;
+        color: var(--text);
+        background: var(--bg-card-hover);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      #pass-modal button:hover {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      #pass-modal button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      #pass-modal .pass-reveal {
+        min-width: 62px;
+        font-family: var(--font);
+      }
+
+      #pass-modal .pass-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 4px;
+      }
+
+      #pass-modal .pass-actions .primary {
+        color: #04120f;
+        background: var(--accent);
+        border-color: var(--accent);
+        font-weight: 600;
+      }
+
+      #pass-modal .pass-actions .primary:hover {
+        color: #04120f;
+        filter: brightness(1.08);
+      }
+
+      .light-mode #pass-modal .pass-actions .primary,
+      .light-mode #pass-modal .pass-actions .primary:hover {
+        color: #ffffff;
+      }
+
+      #pass-modal .pass-error {
+        margin: 0;
+        min-height: 16px;
+        font-size: 12px;
+        color: var(--danger);
+      }
     </style>
   </head>
   <body class="dark-mode">
@@ -2605,6 +2742,13 @@
               Backup
             </button>
             <button
+              id="protect-toggle"
+              onclick="toggleSessionProtection()"
+              data-tooltip="Encrypt this browser's session with a passphrase"
+            >
+              Protect
+            </button>
+            <button
               id="theme-toggle"
               onclick="toggleTheme()"
               data-tooltip="Toggle Dark/Light Mode"
@@ -2670,7 +2814,736 @@
         Download .html
       </a>
     </div>
+    <div
+      id="pass-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="pass-modal-title"
+      aria-describedby="pass-modal-message"
+    >
+      <div class="pass-card">
+        <h2 id="pass-modal-title">Passphrase</h2>
+        <p id="pass-modal-message" class="pass-message"></p>
+        <label for="pass-modal-input" id="pass-modal-label">Passphrase</label>
+        <div class="pass-field">
+          <input
+            type="password"
+            id="pass-modal-input"
+            autocomplete="off"
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+          />
+          <button
+            type="button"
+            class="pass-reveal"
+            id="pass-modal-reveal"
+            aria-pressed="false"
+            aria-label="Show passphrase"
+          >
+            Show
+          </button>
+        </div>
+        <p class="pass-error" id="pass-modal-error" role="alert"></p>
+        <div class="pass-actions">
+          <button type="button" id="pass-modal-cancel">Cancel</button>
+          <button type="button" class="primary" id="pass-modal-ok">OK</button>
+        </div>
+      </div>
+    </div>
     <script type="text/javascript">
+      // --- Session security (v3.2.0) -----------------------------------------
+      // Storage keys, optional AES-GCM passphrase wrap, and strict import
+      // validation. Passphrase stays in memory only for this tab session.
+      const SESSION_KEY = "notepadSession";
+      const SESSION_PREV_KEY = "notepadSession.prev";
+      const CONSUMED_EXPORT_KEY = "cbappConsumedExport";
+      const ALL_SESSION_KEYS = [
+        SESSION_KEY,
+        SESSION_PREV_KEY,
+        CONSUMED_EXPORT_KEY,
+      ];
+      const SESSION_FORMAT_VERSION = 1;
+      const MAX_SESSION_CHARS = 4500000;
+      const MAX_NOTE_CHARS = 800000;
+      const MAX_NAME_CHARS = 200;
+      const MAX_TASKS = 500;
+      const MAX_LOGS = 500;
+      const MAX_HISTORY = 200;
+      const PBKDF2_ITERATIONS = 210000;
+
+      // In-memory only — never written to localStorage or export metadata.
+      // sessionCryptoKey is derived once per unlock/protect so saves do not
+      // re-run PBKDF2 on every keystroke.
+      let sessionPassphrase = null;
+      let sessionCryptoKey = null;
+      let sessionKeySalt = null; // Uint8Array, paired with sessionCryptoKey
+
+      function clearSessionSecrets() {
+        sessionPassphrase = null;
+        sessionCryptoKey = null;
+        sessionKeySalt = null;
+      }
+
+      function clearAllSessionStorage() {
+        ALL_SESSION_KEYS.forEach((k) => {
+          try {
+            localStorage.removeItem(k);
+          } catch (e) {
+            /* ignore */
+          }
+        });
+      }
+
+      function isEncryptedEnvelope(obj) {
+        return (
+          !!obj &&
+          typeof obj === "object" &&
+          !Array.isArray(obj) &&
+          obj.enc === true &&
+          obj._cbapp === SESSION_FORMAT_VERSION &&
+          typeof obj.salt === "string" &&
+          typeof obj.iv === "string" &&
+          typeof obj.ct === "string" &&
+          obj.alg === "AES-GCM-256" &&
+          obj.kdf === "PBKDF2-SHA256-210000"
+        );
+      }
+
+      function bufToB64(buf) {
+        const bytes = buf instanceof ArrayBuffer ? new Uint8Array(buf) : buf;
+        let s = "";
+        for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+        return btoa(s);
+      }
+
+      function b64ToBytes(b64) {
+        if (typeof b64 !== "string" || b64.length > 8000000) {
+          throw new Error("Invalid base64 payload");
+        }
+        const s = atob(b64);
+        const bytes = new Uint8Array(s.length);
+        for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
+        return bytes;
+      }
+
+      async function deriveAesKey(passphrase, saltBytes) {
+        const enc = new TextEncoder();
+        const material = await crypto.subtle.importKey(
+          "raw",
+          enc.encode(passphrase),
+          "PBKDF2",
+          false,
+          ["deriveKey"]
+        );
+        return crypto.subtle.deriveKey(
+          {
+            name: "PBKDF2",
+            salt: saltBytes,
+            iterations: PBKDF2_ITERATIONS,
+            hash: "SHA-256",
+          },
+          material,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["encrypt", "decrypt"]
+        );
+      }
+
+      async function ensureSessionKey(passphrase, saltBytes) {
+        if (
+          sessionCryptoKey &&
+          sessionPassphrase === passphrase &&
+          sessionKeySalt &&
+          saltBytes &&
+          sessionKeySalt.length === saltBytes.length &&
+          sessionKeySalt.every((b, i) => b === saltBytes[i])
+        ) {
+          return sessionCryptoKey;
+        }
+        const key = await deriveAesKey(passphrase, saltBytes);
+        sessionPassphrase = passphrase;
+        sessionCryptoKey = key;
+        sessionKeySalt = new Uint8Array(saltBytes);
+        return key;
+      }
+
+      async function encryptSessionObject(session, passphrase) {
+        // Reuse salt+key across saves in this tab; new IV every encrypt.
+        const salt =
+          sessionKeySalt && sessionPassphrase === passphrase
+            ? sessionKeySalt
+            : crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await ensureSessionKey(passphrase, salt);
+        const plain = new TextEncoder().encode(JSON.stringify(session));
+        const ct = await crypto.subtle.encrypt(
+          { name: "AES-GCM", iv },
+          key,
+          plain
+        );
+        return {
+          _cbapp: SESSION_FORMAT_VERSION,
+          enc: true,
+          alg: "AES-GCM-256",
+          kdf: "PBKDF2-SHA256-210000",
+          salt: bufToB64(salt),
+          iv: bufToB64(iv),
+          ct: bufToB64(ct),
+        };
+      }
+
+      async function decryptSessionEnvelope(envelope, passphrase) {
+        const salt = b64ToBytes(envelope.salt);
+        const iv = b64ToBytes(envelope.iv);
+        if (salt.length !== 16 || iv.length !== 12) {
+          throw new Error("Invalid envelope parameters");
+        }
+        const key = await ensureSessionKey(passphrase, salt);
+        const plainBuf = await crypto.subtle.decrypt(
+          { name: "AES-GCM", iv },
+          key,
+          b64ToBytes(envelope.ct)
+        );
+        const session = JSON.parse(new TextDecoder().decode(plainBuf));
+        return validateSessionObject(session);
+      }
+
+      function isDangerousKey(key) {
+        return (
+          key === "__proto__" ||
+          key === "constructor" ||
+          key === "prototype"
+        );
+      }
+
+      function assertPlainObject(value, label) {
+        if (!value || typeof value !== "object" || Array.isArray(value)) {
+          throw new Error(`Invalid session: ${label} must be an object`);
+        }
+        if (Object.getPrototypeOf(value) !== Object.prototype) {
+          // JSON.parse always yields plain objects; reject exotic prototypes.
+          throw new Error(`Invalid session: ${label} has unexpected prototype`);
+        }
+      }
+
+      function assertString(value, label, maxLen) {
+        if (typeof value !== "string") {
+          throw new Error(`Invalid session: ${label} must be a string`);
+        }
+        if (value.length > maxLen) {
+          throw new Error(`Invalid session: ${label} is too long`);
+        }
+      }
+
+      function assertFiniteNumber(value, label) {
+        if (typeof value !== "number" || !Number.isFinite(value)) {
+          throw new Error(`Invalid session: ${label} must be a finite number`);
+        }
+      }
+
+      function sanitizeColorString(value, label) {
+        if (value === undefined || value === null || value === "") return "";
+        assertString(value, label, 64);
+        const v = value.trim().toLowerCase();
+        // Only allow hex / rgb(a) that normalizeColor already understands.
+        if (
+          /^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/.test(v) ||
+          /^rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}(\s*,\s*(0|1|0?\.\d+))?\s*\)$/.test(
+            v
+          )
+        ) {
+          return v;
+        }
+        throw new Error(`Invalid session: ${label} is not a safe colour`);
+      }
+
+      function sanitizePosition(pos, label) {
+        assertPlainObject(pos, label);
+        const left = pos.left;
+        const top = pos.top;
+        // Positions may be numbers or numeric strings from older sessions.
+        const lx =
+          typeof left === "number" ? left : parseFloat(String(left));
+        const ty = typeof top === "number" ? top : parseFloat(String(top));
+        if (!Number.isFinite(lx) || !Number.isFinite(ty)) {
+          throw new Error(`Invalid session: ${label} position`);
+        }
+        if (Math.abs(lx) > 1e7 || Math.abs(ty) > 1e7) {
+          throw new Error(`Invalid session: ${label} position out of range`);
+        }
+        return { left: String(lx), top: String(ty) };
+      }
+
+      function sanitizeWindowRecord(data, label, { isSticky = false } = {}) {
+        assertPlainObject(data, label);
+        for (const k of Object.keys(data)) {
+          if (isDangerousKey(k)) {
+            throw new Error(`Invalid session: dangerous key in ${label}`);
+          }
+        }
+        const out = {
+          position: sanitizePosition(data.position || { left: 50, top: 50 }, label),
+          width:
+            data.width === undefined
+              ? undefined
+              : (assertFiniteNumber(Number(data.width), `${label}.width`),
+                Number(data.width)),
+          height:
+            data.height === undefined
+              ? undefined
+              : (assertFiniteNumber(Number(data.height), `${label}.height`),
+                Number(data.height)),
+          zIndex:
+            data.zIndex === undefined
+              ? 0
+              : (assertFiniteNumber(Number(data.zIndex), `${label}.zIndex`),
+                Number(data.zIndex)),
+          minimized: !!data.minimized,
+          locked: !!data.locked,
+          name:
+            data.name === undefined
+              ? undefined
+              : (assertString(String(data.name), `${label}.name`, MAX_NAME_CHARS),
+                String(data.name).slice(0, MAX_NAME_CHARS)),
+          content:
+            data.content === undefined
+              ? ""
+              : (assertString(String(data.content), `${label}.content`, MAX_NOTE_CHARS),
+                String(data.content)),
+          isTaskWindow: !!data.isTaskWindow,
+        };
+        if (data.containerWidth !== undefined) {
+          assertFiniteNumber(Number(data.containerWidth), `${label}.containerWidth`);
+          out.containerWidth = Number(data.containerWidth);
+        }
+        if (data.containerHeight !== undefined) {
+          assertFiniteNumber(Number(data.containerHeight), `${label}.containerHeight`);
+          out.containerHeight = Number(data.containerHeight);
+        }
+        if (Array.isArray(data.tasks)) {
+          if (data.tasks.length > MAX_TASKS) {
+            throw new Error(`Invalid session: too many tasks in ${label}`);
+          }
+          out.tasks = data.tasks.map((t, i) => {
+            assertPlainObject(t, `${label}.tasks[${i}]`);
+            assertString(String(t.text ?? ""), `${label}.tasks[${i}].text`, 2000);
+            return { text: String(t.text ?? "").slice(0, 2000), completed: !!t.completed };
+          });
+        } else {
+          out.tasks = [];
+        }
+        if (isSticky) {
+          out.color = sanitizeColorString(data.color || "", `${label}.color`);
+          out.textColor = sanitizeColorString(
+            data.textColor || "",
+            `${label}.textColor`
+          );
+          out.customColor = !!data.customColor;
+        }
+        return out;
+      }
+
+      /**
+       * Strict allowlist validation for imported / embedded / decrypted sessions.
+       * Throws on anything unexpected. Returns a cleaned plain object.
+       */
+      function validateSessionObject(raw) {
+        assertPlainObject(raw, "session");
+        for (const k of Object.keys(raw)) {
+          if (isDangerousKey(k)) {
+            throw new Error("Invalid session: dangerous key");
+          }
+        }
+        const out = {};
+        const known = new Set([
+          "theme",
+          "canvas",
+          "clock",
+          "calculator",
+          "log",
+          "help",
+          "zIndexCounter",
+        ]);
+        for (const key of Object.keys(raw)) {
+          if (key.startsWith("window")) {
+            out[key] = sanitizeWindowRecord(raw[key], key, { isSticky: false });
+            continue;
+          }
+          if (key.startsWith("sticky-note")) {
+            out[key] = sanitizeWindowRecord(raw[key], key, { isSticky: true });
+            continue;
+          }
+          if (!known.has(key)) {
+            // Drop unknown top-level keys rather than fail — forward compatible.
+            continue;
+          }
+          if (key === "theme") {
+            out.theme =
+              raw.theme === "light-mode" ? "light-mode" : "dark-mode";
+          } else if (key === "zIndexCounter") {
+            const z = Number(raw.zIndexCounter) || 0;
+            assertFiniteNumber(z, "zIndexCounter");
+            out.zIndexCounter = Math.min(Math.max(0, Math.floor(z)), 10000);
+          } else if (key === "canvas") {
+            if (raw.canvas == null) continue;
+            assertPlainObject(raw.canvas, "canvas");
+            out.canvas = {
+              on: !!raw.canvas.on,
+              x: Number.isFinite(Number(raw.canvas.x))
+                ? Number(raw.canvas.x)
+                : 0,
+              y: Number.isFinite(Number(raw.canvas.y))
+                ? Number(raw.canvas.y)
+                : 0,
+              zoom: Number.isFinite(Number(raw.canvas.zoom))
+                ? Number(raw.canvas.zoom)
+                : 1,
+            };
+          } else if (key === "clock" && raw.clock) {
+            assertPlainObject(raw.clock, "clock");
+            out.clock = {
+              visible: !!raw.clock.visible,
+              position: sanitizePosition(
+                raw.clock.position || { left: 50, top: 50 },
+                "clock"
+              ),
+              width: String(raw.clock.width ?? "200").slice(0, 20),
+              height: String(raw.clock.height ?? "150").slice(0, 20),
+              name: String(raw.clock.name || "Clock").slice(0, MAX_NAME_CHARS),
+              clockFormat: raw.clock.clockFormat === "24" ? "24" : "12",
+              locked: !!raw.clock.locked,
+              minimized: !!raw.clock.minimized,
+            };
+          } else if (key === "calculator" && raw.calculator) {
+            assertPlainObject(raw.calculator, "calculator");
+            let history = Array.isArray(raw.calculator.history)
+              ? raw.calculator.history.slice(0, MAX_HISTORY)
+              : [];
+            history = history.map((h, i) => {
+              assertPlainObject(h, `calculator.history[${i}]`);
+              return {
+                expression: String(h.expression ?? "").slice(0, 500),
+                result: String(h.result ?? "").slice(0, 100),
+              };
+            });
+            out.calculator = {
+              visible: !!raw.calculator.visible,
+              history,
+              position: sanitizePosition(
+                raw.calculator.position || { left: 50, top: 50 },
+                "calculator"
+              ),
+              width: String(raw.calculator.width ?? "250").slice(0, 20),
+              locked: !!raw.calculator.locked,
+              minimized: !!raw.calculator.minimized,
+            };
+          } else if (key === "log" && raw.log) {
+            assertPlainObject(raw.log, "log");
+            let logs = Array.isArray(raw.log.logs)
+              ? raw.log.logs.slice(0, MAX_LOGS)
+              : [];
+            logs = logs.map((l, i) => {
+              assertPlainObject(l, `log.logs[${i}]`);
+              return {
+                timestamp: String(l.timestamp ?? "").slice(0, 80),
+                description: String(l.description ?? "").slice(0, 4000),
+              };
+            });
+            out.log = {
+              visible: !!raw.log.visible,
+              position: sanitizePosition(
+                raw.log.position || { left: 50, top: 50 },
+                "log"
+              ),
+              width: String(raw.log.width ?? "300").slice(0, 20),
+              height: String(raw.log.height ?? "300").slice(0, 20),
+              name: String(raw.log.name || "Log").slice(0, MAX_NAME_CHARS),
+              locked: !!raw.log.locked,
+              minimized: !!raw.log.minimized,
+              logs,
+            };
+          } else if (key === "help" && raw.help) {
+            assertPlainObject(raw.help, "help");
+            out.help = {
+              visible: !!raw.help.visible,
+              position: sanitizePosition(
+                raw.help.position || { left: 50, top: 50 },
+                "help"
+              ),
+              minimized: !!raw.help.minimized,
+              locked: !!raw.help.locked,
+            };
+          }
+        }
+        return out;
+      }
+
+      async function persistSessionPayload(session) {
+        let payload;
+        if (sessionPassphrase) {
+          payload = await encryptSessionObject(session, sessionPassphrase);
+        } else {
+          payload = session;
+        }
+        const serialized = JSON.stringify(payload);
+        if (serialized.length > MAX_SESSION_CHARS) {
+          reportSaveFailure(
+            "Session too large to save — export a backup, then close or trim a window."
+          );
+          return false;
+        }
+        localStorage.setItem(SESSION_KEY, serialized);
+        clearSaveFailure();
+        return true;
+      }
+
+      /**
+       * Masked replacement for window.prompt() when the answer is a secret.
+       * Resolves to the entered string, or null if the user cancels.
+       * The field starts obscured; "Show" reveals it for the sighted-typo case
+       * and flips back on every open so a passphrase is never left on screen.
+       */
+      function promptPassphrase({ title, message, label, okLabel } = {}) {
+        const modal = document.getElementById("pass-modal");
+        const input = document.getElementById("pass-modal-input");
+        const reveal = document.getElementById("pass-modal-reveal");
+        const okBtn = document.getElementById("pass-modal-ok");
+        const cancelBtn = document.getElementById("pass-modal-cancel");
+        const errorEl = document.getElementById("pass-modal-error");
+        const labelEl = document.getElementById("pass-modal-label");
+        // No modal in the DOM (e.g. a stripped copy of the page) — fall back
+        // rather than leaving the caller hanging on a promise that never settles.
+        if (!modal || !input) {
+          return Promise.resolve(window.prompt(message || title || "Passphrase"));
+        }
+
+        document.getElementById("pass-modal-title").textContent =
+          title || "Passphrase";
+        document.getElementById("pass-modal-message").textContent = message || "";
+        labelEl.textContent = label || "Passphrase";
+        okBtn.textContent = okLabel || "OK";
+        errorEl.textContent = "";
+        input.value = "";
+        setRevealed(false);
+        const returnFocus =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        modal.classList.add("open");
+        input.focus();
+
+        function setRevealed(on) {
+          input.type = on ? "text" : "password";
+          reveal.textContent = on ? "Hide" : "Show";
+          reveal.setAttribute("aria-pressed", on ? "true" : "false");
+          reveal.setAttribute(
+            "aria-label",
+            on ? "Hide passphrase" : "Show passphrase"
+          );
+        }
+
+        return new Promise((resolve) => {
+          function close(value) {
+            modal.classList.remove("open");
+            // Never leave the secret sitting in the DOM or visible next time.
+            input.value = "";
+            setRevealed(false);
+            reveal.removeEventListener("click", onReveal);
+            okBtn.removeEventListener("click", onOk);
+            cancelBtn.removeEventListener("click", onCancel);
+            modal.removeEventListener("keydown", onKey);
+            modal.removeEventListener("mousedown", onBackdrop);
+            if (returnFocus && document.contains(returnFocus)) {
+              returnFocus.focus();
+            }
+            resolve(value);
+          }
+          function onReveal() {
+            setRevealed(input.type === "password");
+            input.focus();
+          }
+          function onOk() {
+            close(input.value);
+          }
+          function onCancel() {
+            close(null);
+          }
+          function onKey(e) {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              onCancel();
+            } else if (e.key === "Enter" && e.target === input) {
+              e.preventDefault();
+              onOk();
+            } else if (e.key === "Tab") {
+              // Keep focus inside the dialog: it is the only thing on screen.
+              const focusables = [input, reveal, cancelBtn, okBtn];
+              const i = focusables.indexOf(document.activeElement);
+              if (i === -1) return;
+              e.preventDefault();
+              const next = e.shiftKey ? i - 1 : i + 1;
+              focusables[(next + focusables.length) % focusables.length].focus();
+            }
+          }
+          function onBackdrop(e) {
+            if (e.target === modal) onCancel();
+          }
+          reveal.addEventListener("click", onReveal);
+          okBtn.addEventListener("click", onOk);
+          cancelBtn.addEventListener("click", onCancel);
+          modal.addEventListener("keydown", onKey);
+          modal.addEventListener("mousedown", onBackdrop);
+        });
+      }
+
+      async function unlockEnvelopeWithPrompt(envelope, reason) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const pass = await promptPassphrase({
+            title: "Unlock session",
+            message:
+              reason ||
+              "This CB App session is passphrase-protected. Enter the passphrase:",
+            okLabel: "Unlock",
+          });
+          if (pass === null) return null; // cancelled
+          if (!pass) {
+            window.alert("Passphrase cannot be empty.");
+            continue;
+          }
+          try {
+            const session = await decryptSessionEnvelope(envelope, pass);
+            // sessionPassphrase / key cached inside decryptSessionEnvelope
+            return session;
+          } catch (e) {
+            window.alert(
+              attempt < 2
+                ? "Wrong passphrase (or corrupted data). Try again."
+                : "Wrong passphrase. Session was not loaded."
+            );
+          }
+        }
+        return null;
+      }
+
+      /**
+       * Parse a raw localStorage / file string into a validated session object.
+       * Handles plaintext JSON sessions and encrypted envelopes.
+       */
+      async function parseAndUnlockSession(raw, { promptReason } = {}) {
+        if (typeof raw !== "string" || !raw || raw.length > MAX_SESSION_CHARS + 1000) {
+          throw new Error("Session payload missing or too large");
+        }
+        let parsed;
+        try {
+          parsed = JSON.parse(raw);
+        } catch (e) {
+          throw new Error("Session is not valid JSON");
+        }
+        if (isEncryptedEnvelope(parsed)) {
+          const unlocked = await unlockEnvelopeWithPrompt(
+            parsed,
+            promptReason
+          );
+          if (!unlocked) return null;
+          return unlocked;
+        }
+        // Legacy / plaintext
+        return validateSessionObject(parsed);
+      }
+
+      function updateProtectButton() {
+        const btn = document.getElementById("protect-toggle");
+        if (!btn) return;
+        if (sessionPassphrase) {
+          btn.textContent = "Unprotect";
+          btn.classList.add("active");
+          btn.setAttribute(
+            "data-tooltip",
+            "Remove passphrase protection (saves notes in plaintext again)"
+          );
+          btn.setAttribute(
+            "aria-label",
+            "Remove passphrase protection (saves notes in plaintext again)"
+          );
+        } else {
+          btn.textContent = "Protect";
+          btn.classList.remove("active");
+          btn.setAttribute(
+            "data-tooltip",
+            "Encrypt this browser's session with a passphrase"
+          );
+          btn.setAttribute(
+            "aria-label",
+            "Encrypt this browser's session with a passphrase"
+          );
+        }
+      }
+
+      async function toggleSessionProtection() {
+        if (sessionPassphrase) {
+          if (
+            !window.confirm(
+              "Remove passphrase protection?\n\nYour session will be saved in plaintext in this browser again. Exports will also be plaintext unless you re-enable Protect."
+            )
+          ) {
+            return;
+          }
+          clearSessionSecrets();
+          try {
+            const snap = buildSessionSnapshot();
+            await persistSessionPayload(snap);
+            updateProtectButton();
+            showStatus("Passphrase protection removed — session is plaintext.");
+          } catch (e) {
+            showStatus("Failed to remove protection.");
+          }
+          return;
+        }
+        const pass = await promptPassphrase({
+          title: "Protect this session",
+          message:
+            "Choose a passphrase to encrypt this session in the browser and in exports.\n\nYou will need it every time you open CB App on this origin. It is never stored — only you know it.",
+          label: "New passphrase (6+ characters)",
+          okLabel: "Continue",
+        });
+        if (pass === null) return;
+        if (!pass || pass.length < 6) {
+          window.alert("Use a passphrase of at least 6 characters.");
+          return;
+        }
+        const again = await promptPassphrase({
+          title: "Confirm passphrase",
+          message: "Type the same passphrase again to confirm.",
+          label: "Confirm passphrase",
+          okLabel: "Protect",
+        });
+        if (again === null) return;
+        if (pass !== again) {
+          window.alert("Passphrases did not match.");
+          return;
+        }
+        try {
+          // Fresh salt for a newly protected session.
+          sessionCryptoKey = null;
+          sessionKeySalt = null;
+          sessionPassphrase = pass;
+          const snap = buildSessionSnapshot();
+          const ok = await persistSessionPayload(snap);
+          if (!ok) {
+            clearSessionSecrets();
+            showStatus("Could not save encrypted session.");
+            return;
+          }
+          updateProtectButton();
+          showStatus("Session encrypted with your passphrase.");
+        } catch (e) {
+          clearSessionSecrets();
+          console.error(e);
+          showStatus("Encryption failed — is Web Crypto available?");
+        }
+      }
+
       // Normalise "rgb(43, 39, 24)" / "#2B2718" / "" to "#2b2718" so stored
       // colours can be compared against the theme defaults.
       function normalizeColor(value) {
@@ -2898,14 +3771,29 @@
       // there would strand them past the clamp, with no way to reach them.
       let worldSize = { w: 0, h: 0 };
 
+      /* The world must still cover the screen at maximum zoom-out, so the
+         multiple is whichever is larger: the 3 viewports we want at 1:1, or
+         the 1/ZOOM_MIN viewports the screen spans once fully zoomed out.
+
+         At 3 viewports with ZOOM_MIN 0.25 the world was 3834px wide but the
+         screen spanned 4 viewports of it, so below 1/3 zoom the scaled world
+         was *smaller* than the viewport. clampPan() then took its centring
+         branch and parked it in the middle, leaving a dead margin all round —
+         160px each side at 25% on a 1278px screen. The grid is a fixed
+         backdrop so it kept painting across that margin, which made it read as
+         reachable canvas, but clampBounds() works in world coordinates: a
+         dragged window stopped dead at the world edge, well inboard of the
+         screen edge, looking like it was being forced back toward the centre. */
+      const WORLD_MULTIPLE = Math.max(CANVAS_MULTIPLE, 1 / ZOOM_MIN);
+
       function computeWorldSize() {
         const w = Math.max(
           worldSize.w,
-          Math.round(window.innerWidth * CANVAS_MULTIPLE)
+          Math.round(window.innerWidth * WORLD_MULTIPLE)
         );
         const h = Math.max(
           worldSize.h,
-          Math.round(window.innerHeight * CANVAS_MULTIPLE)
+          Math.round(window.innerHeight * WORLD_MULTIPLE)
         );
         worldSize = { w, h };
         return worldSize;
@@ -3653,7 +4541,7 @@
         <div class="sticky-note-controls">
             <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
             <span class="minimize-window" onclick="minimizeStickyNote('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
-            <span class="sticky-lock-window" onclick="toggleWindowLock('${windowId}')" title="Lock editing, dragging and resizing" role="button" tabindex="0">🔓</span>
+            <span class="sticky-lock-window" onclick="toggleWindowLock('${windowId}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0">🔓</span>
             <span class="close-sticky-note" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
         </div>
     </div>
@@ -3717,11 +4605,7 @@
         showStatus("Saving again — the session was written successfully.");
       }
 
-      function saveSession() {
-        // While restoring we rebuild the DOM by replaying add*() helpers, each of
-        // which calls saveSession(); skip those so we never persist a partial
-        // mid-restore snapshot. loadSessionFromStorage() does one final save itself.
-        if (restoring) return;
+      function buildSessionSnapshot() {
         const session = {};
         document
           .querySelectorAll(".window, .task-window")
@@ -3758,7 +4642,7 @@
               content: textarea ? textarea.value : "",
               name: title,
               isTaskWindow: windowElement.classList.contains("task-window"),
-              locked: windowElement.dataset.locked === "true", // Add this line
+              locked: windowElement.dataset.locked === "true",
               tasks: windowElement.classList.contains("task-window")
                 ? Array.from(windowElement.querySelectorAll(".task-item")).map(
                     (item) => ({
@@ -3887,22 +4771,45 @@
             };
           });
         session.zIndexCounter = zIndexCounter;
+        return session;
+      }
+
+      // Serial writes when unprotected; AES-GCM envelope when Protect is on.
+      // Callers stay sync — encryption is fire-and-forget with failure badge.
+      let _persistSeq = 0;
+      function saveSession() {
+        // While restoring we rebuild the DOM by replaying add*() helpers, each of
+        // which calls saveSession(); skip those so we never persist a partial
+        // mid-restore snapshot. loadSessionFromStorage() does one final save itself.
+        if (restoring) return;
         try {
-          const serialized = JSON.stringify(session);
-          // Guard against localStorage quota exhaustion (typical limit ~5-10MB)
-          if (serialized.length > 4500000) {
-            console.warn("Session too large to save safely, skipping write.");
-            // This used to return silently. The app's one promise is that what
-            // you type is kept — so every save after the threshold, including
-            // the one on beforeunload, was a no-op while the UI looked
-            // completely normal, and the next reload dropped the lot.
-            reportSaveFailure(
-              "Session too large to save — export a backup, then close or trim a window."
-            );
+          const session = buildSessionSnapshot();
+          if (!sessionPassphrase) {
+            const serialized = JSON.stringify(session);
+            if (serialized.length > MAX_SESSION_CHARS) {
+              console.warn("Session too large to save safely, skipping write.");
+              reportSaveFailure(
+                "Session too large to save — export a backup, then close or trim a window."
+              );
+              return;
+            }
+            localStorage.setItem(SESSION_KEY, serialized);
+            clearSaveFailure();
             return;
           }
-          localStorage.setItem("notepadSession", serialized);
-          clearSaveFailure();
+          const seq = ++_persistSeq;
+          persistSessionPayload(session)
+            .then((ok) => {
+              if (seq !== _persistSeq) return; // a newer save superseded this one
+              if (!ok) return;
+            })
+            .catch((e) => {
+              if (seq !== _persistSeq) return;
+              console.error("Failed to save encrypted session:", e);
+              reportSaveFailure(
+                "Failed to save encrypted session — export a backup before closing this tab."
+              );
+            });
         } catch (e) {
           console.error("Failed to save session to localStorage:", e);
           reportSaveFailure(
@@ -3945,7 +4852,7 @@
                 <div class="window-controls">
         <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
         <span class="minimize-window" onclick="minimizeWindow('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
-        <span class="lock-window" onclick="toggleWindowLock('${windowId}')" title="Lock editing, dragging and resizing" role="button" tabindex="0">🔓</span>
+        <span class="lock-window" onclick="toggleWindowLock('${windowId}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0">🔓</span>
         <span class="close-window" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
     </div>
         </div>
@@ -4033,7 +4940,7 @@
             <div class="task-controls">
                 <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
                 <span class="minimize-window" onclick="minimizeWindow('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
-                <span class="lock-window" onclick="toggleWindowLock('${windowId}')" title="Lock editing, dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                <span class="lock-window" onclick="toggleWindowLock('${windowId}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
                 <span class="close-task" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
             </div>
         </div>
@@ -4154,7 +5061,7 @@
           return;
         }
         if (textarea.readOnly) {
-          showStatus("Cannot add log: Window is locked.");
+          showStatus("Cannot add log: window is frozen.");
           return;
         }
         const description = logInput.value.trim();
@@ -4217,8 +5124,8 @@ Windows
 - The window with the teal outline is the active one. Copy, Paste and
   Search all act on it.
 - 🗕 minimizes to the chip bar in the bottom-left corner; click a chip to
-  bring the window back. 🔓 locks a window against editing, dragging and
-  resizing. ✏️ renames it.
+  bring the window back. 🔓 freezes a window against editing, dragging
+  and resizing (layout only — not encryption). ✏️ renames it.
 
 Big canvas (experimental)
 - Canvas in the toolbar turns on a work surface three screens wide and
@@ -4247,13 +5154,19 @@ Keyboard
 - Ctrl+Shift+0    back to 100%     (big canvas)
 - Escape          close search, or cancel a rename
 
-Saving
+Saving & security
 - Everything is saved to this browser automatically as you type, and
   restored the next time you open the file.
-- Backup writes your session out as a .json file; Import reads one back.
+- By default storage is plaintext in this browser profile. Protect
+  encrypts it with a passphrase (AES-GCM) so localStorage and exports
+  need that passphrase to open. The passphrase is never stored.
+- Freeze (🔓) only stops accidental edits — it is not a password.
+- Backup writes your session out as a .json file; Import reads one back
+  (strict schema validation). Encrypted backups stay encrypted.
 - "Download .html" saves this entire app with your current session baked
-  into it - one file, no dependencies, opens anywhere.
-- Reset clears the saved session and returns to a blank canvas.
+  into it - one file, no third-party fonts or CDNs.
+- Reset wipes all CB App keys in this browser and returns to a blank
+  canvas.
 
 Enterprise browser
 - Open cbapp.html directly in the Enterprise browser; keep it somewhere
@@ -4269,7 +5182,7 @@ Source
             <span class="help-title">CB App Instructions</span>
             <div class="help-controls">
               <span class="minimize-window" onclick="minimizeWindow('help-window')" title="Minimize" role="button" tabindex="0">🗕</span>
-              <span class="lock-window" onclick="toggleWindowLock('help-window')" title="Lock dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+              <span class="lock-window" onclick="toggleWindowLock('help-window')" title="Freeze dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
               <span class="close-window" onclick="toggleHelpWindow()" title="Close" role="button" tabindex="0">×</span>
             </div>
           </div>
@@ -4359,7 +5272,7 @@ Source
           <span class="calculator-title">${calculatorLabel}</span>
             <div class="calculator-controls">
                 <span class="minimize-window" onclick="minimizeWindow('calculator')" title="Minimize" role="button" tabindex="0">🗕</span>
-                <span class="lock-window" onclick="toggleWindowLock('calculator')" title="Lock editing, dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                <span class="lock-window" onclick="toggleWindowLock('calculator')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
                 <span class="close-calculator" onclick="toggleCalculator()" title="Close" role="button" tabindex="0">×</span>
             </div>
         </div>
@@ -4578,7 +5491,7 @@ Source
           <span class="clock-title">${clockLabel}</span>
             <div class="clock-controls">
                 <span class="minimize-window" onclick="minimizeWindow('clock')" title="Minimize" role="button" tabindex="0">🗕</span>
-                <span class="lock-window" onclick="toggleWindowLock('clock')" title="Lock editing, dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                <span class="lock-window" onclick="toggleWindowLock('clock')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
                 <span class="close-clock" onclick="toggleClock()" title="Close" role="button" tabindex="0">×</span>
             </div>
         </div>
@@ -4797,7 +5710,7 @@ Source
                     <div class="log-controls">
                         <span class="edit-window" onclick="startRename('log')" title="Rename" role="button" tabindex="0">✏️</span>
                         <span class="minimize-window" onclick="minimizeWindow('log')" title="Minimize" role="button" tabindex="0">🗕</span>
-                        <span class="lock-window" onclick="toggleWindowLock('log')" title="Lock editing, dragging and resizing" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                        <span class="lock-window" onclick="toggleWindowLock('log')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
                         <span class="close-log" onclick="toggleLog()" title="Close" role="button" tabindex="0">×</span>
                     </div>
                 </div>
@@ -5169,11 +6082,12 @@ Source
       const HEADER_SELECTOR =
         ".window-header, .task-header, .clock-header, .log-header, .calculator-header, .help-header, .sticky-note-header";
 
-      // What "locked" freezes inside a window. Text fields go readOnly rather
-      // than disabled so a locked note can still be read, scrolled and copied;
-      // everything else (buttons, checkboxes, selects, colour swatches) is
-      // disabled outright. Title-bar controls are excluded - you must always be
-      // able to unlock, minimize or close.
+      // What "frozen" freezes inside a window. This is NOT encryption or access
+      // control — anyone can unfreeze with one click. Text fields go readOnly
+      // rather than disabled so a frozen note can still be read, scrolled and
+      // copied; everything else (buttons, checkboxes, selects, colour swatches)
+      // is disabled. Title-bar controls are excluded — you must always be able
+      // to unfreeze, minimize or close.
       function lockableControls(windowElement) {
         return Array.from(
           windowElement.querySelectorAll("textarea, input, select, button")
@@ -5221,16 +6135,14 @@ Source
           lockBtn.textContent = isLocked ? "🔒" : "🔓";
           lockBtn.classList.toggle("locked", isLocked);
           lockBtn.title = isLocked
-            ? "Unlock this window"
-            : "Lock editing, dragging and resizing";
+            ? "Unfreeze this window (not a security unlock)"
+            : "Freeze editing, dragging and resizing (not encryption)";
           lockBtn.setAttribute("aria-pressed", String(isLocked));
         }
       }
 
-      // Lock = frozen content, no dragging, no resizing. Everything hangs off
-      // dataset.locked, which makeDraggable() reads, so this no longer has to
-      // null out and rebuild the drag handler (a near-copy of makeDraggable
-      // that had already drifted from it).
+      // Freeze = content frozen, no dragging, no resizing. Not secrecy.
+      // Everything hangs off dataset.locked, which makeDraggable() reads.
       function toggleWindowLock(windowId) {
         const windowElement = document.getElementById(windowId);
         if (!windowElement) return;
@@ -5240,7 +6152,9 @@ Source
           windowElement.querySelector(
             ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calculator-title, .help-title"
           )?.textContent || "Window";
-        showStatus(`${label} ${isLocked ? "locked" : "unlocked"}.`);
+        showStatus(
+          `${label} ${isLocked ? "frozen" : "unfrozen"} (layout only — use Protect to encrypt).`
+        );
         saveSession();
       }
 
@@ -5504,7 +6418,7 @@ Source
           return;
         }
         if (textarea.readOnly) {
-          showStatus("Cannot paste: window is locked.");
+          showStatus("Cannot paste: window is frozen.");
           return;
         }
 
@@ -5566,7 +6480,7 @@ Source
           saveSession();
           showStatus("Converted to uppercase.");
         } else {
-          showStatus("Cannot convert: Window is locked.");
+          showStatus("Cannot convert: window is frozen.");
         }
       }
 
@@ -5580,7 +6494,7 @@ Source
           saveSession();
           showStatus("Converted to lowercase.");
         } else {
-          showStatus("Cannot convert: Window is locked.");
+          showStatus("Cannot convert: window is frozen.");
         }
       }
 
@@ -5610,7 +6524,7 @@ Source
           return;
         }
         if (textarea.readOnly) {
-          showStatus("Cannot replace: window is locked.");
+          showStatus("Cannot replace: window is frozen.");
           return;
         }
         if (!searchInput) {
@@ -5796,18 +6710,21 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         try {
           const hasWork =
             document.querySelectorAll(WINDOW_SELECTOR).length > 0 ||
-            !!localStorage.getItem("notepadSession");
+            !!localStorage.getItem(SESSION_KEY) ||
+            !!localStorage.getItem(SESSION_PREV_KEY);
           if (hasWork && skipConfirm !== true) {
             if (
               !confirm(
-                "Reset CB App?\n\nThis closes every window and deletes the session saved in this browser. Use Backup first if you want to keep it."
+                "Reset CB App?\n\nThis closes every window and deletes all CB App data saved in this browser (session, previous backup, export markers, and any passphrase protection for this tab). Use Backup first if you want to keep it."
               )
             ) {
               return;
             }
           }
-          // Clear only this app's keys (safer than wiping the entire origin)
-          localStorage.removeItem("notepadSession");
+          // Clear every key this app owns (not the entire origin).
+          clearAllSessionStorage();
+          clearSessionSecrets();
+          updateProtectButton();
 
           // Reset UI state
           document.getElementById("windows").innerHTML = ""; // Remove all windows
@@ -5859,7 +6776,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           cascadeIndex = 0;
           cascadeAnchor = null;
           refreshChrome();
-          showStatus("UI reset to fresh state!");
+          showStatus("UI reset to fresh state — all CB App browser data cleared.");
         } catch (e) {
           console.error("Failed to reset UI:", e);
           showStatus("Failed to reset UI.");
@@ -6121,48 +7038,79 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         return skippedOnRestore;
       }
 
-      // No automatic session loading on page load
-      window.onload = () => {
+      // Boot: restore local session and/or first-open embedded export.
+      window.onload = async () => {
         // One-time purge of the retired calendar feature's stale storage key.
         localStorage.removeItem("calendarEvents");
+        updateProtectButton();
+
         // An exported copy carries its session inside the file; on first open
-        // that wins, so the download actually contains what it promised.
+        // that wins (after confirm if this origin already has work).
         const embedded = readEmbeddedSession();
-        // An embedded session replaces whatever this origin already had. Keep
-        // the outgoing one under a side key first: opening a downloaded copy to
-        // spot-check it used to silently overwrite newer work in the original
-        // with no prompt and no way back.
-        const existing = localStorage.getItem("notepadSession");
-        if (embedded && existing) {
-          try {
-            localStorage.setItem("notepadSession.prev", existing);
-          } catch (e) {
-            console.warn("Could not stash the previous session:", e);
-          }
-        }
-        const savedSession = embedded
-          ? JSON.stringify(embedded.session)
-          : existing;
-        if (savedSession) {
-          try {
-            const session = JSON.parse(savedSession);
-            const skipped = loadSessionFromStorage(session);
-            // Only now is the embedded payload known to have restored cleanly.
-            if (embedded) {
-              localStorage.setItem(CONSUMED_EXPORT_KEY, embedded.exportId);
-            }
-            showStatus(
-              skipped
-                ? `Session restored — ${skipped} window${
-                    skipped === 1 ? "" : "s"
-                  } skipped (${MAX_WINDOWS}-window limit).`
-                : embedded && existing
-                ? "Session restored from this file — your previous session was kept as a backup."
-                : "Session restored."
+        const existing = localStorage.getItem(SESSION_KEY);
+
+        let rawToLoad = null;
+        let fromEmbedded = false;
+
+        if (embedded) {
+          let useEmbedded = true;
+          if (existing) {
+            useEmbedded = window.confirm(
+              "This file includes an embedded session.\n\nLoad it and replace the session currently saved in this browser?\n\nYour current session will be kept once under a backup key (notepadSession.prev)."
             );
+          }
+          if (useEmbedded) {
+            if (existing) {
+              try {
+                localStorage.setItem(SESSION_PREV_KEY, existing);
+              } catch (e) {
+                console.warn("Could not stash the previous session:", e);
+              }
+            }
+            rawToLoad = JSON.stringify(embedded.session);
+            fromEmbedded = true;
+          } else if (existing) {
+            rawToLoad = existing;
+          }
+        } else if (existing) {
+          rawToLoad = existing;
+        }
+
+        if (rawToLoad) {
+          try {
+            const session = await parseAndUnlockSession(rawToLoad, {
+              promptReason: fromEmbedded
+                ? "This exported file's session is passphrase-protected. Enter the passphrase:"
+                : "Your CB App session is passphrase-protected. Enter the passphrase:",
+            });
+            if (!session) {
+              showStatus(
+                "Session not loaded — passphrase cancelled or incorrect."
+              );
+            } else {
+              const skipped = loadSessionFromStorage(session);
+              if (fromEmbedded && embedded) {
+                localStorage.setItem(CONSUMED_EXPORT_KEY, embedded.exportId);
+              }
+              // Re-persist so Protect state (if any) is reflected in storage.
+              saveSession();
+              updateProtectButton();
+              showStatus(
+                skipped
+                  ? `Session restored — ${skipped} window${
+                      skipped === 1 ? "" : "s"
+                    } skipped (${MAX_WINDOWS}-window limit).`
+                  : fromEmbedded && existing
+                  ? "Session restored from this file — previous browser session kept as backup."
+                  : "Session restored."
+              );
+            }
           } catch (e) {
             console.error("Failed to load session:", e);
-            showStatus("Failed to load session.");
+            showStatus(
+              "Failed to load session" +
+                (e && e.message ? `: ${e.message}` : ".")
+            );
           }
         } else {
           // Ensure fresh state on load
@@ -6171,6 +7119,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           document.getElementById("search-replace").classList.remove("active");
         }
         refreshChrome();
+        updateProtectButton();
       };
 
       // Save session automatically when the tab or browser closes
@@ -6204,7 +7153,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
         // Check if window is locked
         if (windowElement && windowElement.dataset.locked === "true") {
-          showStatus("Cannot clear note: Window is locked.");
+          showStatus("Cannot clear note: window is frozen.");
           return;
         }
 
@@ -6218,31 +7167,44 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
-      function downloadSessionJSON() {
+      async function downloadSessionJSON() {
         try {
-          saveSession(); // Ensure latest state is saved
-          const session = localStorage.getItem("notepadSession");
-          if (!session) {
-            showStatus("No session data to download.");
+          const snap = buildSessionSnapshot();
+          let payload = snap;
+          if (sessionPassphrase) {
+            payload = await encryptSessionObject(snap, sessionPassphrase);
+          }
+          const serialized = JSON.stringify(payload);
+          if (serialized.length > MAX_SESSION_CHARS) {
+            showStatus("Session too large to download.");
             return;
           }
-          const blob = new Blob([session], { type: "application/json" });
+          // Keep localStorage in sync with what we just exported.
+          localStorage.setItem(SESSION_KEY, serialized);
+          clearSaveFailure();
+          const blob = new Blob([serialized], { type: "application/json" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = "cbapp-session.json";
+          a.download = sessionPassphrase
+            ? "cbapp-session.encrypted.json"
+            : "cbapp-session.json";
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          showStatus("Session JSON downloaded!");
+          showStatus(
+            sessionPassphrase
+              ? "Encrypted session JSON downloaded."
+              : "Session JSON downloaded."
+          );
         } catch (e) {
+          console.error(e);
           showStatus("Failed to download session.");
         }
       }
 
       const EMBEDDED_SESSION_ID = "cbapp-embedded-session";
-      const CONSUMED_EXPORT_KEY = "cbappConsumedExport";
 
       // This used to serialise document.documentElement.outerHTML verbatim,
       // which baked every open window into the file as static markup. Those
@@ -6252,9 +7214,24 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       // with a duplicate id, and windowCount reset to 0 so new windows collided
       // with the baked-in ids. Export a pristine document instead and carry the
       // session as embedded JSON, so the copy boots exactly like the original.
-      function downloadCurrentHtml() {
+      async function downloadCurrentHtml() {
         try {
-          saveSession();
+          const snap = buildSessionSnapshot();
+          let sessionPayload = snap;
+          if (sessionPassphrase) {
+            sessionPayload = await encryptSessionObject(
+              snap,
+              sessionPassphrase
+            );
+          }
+          const forStorage = JSON.stringify(sessionPayload);
+          if (forStorage.length > MAX_SESSION_CHARS) {
+            showStatus("Session too large to embed in HTML export.");
+            return;
+          }
+          localStorage.setItem(SESSION_KEY, forStorage);
+          clearSaveFailure();
+
           const clone = document.documentElement.cloneNode(true);
 
           const clear = (sel) => {
@@ -6301,7 +7278,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             // Lets a re-opened export tell "this is a new file to load" from
             // "I already loaded this one, use my edits since".
             exportId: `${Date.now()}-${windowCount}-${noteCount}`,
-            session: JSON.parse(localStorage.getItem("notepadSession") || "{}"),
+            // May be a plaintext session or an AES-GCM envelope.
+            session: sessionPayload,
           };
           const script = document.createElement("script");
           script.type = "application/json";
@@ -6320,7 +7298,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          showStatus("Downloaded cbapp.html with your session.");
+          showStatus(
+            sessionPassphrase
+              ? "Downloaded cbapp.html with encrypted session."
+              : "Downloaded cbapp.html with your session."
+          );
         } catch (e) {
           console.error("Export failed:", e);
           showStatus("Failed to download HTML.");
@@ -6335,7 +7317,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         if (!node) return null;
         try {
           const payload = JSON.parse(node.textContent);
-          if (!payload || typeof payload.session !== "object") return null;
+          if (!payload || typeof payload.session !== "object" || !payload.session) {
+            return null;
+          }
           if (localStorage.getItem(CONSUMED_EXPORT_KEY) === payload.exportId) {
             return null;
           }
@@ -6362,25 +7346,40 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           const file = event.target.files[0];
           if (!file) return;
           const reader = new FileReader();
-          reader.onload = (e) => {
+          reader.onload = async (e) => {
             try {
               const text = e.target.result;
-              if (typeof text !== "string" || text.length > 4500000) {
+              if (typeof text !== "string" || text.length > MAX_SESSION_CHARS) {
                 showStatus("Import failed: file too large or invalid.");
                 return;
               }
-              const session = JSON.parse(text);
-              // Basic structural sanity check before trusting the import
-              if (!session || typeof session !== "object") {
-                showStatus("Import failed: not a valid session file.");
+              const session = await parseAndUnlockSession(text, {
+                promptReason:
+                  "This backup is passphrase-protected. Enter the passphrase:",
+              });
+              if (!session) {
+                showStatus("Import cancelled or passphrase incorrect.");
                 return;
               }
-              localStorage.setItem("notepadSession", JSON.stringify(session));
-              loadSession(true); // clear current UI; the file dialog was the confirmation
-              loadSessionFromStorage(session); // Load imported session
-              showStatus("Session imported!");
+              // Clear UI without wiping the passphrase we just unlocked for this import.
+              const keepPass = sessionPassphrase;
+              loadSession(true);
+              sessionPassphrase = keepPass;
+              loadSessionFromStorage(session);
+              // Persist validated (and re-encrypted if Protect is active) form.
+              const ok = await persistSessionPayload(buildSessionSnapshot());
+              updateProtectButton();
+              showStatus(
+                ok
+                  ? "Session imported (validated)."
+                  : "Session imported but failed to re-save."
+              );
             } catch (err) {
-              showStatus("Failed to import session.");
+              console.error(err);
+              showStatus(
+                "Failed to import session" +
+                  (err && err.message ? `: ${err.message}` : ".")
+              );
             }
           };
           reader.readAsText(file);

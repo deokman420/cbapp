@@ -2,8 +2,8 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v3.1.3`  
-**Released:** July 28, 2026  
+**Version:** `v3.2.2`  
+**Released:** July 29, 2026  
 **Size:** ~253 KB (single file)  
 **License:** Provided as-is
 
@@ -28,6 +28,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 - **Clock** with multiple timezones, stopwatch, and countdown timer
 - **Log** with timestamped entries and per-entry deletion
 - **Session persistence** — Everything is automatically saved to localStorage
+- **Optional passphrase protection** — AES-GCM encrypts your session in the browser and in exports; the passphrase is entered masked, with a Show toggle, and is never stored
 - **Import / Export** — Save and load full sessions as JSON
 - **One-click HTML download** — Export your workspace as a standalone `cbapp.html` file with your session embedded
 - **Dark & Light themes**, both meeting WCAG AA contrast
@@ -40,7 +41,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.1.3)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.2.2)
 
 Simply save the file and open it in your browser.
 
@@ -164,7 +165,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v3.1.3)
+├── cbapp.html          # The complete application (v3.2.2)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -177,4 +178,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v3.1.3** — A self-contained productivity workspace that just works.
+**CB App v3.2.2** — A self-contained productivity workspace that just works.

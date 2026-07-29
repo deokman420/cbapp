@@ -7,6 +7,119 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.2] — 2026-07-29
+
+### Security
+
+- **The session passphrase was typed in the clear.** Protect, Confirm and
+  Unlock all used `window.prompt()`, which renders its input as plain text —
+  so the one string guarding the encrypted session was legible to anyone
+  looking at the screen, and to a screen share or recording. Replaced with an
+  in-page dialog whose field is `type="password"` by default, with a
+  **Show / Hide** toggle for checking a typo deliberately.
+
+  The field clears and re-masks on every open, so the passphrase is never
+  carried on screen between the "choose" and "confirm" steps, and never
+  lingers in the DOM after the dialog closes.
+
+### Changed
+
+- Passphrase dialog is a real modal: `role="dialog"` + `aria-modal`, Enter to
+  submit, Escape or a backdrop click to cancel, Tab trapped inside it, focus
+  starting on the field and returning to the triggering button on close. It
+  renders outside `.whiteboard` so canvas pan/zoom transforms cannot move it,
+  and falls back to `window.prompt()` if the dialog markup is ever absent.
+
+### Tests
+
+- `tests/cbapp.spec.ts`: new masking test (field starts `password`, Show flips
+  to `text` and sets `aria-pressed`, Cancel clears and re-masks, Escape closes
+  without protecting). The Protect and wrong-passphrase tests now drive the
+  modal instead of the dialog queue.
+
+---
+
+## [3.2.1] — 2026-07-29
+
+### Fixed
+
+- **Zooming out past 33% stranded a dead margin the canvas could not reach
+  into.** The world was sized at 3 viewports (`CANVAS_MULTIPLE`), but
+  `ZOOM_MIN` of 0.25 let the screen span 4 of them. Below 1/3 zoom the scaled
+  world was smaller than the viewport, so `clampPan()` took its centring branch
+  and parked it in the middle — 160×156px of unusable margin at 25% on a
+  1278×1248 screen. Because `clampBounds()` works in world coordinates, a
+  dragged window stopped dead at the world edge, well inboard of the screen
+  edge, which read as windows being forced back toward the centre. The grid is
+  a fixed backdrop so it kept painting across the margin, making it look like
+  canvas that should have been reachable.
+
+  The world multiple is now `max(CANVAS_MULTIPLE, 1 / ZOOM_MIN)`, so the world
+  always covers the screen at maximum zoom-out. `computeWorldSize()` remains
+  grow-only, so no window already parked out in the world can be stranded.
+
+  Pre-existing since the canvas shipped in 3.1.0 — not introduced by the 3.2.0
+  security work, despite surfacing alongside it.
+
+### Tests
+
+- Regression coverage in `tests/cbapp.spec.ts`: dead margin must be zero across
+  zooms 1 → 0.25, and an end-to-end drag past the screen corner at `ZOOM_MIN`
+  must land the window within 4px of the true corner. Verified to fail against
+  the old constant.
+
+---
+
+## [3.2.0] — 2026-07-29
+
+Security hardening from the `CBAPP-SECURITY-REVIEW.md` assessment. No push/merge
+gate: `node scripts/cbapp-security-check.mjs` must pass.
+
+### Security
+
+- **Hardened Content-Security-Policy.** Replaced the single flat `default-src`
+  allowlist (`'unsafe-inline'`, `data:`, unused `cdnjs`, Google Fonts) with
+  split directives: `default-src 'none'`, `script-src` / `style-src` self +
+  unsafe-inline (still required for the single-file architecture), `img-src`
+  self + data/blob (favicon + canvas), `connect-src 'none'`, `object-src 'none'`,
+  `base-uri 'none'`, `form-action 'none'`. `data:` can no longer load scripts via
+  default-src fallback.
+- **HTTP security headers for hosted `/cbapp`.** `vercel.json` sets CSP (with
+  `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options`,
+  `Referrer-Policy: no-referrer`, and a locked-down `Permissions-Policy`.
+- **Removed third-party fonts.** Dropped Google Fonts preconnect/CSS links;
+  system UI + mono stacks only. No font CDN network dependency, tighter privacy
+  for online use, works fully offline.
+- **Optional passphrase encryption (Protect).** AES-256-GCM with
+  PBKDF2-SHA-256 (210k iterations). Wraps `localStorage`, Backup JSON, and
+  Download .html embedded sessions. Passphrase is memory-only for the tab;
+  derived key is cached so saves do not re-run PBKDF2 every keystroke.
+- **Strict session import / restore validation.** Allowlisted keys, type and
+  length bounds, colour sanitisation, rejects `__proto__` / `constructor` /
+  `prototype`. Applies to Import, embedded export boot, and decrypt.
+- **Confirm before replacing the browser session** with an embedded export when
+  a session already exists (still stashes the outgoing one under
+  `notepadSession.prev`).
+- **Reset clears all CB App storage keys** (`notepadSession`,
+  `notepadSession.prev`, `cbappConsumedExport`) and in-memory passphrase state —
+  not just the primary session key.
+- **Freeze ≠ security.** Window lock control titles, status toasts, and help
+  text now say *freeze* and state explicitly that this is layout-only, not
+  encryption. Use **Protect** for secrecy.
+
+### Added
+
+- Toolbar **Protect** / **Unprotect** control next to Backup.
+- Offline verifier: `node scripts/cbapp-security-check.mjs` (syntax, CSP surface,
+  Vercel headers, AES-GCM round-trip).
+
+### Changed
+
+- Help → Saving section documents Protect, Freeze, and Reset wipe behaviour.
+- Backup filename uses `.encrypted.json` when Protect is active.
+
+---
+
 ## [3.1.3] — 2026-07-29
 
 A critical-review pass over the whole file. Two persistent script-injection
