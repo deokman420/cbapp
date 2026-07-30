@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.6 — 2026-07-30. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.8 — 2026-07-30. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2038,7 +2038,7 @@
       /* Pinned to the bottom-right corner of the viewport in every layout and
          always above the window layer (windows are capped below 900, this sits
          at 1001), so it can never be covered or pushed off-screen. */
-      .download-html-link {
+      .download-app-link {
         position: fixed;
         right: 16px;
         bottom: 16px;
@@ -2062,14 +2062,14 @@
       /* Deliberately the one control that highlights red rather than the accent
          teal: it writes a file to disk, so it reads as distinct from the
          in-app actions that all share the teal hover. */
-      .download-html-link:hover,
-      .download-html-link:focus-visible {
+      .download-app-link:hover,
+      .download-app-link:focus-visible {
         color: var(--danger);
         border-color: var(--danger);
         background: var(--bg-card-hover);
       }
 
-      .download-html-link:focus-visible {
+      .download-app-link:focus-visible {
         outline-color: var(--danger);
       }
 
@@ -2449,62 +2449,6 @@
         outline-offset: 2px;
       }
 
-      /* Top-centred rather than left-anchored like the two badges above: it can
-         be on screen at the same time as either of them (a restored session can
-         also be locked), and stacking them at the same corner overlapped. */
-      #undo-bar {
-        display: none;
-        position: fixed;
-        top: 12px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 1200;
-        align-items: center;
-        gap: 10px;
-        max-width: calc(100vw - 24px);
-        padding: 6px 8px 6px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        background: var(--bg-card);
-        color: var(--text);
-        font-family: var(--mono);
-        font-size: 0.72rem;
-        letter-spacing: 0.04em;
-      }
-
-      /* [hidden] loses to a display rule, so the bar is shown by flipping
-         display and hidden together — never by display alone. */
-      #undo-bar:not([hidden]) {
-        display: flex;
-      }
-
-      #undo-bar button {
-        font-family: inherit;
-        font-size: inherit;
-        letter-spacing: inherit;
-        padding: 4px 10px;
-        border-radius: 6px;
-        border: 1px solid var(--border);
-        background: transparent;
-        color: var(--text);
-        cursor: pointer;
-        white-space: nowrap;
-      }
-
-      #undo-bar button:hover {
-        background: var(--bg-card-hover);
-      }
-
-      #undo-bar button:focus-visible {
-        outline: 2px solid var(--accent);
-        outline-offset: 2px;
-      }
-
-      #undo-bar-close {
-        border-color: transparent;
-        padding: 4px 8px;
-      }
-
       /* Below 720px the toolbar is top-anchored and full-width, so a badge at
          top:12px sits on top of it and eats the clicks — the lock banner is a
          button, which made the toolbar unusable outright. Both badges move
@@ -2515,18 +2459,6 @@
           top: auto;
           bottom: 108px;
           left: 12px;
-        }
-
-        /* Same collision, and the bar is all buttons — it has to clear the
-           toolbar too. Sits above the two badges' row. */
-        #undo-bar {
-          top: auto;
-          bottom: 148px;
-          left: 12px;
-          right: 12px;
-          transform: none;
-          max-width: none;
-          flex-wrap: wrap;
         }
       }
 
@@ -2567,7 +2499,7 @@
 
       /* --- Zoom widget ---
          Top-right: the toolbar owns the bottom centre, the minimised chips own
-         the bottom left and the Download .html chip owns the bottom right. */
+         the bottom left and the Download CB App chip owns the bottom right. */
       #canvas-controls {
         position: fixed;
         top: 12px;
@@ -2914,25 +2846,6 @@
       <div id="minimized-bar" aria-label="Minimized windows"></div>
       <p id="status" role="status" aria-live="polite"></p>
       <div id="save-warning" role="alert"></div>
-      <!-- Opening an export used to block on a window.confirm before it would
-           load. On file:// every export shares one "null" origin, so the
-           browser almost always has *something* saved and the modal fired on
-           essentially every open. The file you opened wins instead, and the
-           session it replaced stays one click away under notepadSession.prev. -->
-      <div id="undo-bar" role="status" aria-live="polite" hidden>
-        <span id="undo-bar-text"></span>
-        <button type="button" id="undo-bar-action" onclick="undoEmbeddedRestore()">
-          Undo — keep my browser session
-        </button>
-        <button
-          type="button"
-          id="undo-bar-close"
-          aria-label="Dismiss"
-          onclick="hideUndoBar()"
-        >
-          ×
-        </button>
-      </div>
       <button
         type="button"
         id="locked-banner"
@@ -2943,11 +2856,11 @@
       </button>
       <a
         href="#"
-        class="download-html-link"
-        onclick="downloadCurrentHtml(); return false;"
-        title="Save this whole app, with your current session baked in, as a single .html file"
+        class="download-app-link"
+        onclick="downloadCbApp(); return false;"
+        title="Save a blank copy of CB App as a single .html file — your notes are not included, use Backup for those"
       >
-        Download .html
+        Download CB App
       </a>
     </div>
     <div
@@ -2996,13 +2909,11 @@
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
       // validation. Passphrase stays in memory only for this tab session.
       const SESSION_KEY = "notepadSession";
-      const SESSION_PREV_KEY = "notepadSession.prev";
-      const CONSUMED_EXPORT_KEY = "cbappConsumedExport";
-      const ALL_SESSION_KEYS = [
-        SESSION_KEY,
-        SESSION_PREV_KEY,
-        CONSUMED_EXPORT_KEY,
-      ];
+      // Written only by the embedded-export restore retired in v3.2.7. Nothing
+      // creates them any more; they are listed so Reset and the boot-time
+      // purge still clear them out of browsers that used an older build.
+      const RETIRED_EXPORT_KEYS = ["notepadSession.prev", "cbappConsumedExport"];
+      const ALL_SESSION_KEYS = [SESSION_KEY, ...RETIRED_EXPORT_KEYS];
       const SESSION_FORMAT_VERSION = 1;
       const MAX_SESSION_CHARS = 4500000;
       const MAX_NOTE_CHARS = 800000;
@@ -3012,7 +2923,7 @@
       const MAX_HISTORY = 200;
       const PBKDF2_ITERATIONS = 210000;
 
-      // In-memory only — never written to localStorage or export metadata.
+      // In-memory only — never written to localStorage or to any file.
       // sessionCryptoKey is derived once per unlock/protect so saves do not
       // re-run PBKDF2 on every keystroke.
       let sessionPassphrase = null;
@@ -3038,6 +2949,16 @@
 
       function clearAllSessionStorage() {
         ALL_SESSION_KEYS.forEach((k) => {
+          try {
+            localStorage.removeItem(k);
+          } catch (e) {
+            /* ignore */
+          }
+        });
+      }
+
+      function purgeRetiredExportKeys() {
+        RETIRED_EXPORT_KEYS.forEach((k) => {
           try {
             localStorage.removeItem(k);
           } catch (e) {
@@ -3443,7 +3364,7 @@
         const serialized = JSON.stringify(payload);
         if (serialized.length > MAX_SESSION_CHARS) {
           reportSaveFailure(
-            "Session too large to save — export a backup, then close or trim a window."
+            "Session too large to save — save a Backup, then close or trim a window."
           );
           return false;
         }
@@ -3787,7 +3708,7 @@
         if (sessionPassphrase) {
           if (
             !window.confirm(
-              "Remove passphrase protection?\n\nYour session will be saved in plaintext in this browser again. Exports will also be plaintext unless you re-enable Protect."
+              "Remove passphrase protection?\n\nYour session will be saved in plaintext in this browser again. Backups will also be plaintext unless you re-enable Protect."
             )
           ) {
             return;
@@ -3806,7 +3727,7 @@
         const pass = await promptPassphrase({
           title: "Protect this session",
           message:
-            "Choose a passphrase to encrypt this session in the browser and in exports.\n\nYou will need it every time you open CB App on this origin. It is never stored — only you know it.",
+            "Choose a passphrase to encrypt this session in the browser and in backups.\n\nYou will need it every time you open CB App on this origin. It is never stored — only you know it.",
           label: "New passphrase (6+ characters)",
           okLabel: "Continue",
         });
@@ -4001,6 +3922,14 @@
       // and saveSession() actually read.
       let zIndexCounter = 1;
       let restoring = false; // true only while loadSessionFromStorage rebuilds the DOM
+      // False until boot has finished deciding what this browser's session is.
+      // Boot is async — it awaits the unlock prompt, which a user can sit in
+      // front of for as long as they like. Reloading during that window used to
+      // fire beforeunload -> saveSession() against a blank DOM, with no
+      // passphrase yet in hand, replacing the ciphertext with an empty
+      // plaintext session. Refuse every write until boot says otherwise;
+      // storage already holds the truth, so there is nothing to lose by waiting.
+      let booted = false;
       let activeTool = null;
       let offsetX = 0;
       let offsetY = 0;
@@ -5085,6 +5014,8 @@
         // which calls saveSession(); skip those so we never persist a partial
         // mid-restore snapshot. loadSessionFromStorage() does one final save itself.
         if (restoring) return;
+        // Boot has not settled yet — the DOM on screen is not the session.
+        if (!booted) return;
         // A locked session is unreadable to us but intact on disk. Writing
         // anything here destroys it, so do nothing at all until it is unlocked.
         if (sessionLocked) return;
@@ -5095,7 +5026,7 @@
             if (serialized.length > MAX_SESSION_CHARS) {
               console.warn("Session too large to save safely, skipping write.");
               reportSaveFailure(
-                "Session too large to save — export a backup, then close or trim a window."
+                "Session too large to save — save a Backup, then close or trim a window."
               );
               return;
             }
@@ -5113,13 +5044,13 @@
               if (seq !== _persistSeq) return;
               console.error("Failed to save encrypted session:", e);
               reportSaveFailure(
-                "Failed to save encrypted session — export a backup before closing this tab."
+                "Failed to save encrypted session — save a Backup before closing this tab."
               );
             });
         } catch (e) {
           console.error("Failed to save session to localStorage:", e);
           reportSaveFailure(
-            "Failed to save session — export a backup before closing this tab."
+            "Failed to save session — save a Backup before closing this tab."
           );
         }
       }
@@ -5464,7 +5395,7 @@ Saving & security
 - Everything is saved to this browser automatically as you type, and
   restored the next time you open the file.
 - By default storage is plaintext in this browser profile. Protect
-  encrypts it with a passphrase (AES-GCM) so localStorage and exports
+  encrypts it with a passphrase (AES-GCM) so localStorage and backups
   need that passphrase to open. The passphrase is never stored.
 - Freeze (🔓) only stops accidental edits — it is not a password.
 - Get the passphrase wrong (three tries a go) or cancel, and the session
@@ -5472,9 +5403,13 @@ Saving & security
   🔒 banner in the corner re-opens the prompt as many times as you like.
   Only Reset or an Import deletes a locked session, and both ask first.
 - Backup writes your session out as a .json file; Import reads one back
-  (strict schema validation). Encrypted backups stay encrypted.
-- "Download .html" saves this entire app with your current session baked
-  into it - one file, no third-party fonts or CDNs.
+  (strict schema validation). Encrypted backups stay encrypted. This is
+  the only way to move your notes off this browser.
+- "Download CB App" saves the program only - one blank .html file, no
+  third-party fonts or CDNs, and none of your notes in it. Copies never
+  carry content: a file you open can no longer touch what is already
+  saved in your browser. Pair it with a Backup to move a set-up
+  elsewhere - open the fresh copy, then Import.
 - Reset wipes all CB App keys in this browser and returns to a blank
   canvas.
 
@@ -5687,8 +5622,8 @@ Enterprise browser
         // textContent, not innerHTML: the expression is whatever was typed into
         // the calculator, it is stored verbatim on the error path too, and it is
         // replayed on every restore. Interpolated into markup it was a script
-        // sink that survived a reload and rode along inside Backup and
-        // Download .html — i.e. it executed in the recipient's origin.
+        // sink that survived a reload and rode along inside Backup — i.e.
+        // it executed in the recipient's origin.
         historyDiv.textContent = "";
         calculatorHistory.forEach((entry) => {
           const row = document.createElement("p");
@@ -6886,59 +6821,6 @@ Enterprise browser
         }, 3000);
       }
 
-      // --- Undo an embedded-session restore ---------------------------------
-      // Shown only when opening an export actually displaced a saved session,
-      // and only while notepadSession.prev still holds that session.
-      let _undoBarTimer = null;
-
-      function showUndoBar(message) {
-        const bar = document.getElementById("undo-bar");
-        const text = document.getElementById("undo-bar-text");
-        if (!bar || !text) return;
-        text.textContent = message;
-        bar.hidden = false;
-        // Long enough to read and decide, but it is not a modal: it expires
-        // rather than waiting. .prev survives regardless, so nothing is lost
-        // by letting it go — Undo is just no longer one click away.
-        if (_undoBarTimer) clearTimeout(_undoBarTimer);
-        _undoBarTimer = setTimeout(() => {
-          bar.hidden = true;
-          _undoBarTimer = null;
-        }, 15000);
-      }
-
-      function hideUndoBar() {
-        const bar = document.getElementById("undo-bar");
-        if (bar) bar.hidden = true;
-        if (_undoBarTimer) clearTimeout(_undoBarTimer);
-        _undoBarTimer = null;
-      }
-
-      function undoEmbeddedRestore() {
-        const prev = localStorage.getItem(SESSION_PREV_KEY);
-        if (!prev) {
-          hideUndoBar();
-          showStatus("Nothing to undo — no previous session was stored.");
-          return;
-        }
-        try {
-          // Reload rather than restore in place: prev may be an AES-GCM
-          // envelope needing its own passphrase prompt, and boot already knows
-          // how to do all of that. The export is marked consumed by now, so
-          // the reload takes the localStorage branch and not the embedded one.
-          localStorage.setItem(SESSION_KEY, prev);
-        } catch (e) {
-          console.error("Could not restore the previous session:", e);
-          showStatus("Could not restore the previous session.");
-          return;
-        }
-        // saveSession() runs on almost every edit and would overwrite the
-        // session we just put back before the reload lands.
-        sessionLocked = true;
-        hideUndoBar();
-        location.reload();
-      }
-
       function toggleTheme() {
         const body = document.body;
         const newMode = body.classList.contains("light-mode")
@@ -7043,7 +6925,8 @@ This cbapp.html is the complete application. No zip or extra files needed.
 
 How to use:
 - Open this file directly in your Enterprise browser.
-- Click the "Download .html" link at the bottom anytime to save your current notes/session.
+- Click "Download CB App" at the bottom anytime to save a fresh blank copy of the app.
+- Use Backup to save your notes to an (optionally encrypted) .json file.
 - Recommended: Save to Documents or a dedicated folder and create a bookmark/shortcut.
 
 Enterprise Browser:
@@ -7070,12 +6953,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         try {
           const hasWork =
             document.querySelectorAll(WINDOW_SELECTOR).length > 0 ||
-            !!localStorage.getItem(SESSION_KEY) ||
-            !!localStorage.getItem(SESSION_PREV_KEY);
+            ALL_SESSION_KEYS.some((k) => !!localStorage.getItem(k));
           if (hasWork && skipConfirm !== true) {
             if (
               !confirm(
-                "Reset CB App?\n\nThis closes every window and deletes all CB App data saved in this browser (session, previous backup, export markers, and any passphrase protection for this tab). Use Backup first if you want to keep it."
+                "Reset CB App?\n\nThis closes every window and deletes all CB App data saved in this browser (session, any leftover keys from older versions, and any passphrase protection for this tab). Use Backup first if you want to keep it."
               )
             ) {
               return;
@@ -7086,8 +6968,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           clearSessionSecrets();
           // Reset is the deliberate way out of a session nobody can open: the
           // ciphertext is gone now, so there is nothing left to protect and
-          // saving must resume.
+          // saving must resume — including after a boot that failed to read
+          // the old copy and left the boot gate shut.
           exitLockedState();
+          booted = true;
+          clearSaveFailure();
           updateProtectButton();
 
           // Reset UI state
@@ -7402,46 +7287,26 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         return skippedOnRestore;
       }
 
-      // Boot: restore local session and/or first-open embedded export.
+      // Boot: restore this browser's session. Nothing else can write to it.
       window.onload = async () => {
         // One-time purge of the retired calendar feature's stale storage key.
         localStorage.removeItem("calendarEvents");
+        // Same, for the retired embedded-export mechanism (<= v3.2.6). Left in
+        // place these are inert, but they are also the wreckage of the bug —
+        // a displaced session under .prev that nothing will ever offer back.
+        purgeRetiredExportKeys();
         updateProtectButton();
 
-        // An exported copy carries its session inside the file; on first open
-        // that wins, and anything it displaced is recoverable via Undo.
-        const embedded = readEmbeddedSession();
-        const existing = localStorage.getItem(SESSION_KEY);
-
-        let rawToLoad = null;
-        let fromEmbedded = false;
-        let undoableRestore = false;
-
-        if (embedded) {
-          // No modal: opening the file *is* the instruction to load it. The
-          // replaced session is stashed first, so the Undo offered afterwards
-          // is always honourable — see #undo-bar.
-          if (existing) {
-            try {
-              localStorage.setItem(SESSION_PREV_KEY, existing);
-              undoableRestore = true;
-            } catch (e) {
-              // Undo would have nothing to restore from, so it is not offered.
-              console.warn("Could not stash the previous session:", e);
-            }
-          }
-          rawToLoad = JSON.stringify(embedded.session);
-          fromEmbedded = true;
-        } else if (existing) {
-          rawToLoad = existing;
-        }
+        // The file on disk is just the program now; an exported copy carries
+        // no session, and a pre-3.2.7 export's payload is ignored outright.
+        // The only thing that decides what opens is this browser's storage.
+        const rawToLoad = localStorage.getItem(SESSION_KEY);
 
         if (rawToLoad) {
           try {
             const session = await parseAndUnlockSession(rawToLoad, {
-              promptReason: fromEmbedded
-                ? "This exported file's session is passphrase-protected. Enter the passphrase:"
-                : "Your CB App session is passphrase-protected. Enter the passphrase:",
+              promptReason:
+                "Your CB App session is passphrase-protected. Enter the passphrase:",
             });
             if (!session) {
               // Wrong passphrase or cancelled. The ciphertext in localStorage
@@ -7459,19 +7324,26 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               }
               if (storedEnvelope) {
                 enterLockedState(storedEnvelope);
+                // Safe to release the boot gate: sessionLocked now refuses
+                // every write on its own, and Unlock needs saves to work again.
+                booted = true;
                 showStatus(
                   "Session locked — wrong passphrase or cancelled. Nothing was lost; click 🔒 to try again."
                 );
               } else {
+                // Something is in storage that we could not turn into a
+                // session, and it is not an envelope we can offer to unlock.
+                // Leave the boot gate shut so autosave cannot overwrite it.
                 showStatus(
                   "Session not loaded — passphrase cancelled or incorrect."
+                );
+                reportSaveFailure(
+                  "Session not loaded — saving is off so the stored copy is not overwritten. Reset to start fresh."
                 );
               }
             } else {
               const skipped = loadSessionFromStorage(session);
-              if (fromEmbedded && embedded) {
-                localStorage.setItem(CONSUMED_EXPORT_KEY, embedded.exportId);
-              }
+              booted = true;
               // Re-persist so Protect state (if any) is reflected in storage.
               saveSession();
               updateProtectButton();
@@ -7481,19 +7353,20 @@ Tip: Use the Download button inside the app to preserve your open windows and no
                     skipped === 1 ? "" : "s"
                   } skipped (${MAX_WINDOWS}-window limit).`
                 );
-              } else if (undoableRestore) {
-                // The toast would expire in 3s and this one has an action on
-                // it, so it gets the persistent bar instead of showStatus.
-                showUndoBar("Session restored from this file.");
               } else {
                 showStatus("Session restored.");
               }
             }
           } catch (e) {
             console.error("Failed to load session:", e);
+            // booted stays false: the stored copy is unreadable to us but it is
+            // still the user's only copy. Refuse to write over it.
             showStatus(
               "Failed to load session" +
                 (e && e.message ? `: ${e.message}` : ".")
+            );
+            reportSaveFailure(
+              "Session failed to load — saving is off so the stored copy is not overwritten. Save a Backup elsewhere, then Reset."
             );
           }
         } else {
@@ -7501,6 +7374,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           document.body.className = "dark-mode";
           document.querySelector(".nav-menu").classList.remove("collapsed");
           document.getElementById("search-replace").classList.remove("active");
+          // Nothing in storage to protect — writes are safe from here.
+          booted = true;
         }
         refreshChrome();
         updateProtectButton();
@@ -7588,34 +7463,21 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
-      const EMBEDDED_SESSION_ID = "cbapp-embedded-session";
-
-      // This used to serialise document.documentElement.outerHTML verbatim,
-      // which baked every open window into the file as static markup. Those
-      // copies had no event listeners (undraggable, unclosable), textarea
-      // .value doesn't serialise so they came back EMPTY, they duplicated the
-      // windows restored from localStorage, they carried a second #nav-tooltip
-      // with a duplicate id, and windowCount reset to 0 so new windows collided
-      // with the baked-in ids. Export a pristine document instead and carry the
-      // session as embedded JSON, so the copy boots exactly like the original.
-      async function downloadCurrentHtml() {
+      // This ships the *program*, never the contents. It used to carry the
+      // session as embedded JSON so a copy booted exactly like the original,
+      // and that turned out to be a hole: opening any export displaced the
+      // session already in the browser and, because a plaintext payload never
+      // sets sessionPassphrase, silently dropped Protect and wrote the next
+      // autosave in the clear. Backup (encrypted .json) is the only path that
+      // carries content now — see the Saving & security section of Help.
+      //
+      // The clone is scrubbed rather than serialised verbatim: an outerHTML
+      // dump baked every open window in as static markup, with no event
+      // listeners (undraggable, unclosable), empty bodies (textarea .value
+      // doesn't serialise), a duplicate #nav-tooltip id, and windowCount reset
+      // to 0 so new windows collided with the baked-in ids.
+      async function downloadCbApp() {
         try {
-          const snap = buildSessionSnapshot();
-          let sessionPayload = snap;
-          if (sessionPassphrase) {
-            sessionPayload = await encryptSessionObject(
-              snap,
-              sessionPassphrase
-            );
-          }
-          const forStorage = JSON.stringify(sessionPayload);
-          if (forStorage.length > MAX_SESSION_CHARS) {
-            showStatus("Session too large to embed in HTML export.");
-            return;
-          }
-          localStorage.setItem(SESSION_KEY, forStorage);
-          clearSaveFailure();
-
           const clone = document.documentElement.cloneNode(true);
 
           const clear = (sel) => {
@@ -7633,15 +7495,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // Same reasoning for the lock banner: this tab's state, not the
           // export's — the copy has its own session and its own lock, if any.
           clone.querySelector("#locked-banner")?.removeAttribute("style");
-          // Same again: exporting while the undo bar is up would ship a file
-          // that opens offering to undo a restore that never happened there.
-          clone.querySelector("#undo-bar")?.setAttribute("hidden", "");
-          const clonedUndoText = clone.querySelector("#undo-bar-text");
-          if (clonedUndoText) clonedUndoText.textContent = "";
           // The canvas view is state, not markup. Leaving the pan/zoom
           // transform and the mode class baked into the file would make the
-          // export open on a stale viewport for the moment before its embedded
-          // session boots and sets the real one.
+          // copy open on a stale viewport that nothing later corrects.
           clone.querySelector("#windows")?.removeAttribute("style");
           clone.querySelector("#canvas-grid")?.removeAttribute("style");
           clone.querySelector("#canvas-map")?.removeAttribute("style");
@@ -7664,21 +7520,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             .querySelectorAll(".nav-menu button.active")
             .forEach((b) => b.classList.remove("active"));
           clone.querySelector(".nav-menu")?.classList.remove("collapsed");
-          clone.querySelector(`#${EMBEDDED_SESSION_ID}`)?.remove();
-
-          const payload = {
-            // Lets a re-opened export tell "this is a new file to load" from
-            // "I already loaded this one, use my edits since".
-            exportId: `${Date.now()}-${windowCount}-${noteCount}`,
-            // May be a plaintext session or an AES-GCM envelope.
-            session: sessionPayload,
-          };
-          const script = document.createElement("script");
-          script.type = "application/json";
-          script.id = EMBEDDED_SESSION_ID;
-          // Escape < so a note containing a closing script tag can't break out.
-          script.textContent = JSON.stringify(payload).replace(/</g, "\\u003c");
-          clone.querySelector("body")?.appendChild(script);
+          // Belt and braces: a copy taken from a pre-3.2.7 export would
+          // otherwise pass that file's baked-in session on to the new one.
+          clone.querySelector("#cbapp-embedded-session")?.remove();
 
           const html = "<!DOCTYPE html>\n" + clone.outerHTML;
           const blob = new Blob([html], { type: "text/html" });
@@ -7691,40 +7535,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
           showStatus(
-            sessionPassphrase
-              ? "Downloaded cbapp.html with encrypted session."
-              : "Downloaded cbapp.html with your session."
+            "Downloaded a blank cbapp.html — use Backup to save your notes."
           );
         } catch (e) {
-          console.error("Export failed:", e);
-          showStatus("Failed to download HTML.");
-        }
-      }
-
-      // Returns the session carried inside an exported copy, but only the first
-      // time that particular export is opened - after that the user's own edits
-      // in localStorage take precedence.
-      function readEmbeddedSession() {
-        const node = document.getElementById(EMBEDDED_SESSION_ID);
-        if (!node) return null;
-        try {
-          const payload = JSON.parse(node.textContent);
-          if (!payload || typeof payload.session !== "object" || !payload.session) {
-            return null;
-          }
-          if (localStorage.getItem(CONSUMED_EXPORT_KEY) === payload.exportId) {
-            return null;
-          }
-          // Marking it consumed HERE meant a restore that then threw — a
-          // hand-edited or pre-v3 payload missing `position` on any window key
-          // is enough — burned the payload permanently: every later open took
-          // the branch above and the file's contents became unreachable
-          // without editing the HTML by hand. The caller marks it once the
-          // restore has actually returned.
-          return { session: payload.session, exportId: payload.exportId };
-        } catch (e) {
-          console.error("Embedded session unreadable:", e);
-          return null;
+          console.error("Download failed:", e);
+          showStatus("Failed to download CB App.");
         }
       }
 

@@ -7,6 +7,90 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.8] — 2026-07-30
+
+### Fixed
+
+- **Reloading twice in a row no longer clears the session.** Boot is async: it
+  reads storage, then waits on the unlock prompt for as long as the user takes
+  to answer it. Reloading during that wait fired `beforeunload`, which called
+  `saveSession()` — and at that moment the screen was blank, the DOM had not
+  been restored yet, and no passphrase had been entered. The blank screen was
+  serialized as a *plaintext* session and written over the ciphertext. The next
+  load then "restored" that empty session successfully, so the app reported
+  **Session restored** over an empty canvas with the work already gone.
+
+  Saving is now refused outright until boot has decided what this browser's
+  session is. Nothing is lost by waiting — storage already holds the truth, and
+  no edit can have happened before the session is on screen. Three boot
+  outcomes release the gate: a successful restore, an empty first run, and a
+  locked session (where `sessionLocked` takes over as the guard so Unlock still
+  works). Two do not: a stored value that fails to parse, and one that is not
+  an envelope we can offer to unlock. In both, the unreadable copy is still the
+  user's only copy, so the app stays read-only and raises the save-failure
+  badge — Backup and Reset remain the ways out.
+
+  Regression test: `reloading while the unlock prompt is open does not wipe the
+  session` reloads mid-prompt and asserts the stored envelope is byte-identical
+  across the second load, then unlocks and checks the note came back.
+
+---
+
+## [3.2.7] — 2026-07-30
+
+### Security
+
+- **The HTML download no longer carries your notes, and an opened file can no
+  longer touch the session already in your browser.** Since 3.2.0 the export
+  baked the session into the file and restored it on open. Two things went
+  wrong with that, and 3.2.6 removing the confirm dialog made both reachable
+  without a click:
+
+  1. **Protect was silently switched off.** `parseAndUnlockSession` only sets
+     `sessionPassphrase` when the payload *it loads* is an AES-GCM envelope. A
+     plaintext embedded session left it null, so the `saveSession()` right
+     after the restore wrote **plaintext** to `localStorage` and the toolbar
+     button flipped back to "Protect". Nothing was leaked — the old ciphertext
+     went to `notepadSession.prev` — but a user who had protected their session
+     went on typing into unencrypted storage with only a 15-second bar to
+     notice.
+  2. **A stale snapshot displaced live work.** On `file://` every copy shares
+     one opaque `"null"` origin, so the export in your Documents folder and the
+     browser session are the same bucket. Opening a file exported from an empty
+     workspace replaced everything on screen with nothing.
+
+  Both were reproduced on a `file://` build: protect a session, hard-reload the
+  exported copy, and it comes back empty, unprotected, and plaintext.
+
+  **Download HTML is now "Download CB App" and ships the program only** — a
+  blank single file, no notes in it. **Backup (`.json`, encrypted when Protect
+  is on) is the only path that moves content off this browser.** Boot reads
+  `localStorage` and nothing else.
+
+  The restore path is removed rather than guarded: `readEmbeddedSession`,
+  `undoEmbeddedRestore`, the undo bar and `EMBEDDED_SESSION_ID` are all gone.
+  A payload left in a pre-3.2.7 export is inert — such a file opens as a blank
+  CB App and your browser session is untouched. `notepadSession.prev` and
+  `cbappConsumedExport` are purged at boot, since a leftover `.prev` is the
+  wreckage of this bug and nothing will ever offer it back.
+
+  `cbapp-security-check.mjs` asserted the mechanism that was removed, so four
+  checks failed on this change — correctly. They now assert the opposite: no
+  payload is written, no restore path exists, boot reads only `SESSION_KEY`,
+  and the retired keys get purged. Two Playwright tests cover it, including a
+  regression that serves the document with an old payload spliced in and
+  asserts the browser's own session still wins.
+
+### Known issues
+
+- The Help window is a fixed 620px wide and is not clamped to the viewport, so
+  on a phone-width screen (393px) its header — including the close button —
+  sits off the right edge. Pre-existing, unrelated to this release, and the
+  reason `Help opens and documents Protect + Freeze` fails on the `mobile`
+  project.
+
+---
+
 ## [3.2.6] — 2026-07-30
 
 ### Changed
