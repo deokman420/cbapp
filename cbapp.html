@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.4 — 2026-07-29. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.5 — 2026-07-29. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2421,6 +2421,47 @@
         cursor: default;
       }
 
+      /* Sits where #save-warning does — both mean "your work is not being
+         written" — but it is a button, because the way out is to unlock. */
+      #locked-banner {
+        display: none;
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 1200;
+        padding: 6px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--orange);
+        background: var(--bg-card);
+        color: var(--orange);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+      }
+
+      #locked-banner:hover {
+        background: var(--bg-card-hover);
+      }
+
+      #locked-banner:focus-visible {
+        outline: 2px solid var(--orange);
+        outline-offset: 2px;
+      }
+
+      /* Below 720px the toolbar is top-anchored and full-width, so a badge at
+         top:12px sits on top of it and eats the clicks — the lock banner is a
+         button, which made the toolbar unusable outright. Both badges move
+         above the minimized chips instead, matching #canvas-controls. */
+      @media (max-width: 720px) {
+        #locked-banner,
+        #save-warning {
+          top: auto;
+          bottom: 108px;
+          left: 12px;
+        }
+      }
+
       .map-window {
         position: absolute;
         /* --text-muted at 0.55 blended to 1.54:1 against the map panel — the
@@ -2805,6 +2846,14 @@
       <div id="minimized-bar" aria-label="Minimized windows"></div>
       <p id="status" role="status" aria-live="polite"></p>
       <div id="save-warning" role="alert"></div>
+      <button
+        type="button"
+        id="locked-banner"
+        onclick="retryUnlockSession()"
+        title="Your saved session is encrypted and was not opened. Nothing is being saved until you unlock it."
+      >
+        🔒 Session locked — click to unlock
+      </button>
       <a
         href="#"
         class="download-html-link"
@@ -2882,6 +2931,17 @@
       let sessionPassphrase = null;
       let sessionCryptoKey = null;
       let sessionKeySalt = null; // Uint8Array, paired with sessionCryptoKey
+
+      // Set when boot found an encrypted session it could not open (wrong
+      // passphrase, or the prompt was cancelled). The stored ciphertext is
+      // still the user's only copy, so EVERY write is refused while this is
+      // true — otherwise the first autosave of the empty screen overwrites it
+      // with a plaintext snapshot of nothing and the data is gone for good.
+      // Cleared only by a successful unlock, or by an explicit Reset.
+      let sessionLocked = false;
+      // The envelope we could not open, kept so Unlock can retry without a
+      // reload. In memory only; the ciphertext also stays in localStorage.
+      let lockedEnvelope = null;
 
       function clearSessionSecrets() {
         sessionPassphrase = null;
@@ -3284,6 +3344,9 @@
       }
 
       async function persistSessionPayload(session) {
+        // Second gate behind saveSession(): nothing may overwrite a locked
+        // session's ciphertext, whatever the caller.
+        if (sessionLocked) return false;
         let payload;
         if (sessionPassphrase) {
           payload = await encryptSessionObject(session, sessionPassphrase);
@@ -3430,6 +3493,136 @@
       }
 
       /**
+       * Enter the locked state: the stored session is encrypted and we could
+       * not open it. Saving is suspended (see saveSession) so the ciphertext
+       * survives, and the user gets an unlimited number of further tries via
+       * the banner — three per round, as many rounds as they want.
+       */
+      function enterLockedState(envelope) {
+        sessionLocked = true;
+        lockedEnvelope = envelope || lockedEnvelope;
+        clearSessionSecrets();
+        const banner = document.getElementById("locked-banner");
+        if (banner) banner.style.display = "block";
+        // The empty state promises "everything you type is saved
+        // automatically", which is exactly false right now.
+        const hint = document.querySelector("#empty-state .empty-hint");
+        if (hint) {
+          hint.dataset.unlockedText = hint.dataset.unlockedText || hint.innerHTML;
+          hint.textContent =
+            "Your saved session is encrypted and was not opened. Nothing is being saved until you unlock it — click the 🔒 banner to try the passphrase again.";
+        }
+        updateProtectButton();
+      }
+
+      function exitLockedState() {
+        sessionLocked = false;
+        lockedEnvelope = null;
+        const banner = document.getElementById("locked-banner");
+        if (banner) banner.style.display = "none";
+        const hint = document.querySelector("#empty-state .empty-hint");
+        if (hint && hint.dataset.unlockedText) {
+          hint.innerHTML = hint.dataset.unlockedText;
+          delete hint.dataset.unlockedText;
+        }
+        updateProtectButton();
+      }
+
+      /**
+       * Bound to the locked banner. Re-prompts for the passphrase and, on
+       * success, restores the session and resumes saving. On failure nothing
+       * is written and the banner stays — the ciphertext is never at risk.
+       */
+      async function retryUnlockSession() {
+        if (!sessionLocked) return;
+        let envelope = lockedEnvelope;
+        if (!envelope) {
+          // Re-read from storage in case this tab was reloaded into the state.
+          try {
+            const parsed = JSON.parse(localStorage.getItem(SESSION_KEY) || "");
+            if (isEncryptedEnvelope(parsed)) envelope = parsed;
+          } catch (e) {
+            /* fall through to the no-envelope case below */
+          }
+        }
+        if (!envelope) {
+          // Nothing encrypted is actually stored — release the brake.
+          exitLockedState();
+          showStatus("No encrypted session found — saving resumed.");
+          return;
+        }
+        const session = await unlockEnvelopeWithPrompt(
+          envelope,
+          "Your CB App session is passphrase-protected. Enter the passphrase:"
+        );
+        if (!session) {
+          showStatus(
+            "Still locked — nothing was saved or lost. Click the banner to try again."
+          );
+          return;
+        }
+        // Anything on screen was typed while locked, so by definition it was
+        // never saved. Restoring appends, so without this the two would merge
+        // into a session that is neither. Ask before discarding it.
+        if (document.querySelectorAll(WINDOW_SELECTOR).length > 0) {
+          if (
+            !window.confirm(
+              "Unlock and restore your saved session?\n\nAnything on screen now was typed while the session was locked, so it was never saved. It will be replaced by the restored session. Use Backup first if you want to keep it."
+            )
+          ) {
+            showStatus("Still locked — nothing was changed.");
+            return;
+          }
+          clearScreenForRestore();
+        }
+        exitLockedState();
+        loadSessionFromStorage(session);
+        saveSession();
+        updateProtectButton();
+        showStatus("Session unlocked and restored.");
+      }
+
+      /**
+       * Empty the screen without touching storage, so a restore replays into a
+       * clean slate. Reset() does this too, but it also destroys the saved
+       * session — which is the opposite of what unlocking wants.
+       */
+      function clearScreenForRestore() {
+        document.getElementById("windows").innerHTML = "";
+        ["calculator", "clock", "log", "help-window"].forEach((id) => {
+          document.getElementById(id)?.remove();
+        });
+        windowCount = 0;
+        noteCount = 0;
+        taskCount = 0;
+        stickyCount = 0;
+        t2Count = 0;
+        calculatorCount = 0;
+        clockCount = 0;
+        activeWindow = null;
+        zIndexCounter = 1;
+        calculatorVisible = false;
+        clockVisible = false;
+        logVisible = false;
+        calculatorHistory = [];
+        logEntries = [];
+        [
+          ["calculator-toggle", "Calc"],
+          ["clock-toggle", "Clock"],
+          ["log-toggle", "Log"],
+        ].forEach(([id, label]) => {
+          const btn = document.getElementById(id);
+          if (btn) {
+            btn.textContent = label;
+            btn.classList.remove("active");
+          }
+        });
+        cascadeIndex = 0;
+        cascadeAnchor = null;
+        refreshChrome();
+      }
+
+      /**
        * Parse a raw localStorage / file string into a validated session object.
        * Handles plaintext JSON sessions and encrypted envelopes.
        */
@@ -3458,6 +3651,21 @@
       function updateProtectButton() {
         const btn = document.getElementById("protect-toggle");
         if (!btn) return;
+        if (sessionLocked) {
+          // Protecting on top of a locked session makes no sense — the way
+          // forward is to open the one that is already there.
+          btn.textContent = "Unlock";
+          btn.classList.add("active");
+          btn.setAttribute(
+            "data-tooltip",
+            "Your saved session is encrypted and was not opened — unlock it to resume saving"
+          );
+          btn.setAttribute(
+            "aria-label",
+            "Unlock the encrypted session to resume saving"
+          );
+          return;
+        }
         if (sessionPassphrase) {
           btn.textContent = "Unprotect";
           btn.classList.add("active");
@@ -3484,6 +3692,11 @@
       }
 
       async function toggleSessionProtection() {
+        if (sessionLocked) {
+          // The button reads "Unlock" in this state.
+          await retryUnlockSession();
+          return;
+        }
         if (sessionPassphrase) {
           if (
             !window.confirm(
@@ -4785,6 +4998,9 @@
         // which calls saveSession(); skip those so we never persist a partial
         // mid-restore snapshot. loadSessionFromStorage() does one final save itself.
         if (restoring) return;
+        // A locked session is unreadable to us but intact on disk. Writing
+        // anything here destroys it, so do nothing at all until it is unlocked.
+        if (sessionLocked) return;
         try {
           const session = buildSessionSnapshot();
           if (!sessionPassphrase) {
@@ -5164,6 +5380,10 @@ Saving & security
   encrypts it with a passphrase (AES-GCM) so localStorage and exports
   need that passphrase to open. The passphrase is never stored.
 - Freeze (🔓) only stops accidental edits — it is not a password.
+- Get the passphrase wrong (three tries a go) or cancel, and the session
+  stays locked rather than being lost: nothing is saved over it, and the
+  🔒 banner in the corner re-opens the prompt as many times as you like.
+  Only Reset or an Import deletes a locked session, and both ask first.
 - Backup writes your session out as a .json file; Import reads one back
   (strict schema validation). Encrypted backups stay encrypted.
 - "Download .html" saves this entire app with your current session baked
@@ -6724,6 +6944,10 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // Clear every key this app owns (not the entire origin).
           clearAllSessionStorage();
           clearSessionSecrets();
+          // Reset is the deliberate way out of a session nobody can open: the
+          // ciphertext is gone now, so there is nothing left to protect and
+          // saving must resume.
+          exitLockedState();
           updateProtectButton();
 
           // Reset UI state
@@ -7084,9 +7308,29 @@ Tip: Use the Download button inside the app to preserve your open windows and no
                 : "Your CB App session is passphrase-protected. Enter the passphrase:",
             });
             if (!session) {
-              showStatus(
-                "Session not loaded — passphrase cancelled or incorrect."
-              );
+              // Wrong passphrase or cancelled. The ciphertext in localStorage
+              // is still the only copy of their work, and the very next
+              // autosave would overwrite it with an empty plaintext session —
+              // which is how this used to destroy the data outright. Lock
+              // instead: refuse every write, and offer unlimited retries.
+              const stored = localStorage.getItem(SESSION_KEY);
+              let storedEnvelope = null;
+              try {
+                const parsed = JSON.parse(stored || "");
+                if (isEncryptedEnvelope(parsed)) storedEnvelope = parsed;
+              } catch (e) {
+                /* not an envelope — nothing to protect */
+              }
+              if (storedEnvelope) {
+                enterLockedState(storedEnvelope);
+                showStatus(
+                  "Session locked — wrong passphrase or cancelled. Nothing was lost; click 🔒 to try again."
+                );
+              } else {
+                showStatus(
+                  "Session not loaded — passphrase cancelled or incorrect."
+                );
+              }
             } else {
               const skipped = loadSessionFromStorage(session);
               if (fromEmbedded && embedded) {
@@ -7246,6 +7490,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // bordered pill pinned top-centre and no timer to clear it.
           clone.querySelector("#status")?.removeAttribute("style");
           clone.querySelector("#save-warning")?.removeAttribute("style");
+          // Same reasoning for the lock banner: this tab's state, not the
+          // export's — the copy has its own session and its own lock, if any.
+          clone.querySelector("#locked-banner")?.removeAttribute("style");
           // The canvas view is state, not markup. Leaving the pan/zoom
           // transform and the mode class baked into the file would make the
           // export open on a stale viewport for the moment before its embedded
@@ -7359,6 +7606,18 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               });
               if (!session) {
                 showStatus("Import cancelled or passphrase incorrect.");
+                return;
+              }
+              // Import resets first, and reset deletes every stored key — so
+              // while locked this is the one remaining path that can destroy a
+              // session the user still cannot open. Make it deliberate.
+              if (
+                sessionLocked &&
+                !window.confirm(
+                  "Replace the locked session with this import?\n\nThe encrypted session saved in this browser has not been opened, and importing deletes it permanently. Cancel if you still want to try the passphrase."
+                )
+              ) {
+                showStatus("Import cancelled — the locked session is untouched.");
                 return;
               }
               // Clear UI without wiping the passphrase we just unlocked for this import.

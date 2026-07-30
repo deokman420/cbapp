@@ -7,6 +7,42 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.5] — 2026-07-29
+
+### Fixed
+
+- **A wrong or cancelled passphrase destroyed the session outright.** Boot
+  failed to decrypt, showed "Session not loaded", and then carried on as an
+  ordinary empty session — so the very next write (a keystroke, a resize, or
+  the `beforeunload` save on closing the tab) called `saveSession()`, found no
+  passphrase in memory, and wrote a *plaintext snapshot of the empty screen*
+  over the ciphertext. One mistyped passphrase and the only copy of the work
+  was gone, with no warning and nothing to recover from.
+
+  A failed unlock now enters a **locked state** instead: `saveSession()` and
+  `persistSessionPayload()` both refuse to write, so the ciphertext cannot be
+  touched no matter what the user does next. A 🔒 banner (and the toolbar
+  button, which reads **Unlock**) re-opens the prompt — three tries per round,
+  unlimited rounds, no reload needed. On success the session is restored and
+  saving resumes.
+
+  Unlocking with scratch windows on screen asks before replacing them, since
+  anything typed while locked was by definition never saved. Reset and Import
+  remain the only ways to delete a locked session, and both now confirm first.
+
+- **A top-left badge covered the mobile toolbar.** Below 720px the toolbar is
+  top-anchored and full-width, so `#save-warning` — and the new lock banner,
+  which is a *button* — sat on top of it and swallowed the clicks. Both now
+  move above the minimized chips, matching `#canvas-controls`.
+
+### Tests
+
+- New: a locked session survives further edits byte-for-byte and unlocks from
+  the banner with the right passphrase. The wrong-passphrase test now also
+  asserts the stored blob is still encrypted and still free of the plaintext.
+
+---
+
 ## [3.2.4] — 2026-07-29
 
 ### Changed
