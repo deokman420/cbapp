@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.5 — 2026-07-29. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.6 — 2026-07-30. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2449,6 +2449,62 @@
         outline-offset: 2px;
       }
 
+      /* Top-centred rather than left-anchored like the two badges above: it can
+         be on screen at the same time as either of them (a restored session can
+         also be locked), and stacking them at the same corner overlapped. */
+      #undo-bar {
+        display: none;
+        position: fixed;
+        top: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1200;
+        align-items: center;
+        gap: 10px;
+        max-width: calc(100vw - 24px);
+        padding: 6px 8px 6px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg-card);
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        letter-spacing: 0.04em;
+      }
+
+      /* [hidden] loses to a display rule, so the bar is shown by flipping
+         display and hidden together — never by display alone. */
+      #undo-bar:not([hidden]) {
+        display: flex;
+      }
+
+      #undo-bar button {
+        font-family: inherit;
+        font-size: inherit;
+        letter-spacing: inherit;
+        padding: 4px 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      #undo-bar button:hover {
+        background: var(--bg-card-hover);
+      }
+
+      #undo-bar button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      #undo-bar-close {
+        border-color: transparent;
+        padding: 4px 8px;
+      }
+
       /* Below 720px the toolbar is top-anchored and full-width, so a badge at
          top:12px sits on top of it and eats the clicks — the lock banner is a
          button, which made the toolbar unusable outright. Both badges move
@@ -2459,6 +2515,18 @@
           top: auto;
           bottom: 108px;
           left: 12px;
+        }
+
+        /* Same collision, and the bar is all buttons — it has to clear the
+           toolbar too. Sits above the two badges' row. */
+        #undo-bar {
+          top: auto;
+          bottom: 148px;
+          left: 12px;
+          right: 12px;
+          transform: none;
+          max-width: none;
+          flex-wrap: wrap;
         }
       }
 
@@ -2846,6 +2914,25 @@
       <div id="minimized-bar" aria-label="Minimized windows"></div>
       <p id="status" role="status" aria-live="polite"></p>
       <div id="save-warning" role="alert"></div>
+      <!-- Opening an export used to block on a window.confirm before it would
+           load. On file:// every export shares one "null" origin, so the
+           browser almost always has *something* saved and the modal fired on
+           essentially every open. The file you opened wins instead, and the
+           session it replaced stays one click away under notepadSession.prev. -->
+      <div id="undo-bar" role="status" aria-live="polite" hidden>
+        <span id="undo-bar-text"></span>
+        <button type="button" id="undo-bar-action" onclick="undoEmbeddedRestore()">
+          Undo — keep my browser session
+        </button>
+        <button
+          type="button"
+          id="undo-bar-close"
+          aria-label="Dismiss"
+          onclick="hideUndoBar()"
+        >
+          ×
+        </button>
+      </div>
       <button
         type="button"
         id="locked-banner"
@@ -6799,6 +6886,59 @@ Enterprise browser
         }, 3000);
       }
 
+      // --- Undo an embedded-session restore ---------------------------------
+      // Shown only when opening an export actually displaced a saved session,
+      // and only while notepadSession.prev still holds that session.
+      let _undoBarTimer = null;
+
+      function showUndoBar(message) {
+        const bar = document.getElementById("undo-bar");
+        const text = document.getElementById("undo-bar-text");
+        if (!bar || !text) return;
+        text.textContent = message;
+        bar.hidden = false;
+        // Long enough to read and decide, but it is not a modal: it expires
+        // rather than waiting. .prev survives regardless, so nothing is lost
+        // by letting it go — Undo is just no longer one click away.
+        if (_undoBarTimer) clearTimeout(_undoBarTimer);
+        _undoBarTimer = setTimeout(() => {
+          bar.hidden = true;
+          _undoBarTimer = null;
+        }, 15000);
+      }
+
+      function hideUndoBar() {
+        const bar = document.getElementById("undo-bar");
+        if (bar) bar.hidden = true;
+        if (_undoBarTimer) clearTimeout(_undoBarTimer);
+        _undoBarTimer = null;
+      }
+
+      function undoEmbeddedRestore() {
+        const prev = localStorage.getItem(SESSION_PREV_KEY);
+        if (!prev) {
+          hideUndoBar();
+          showStatus("Nothing to undo — no previous session was stored.");
+          return;
+        }
+        try {
+          // Reload rather than restore in place: prev may be an AES-GCM
+          // envelope needing its own passphrase prompt, and boot already knows
+          // how to do all of that. The export is marked consumed by now, so
+          // the reload takes the localStorage branch and not the embedded one.
+          localStorage.setItem(SESSION_KEY, prev);
+        } catch (e) {
+          console.error("Could not restore the previous session:", e);
+          showStatus("Could not restore the previous session.");
+          return;
+        }
+        // saveSession() runs on almost every edit and would overwrite the
+        // session we just put back before the reload lands.
+        sessionLocked = true;
+        hideUndoBar();
+        location.reload();
+      }
+
       function toggleTheme() {
         const body = document.body;
         const newMode = body.classList.contains("light-mode")
@@ -7269,33 +7409,29 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         updateProtectButton();
 
         // An exported copy carries its session inside the file; on first open
-        // that wins (after confirm if this origin already has work).
+        // that wins, and anything it displaced is recoverable via Undo.
         const embedded = readEmbeddedSession();
         const existing = localStorage.getItem(SESSION_KEY);
 
         let rawToLoad = null;
         let fromEmbedded = false;
+        let undoableRestore = false;
 
         if (embedded) {
-          let useEmbedded = true;
+          // No modal: opening the file *is* the instruction to load it. The
+          // replaced session is stashed first, so the Undo offered afterwards
+          // is always honourable — see #undo-bar.
           if (existing) {
-            useEmbedded = window.confirm(
-              "This file includes an embedded session.\n\nLoad it and replace the session currently saved in this browser?\n\nYour current session will be kept once under a backup key (notepadSession.prev)."
-            );
-          }
-          if (useEmbedded) {
-            if (existing) {
-              try {
-                localStorage.setItem(SESSION_PREV_KEY, existing);
-              } catch (e) {
-                console.warn("Could not stash the previous session:", e);
-              }
+            try {
+              localStorage.setItem(SESSION_PREV_KEY, existing);
+              undoableRestore = true;
+            } catch (e) {
+              // Undo would have nothing to restore from, so it is not offered.
+              console.warn("Could not stash the previous session:", e);
             }
-            rawToLoad = JSON.stringify(embedded.session);
-            fromEmbedded = true;
-          } else if (existing) {
-            rawToLoad = existing;
           }
+          rawToLoad = JSON.stringify(embedded.session);
+          fromEmbedded = true;
         } else if (existing) {
           rawToLoad = existing;
         }
@@ -7339,15 +7475,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               // Re-persist so Protect state (if any) is reflected in storage.
               saveSession();
               updateProtectButton();
-              showStatus(
-                skipped
-                  ? `Session restored — ${skipped} window${
-                      skipped === 1 ? "" : "s"
-                    } skipped (${MAX_WINDOWS}-window limit).`
-                  : fromEmbedded && existing
-                  ? "Session restored from this file — previous browser session kept as backup."
-                  : "Session restored."
-              );
+              if (skipped) {
+                showStatus(
+                  `Session restored — ${skipped} window${
+                    skipped === 1 ? "" : "s"
+                  } skipped (${MAX_WINDOWS}-window limit).`
+                );
+              } else if (undoableRestore) {
+                // The toast would expire in 3s and this one has an action on
+                // it, so it gets the persistent bar instead of showStatus.
+                showUndoBar("Session restored from this file.");
+              } else {
+                showStatus("Session restored.");
+              }
             }
           } catch (e) {
             console.error("Failed to load session:", e);
@@ -7493,6 +7633,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // Same reasoning for the lock banner: this tab's state, not the
           // export's — the copy has its own session and its own lock, if any.
           clone.querySelector("#locked-banner")?.removeAttribute("style");
+          // Same again: exporting while the undo bar is up would ship a file
+          // that opens offering to undo a restore that never happened there.
+          clone.querySelector("#undo-bar")?.setAttribute("hidden", "");
+          const clonedUndoText = clone.querySelector("#undo-bar-text");
+          if (clonedUndoText) clonedUndoText.textContent = "";
           // The canvas view is state, not markup. Leaving the pan/zoom
           // transform and the mode class baked into the file would make the
           // export open on a stale viewport for the moment before its embedded

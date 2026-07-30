@@ -7,6 +7,44 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.6] — 2026-07-30
+
+### Changed
+
+- **Opening an export no longer blocks on a confirm dialog.** 3.2.0 added a
+  `window.confirm` before an embedded session was allowed to replace whatever
+  the browser had saved. That was written for the hosted build, where each
+  origin has its own storage and the collision is rare. It reads very
+  differently from a `file://` copy: every `file://` page in a Chromium browser
+  shares one opaque `"null"` origin, so *every* export — in any folder, on any
+  drive — reads and writes the same single bucket. `existing` was therefore
+  almost always set, and the modal fired on essentially every open. Reported
+  against Island Browser, but it was never Island-specific.
+
+  The file you opened now simply loads. The session it displaced is still
+  stashed under `notepadSession.prev` exactly as before, and a top-centred bar
+  offers **Undo — keep my browser session** for 15 seconds. Undo writes the
+  stash back and reloads, which reuses the whole boot path — including the
+  passphrase prompt, if the displaced session was protected.
+
+  The security property here was never the dialog; it was that displaced work
+  survives and is recoverable. `cbapp-security-check.mjs` asserted the dialog's
+  message string, so it failed on this change — correctly. It now asserts the
+  actual invariant: the stash write, the undo affordance, and that Reset still
+  wipes `notepadSession.prev` along with everything else.
+
+### Notes
+
+- `Unsafe attempt to load URL file://… 'file:' URLs are treated as unique
+  security origins` in the console on a `file://` copy is **not** from CB App.
+  A four-line HTML file with no script, no CSP and no images reproduces it
+  identically; it is Chromium's favicon lookup against an opaque origin. CB App
+  makes no network or file requests at all (`connect-src 'none'`, and there is
+  no `fetch`, `XMLHttpRequest`, `<img>`, `<iframe>` or external `<link>`
+  anywhere in the file). Nothing is broken and there is nothing to fix.
+
+---
+
 ## [3.2.5] — 2026-07-29
 
 ### Fixed
