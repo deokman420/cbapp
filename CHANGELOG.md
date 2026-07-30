@@ -7,6 +7,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.4] — 2026-07-29
+
+### Changed
+
+- **T2 field 10 is now "Screen share code".** It read "Glance Screen share
+  Code", naming a tool the template should not be tied to.
+- **The big canvas is no longer labelled experimental.** It shipped in 3.1.0
+  and has had a regression suite since 3.2.1; the word was stale in the help
+  window and in three source-section headers.
+
+### Removed
+
+- **The console easter egg.** `phbeks // cbapp` plus a `cbappEgg()` hint
+  printed on every load, and the function stayed on `window`. Nothing else
+  logs on a clean load now.
+- **The Source link from the instructions window.** The repo URL no longer
+  ships inside the app.
+
+---
+
 ## [3.2.3] — 2026-07-29
 
 ### Fixed

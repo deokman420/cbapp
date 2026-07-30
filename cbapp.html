@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.3 — 2026-07-29. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.4 — 2026-07-29. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2226,7 +2226,7 @@
       }
 
       /* ==========================================================
-         BIG CANVAS (experimental)
+         BIG CANVAS
          ----------------------------------------------------------
          #windows already wrapped every window, so it becomes the pan/zoom
          layer as-is: one transform on it moves notes, sticky notes, the
@@ -3750,7 +3750,7 @@
       }
 
       /* ==========================================================
-         BIG CANVAS (experimental) — view state
+         BIG CANVAS — view state
          ----------------------------------------------------------
          Window left/top have always been screen pixels, because nothing could
          scroll or scale. They are now *world* pixels, and the view is what maps
@@ -5130,7 +5130,7 @@ Windows
   bring the window back. 🔓 freezes a window against editing, dragging
   and resizing (layout only — not encryption). ✏️ renames it.
 
-Big canvas (experimental)
+Big canvas
 - Canvas in the toolbar turns on a work surface three screens wide and
   three tall. Off by default; the app behaves exactly as before while
   it is off.
@@ -5175,10 +5175,7 @@ Enterprise browser
 - Open cbapp.html directly in the Enterprise browser; keep it somewhere
   convenient (e.g. Documents) and bookmark it.
 - Right-click the file -> Open with Enterprise if it isn't your default.
-- It must be opened in the same Enterprise session as your SSO login.
-
-Source
-- https://github.com/deokman420/cbapp`;
+- It must be opened in the same Enterprise session as your SSO login.`;
 
         helpWindow.innerHTML = `
           <div class="help-header">
@@ -6658,7 +6655,7 @@ How can T2 help? -
 KB Articles Used -
 Troubleshooting Steps Taken -
 Possible INV Number (If possible) -
-Glance Screen share Code - `;
+Screen share code - `;
             // T2 is just a normal Note pre-filled with the template text — same
             // structure, listeners, and persistence as any other note (it is created
             // by addWindow() above), so it round-trips cleanly across refreshes.
@@ -7800,7 +7797,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       });
 
       /* ==========================================================
-         BIG CANVAS (experimental) — input
+         BIG CANVAS — input
          ----------------------------------------------------------
          Four ways in, because no single one is safe on every machine this app
          runs on: drag the empty background, middle-drag anywhere, wheel, and
@@ -8005,21 +8002,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }, 150);
       });
 
-      (function logConsoleEasterEgg() {
-        try {
-          const titleStyle =
-            "color:#00d4aa;font-weight:700;font-size:14px;font-family:JetBrains Mono,Consolas,monospace;";
-          const hintStyle =
-            "color:#8492a6;font-size:12px;font-family:JetBrains Mono,Consolas,monospace;";
-          console.log("%cphbeks // cbapp", titleStyle);
-          console.log("%cType cbappEgg() to reveal a secret.", hintStyle);
-          window.cbappEgg = function () {
-            console.log("%cYou found it. Keep building.", titleStyle);
-          };
-        } catch (e) {
-          // Swallow console errors to avoid breaking app flow.
-        }
-      })();
     </script>
   </body>
 </html>
