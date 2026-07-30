@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v3.2.2`  
+**Version:** `v3.2.3`  
 **Released:** July 29, 2026  
 **Size:** ~253 KB (single file)  
 **License:** Provided as-is
@@ -41,7 +41,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.2.2)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.2.3)
 
 Simply save the file and open it in your browser.
 
@@ -165,7 +165,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v3.2.2)
+├── cbapp.html          # The complete application (v3.2.3)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -178,4 +178,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v3.2.2** — A self-contained productivity workspace that just works.
+**CB App v3.2.3** — A self-contained productivity workspace that just works.

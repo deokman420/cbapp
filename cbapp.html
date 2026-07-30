@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.2 — 2026-07-29. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.3 — 2026-07-29. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2821,7 +2821,11 @@
       aria-labelledby="pass-modal-title"
       aria-describedby="pass-modal-message"
     >
-      <div class="pass-card">
+      <!-- A real <form>: Chrome warns about a password field outside one, and
+           Enter-to-submit then comes from the platform instead of a keydown
+           special-case. Submission is always prevented (CSP sets
+           form-action 'none'; nothing here ever goes over the wire). -->
+      <form class="pass-card" id="pass-modal-form" autocomplete="off">
         <h2 id="pass-modal-title">Passphrase</h2>
         <p id="pass-modal-message" class="pass-message"></p>
         <label for="pass-modal-input" id="pass-modal-label">Passphrase</label>
@@ -2847,9 +2851,9 @@
         <p class="pass-error" id="pass-modal-error" role="alert"></p>
         <div class="pass-actions">
           <button type="button" id="pass-modal-cancel">Cancel</button>
-          <button type="button" class="primary" id="pass-modal-ok">OK</button>
+          <button type="submit" class="primary" id="pass-modal-ok">OK</button>
         </div>
-      </div>
+      </form>
     </div>
     <script type="text/javascript">
       // --- Session security (v3.2.0) -----------------------------------------
@@ -3308,13 +3312,14 @@
         const modal = document.getElementById("pass-modal");
         const input = document.getElementById("pass-modal-input");
         const reveal = document.getElementById("pass-modal-reveal");
+        const form = document.getElementById("pass-modal-form");
         const okBtn = document.getElementById("pass-modal-ok");
         const cancelBtn = document.getElementById("pass-modal-cancel");
         const errorEl = document.getElementById("pass-modal-error");
         const labelEl = document.getElementById("pass-modal-label");
         // No modal in the DOM (e.g. a stripped copy of the page) — fall back
         // rather than leaving the caller hanging on a promise that never settles.
-        if (!modal || !input) {
+        if (!modal || !input || !form) {
           return Promise.resolve(window.prompt(message || title || "Passphrase"));
         }
 
@@ -3350,7 +3355,7 @@
             input.value = "";
             setRevealed(false);
             reveal.removeEventListener("click", onReveal);
-            okBtn.removeEventListener("click", onOk);
+            form.removeEventListener("submit", onSubmit);
             cancelBtn.removeEventListener("click", onCancel);
             modal.removeEventListener("keydown", onKey);
             modal.removeEventListener("mousedown", onBackdrop);
@@ -3363,7 +3368,8 @@
             setRevealed(input.type === "password");
             input.focus();
           }
-          function onOk() {
+          function onSubmit(e) {
+            e.preventDefault();
             close(input.value);
           }
           function onCancel() {
@@ -3373,9 +3379,6 @@
             if (e.key === "Escape") {
               e.stopPropagation();
               onCancel();
-            } else if (e.key === "Enter" && e.target === input) {
-              e.preventDefault();
-              onOk();
             } else if (e.key === "Tab") {
               // Keep focus inside the dialog: it is the only thing on screen.
               const focusables = [input, reveal, cancelBtn, okBtn];
@@ -3390,7 +3393,7 @@
             if (e.target === modal) onCancel();
           }
           reveal.addEventListener("click", onReveal);
-          okBtn.addEventListener("click", onOk);
+          form.addEventListener("submit", onSubmit);
           cancelBtn.addEventListener("click", onCancel);
           modal.addEventListener("keydown", onKey);
           modal.addEventListener("mousedown", onBackdrop);

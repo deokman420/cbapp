@@ -7,6 +7,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.3] — 2026-07-29
+
+### Fixed
+
+- **Chrome logged `[DOM] Password field is not contained in a form`.** The
+  passphrase dialog put a `type="password"` input straight in a `<div>`, which
+  trips Blink's password-form heuristic — harmless, but it is console noise on
+  every Protect/Unlock and the fix is the correct markup anyway. The dialog
+  card is now a real `<form>`, so Enter-to-submit comes from the platform
+  instead of a `keydown` special-case and the OK button is a proper
+  `type="submit"`.
+
+  Submission is always `preventDefault()`ed, so nothing is ever navigated or
+  serialised into a URL — verified: pressing Enter advances the dialog with
+  `location.href` unchanged. The CSP's `form-action 'none'` is the belt to
+  that brace.
+
+---
+
 ## [3.2.2] — 2026-07-29
 
 ### Security
