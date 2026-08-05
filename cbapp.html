@@ -3109,11 +3109,9 @@
         return sealEnvelope(session, key, salt, iv);
       }
 
-      // Encryption for a file that leaves this browser. Deliberately does NOT
-      // go through ensureSessionKey(): that caches into sessionPassphrase /
-      // sessionCryptoKey / sessionKeySalt, so a one-off Backup passphrase
-      // would silently re-key — or newly encrypt — this tab's own localStorage
-      // session. A Backup passphrase belongs to the file, nothing else. Fresh
+      // Deliberately does NOT go through ensureSessionKey(): that caches into
+      // sessionPassphrase, so a one-off Backup passphrase would go on to
+      // re-key — or newly encrypt — the saved session in localStorage. Fresh
       // salt and IV every time, so two backups never share key material.
       async function encryptForExport(session, passphrase) {
         const salt = crypto.getRandomValues(new Uint8Array(16));
@@ -3550,10 +3548,10 @@
       }
 
       /**
-       * Ask twice for a brand-new passphrase and only return it when both
-       * entries match and clear the length floor. Shared by Protect and by
-       * Backup so the two can't drift on rules or wording. Resolves to null
-       * on cancel or on any failed check — callers just abort.
+       * Choose-and-confirm for a brand-new passphrase, shared by Protect and
+       * Backup so the two can't drift on rules or wording. Resolves to null on
+       * cancel *and* on any failed check — it has already told the user why,
+       * so callers just abort.
        */
       async function promptNewPassphrase({ title, message, okLabel } = {}) {
         const pass = await promptPassphrase({
@@ -7813,28 +7811,26 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
-      // Backup. A backup is the one artefact that leaves this machine — it
-      // gets mailed to yourself, dropped on a share, left in Downloads — so as
-      // of v3.2.11 it is ALWAYS AES-GCM encrypted. There is no plaintext path
-      // left: a session with Protect on reuses that passphrase, and one
-      // without is asked for a per-file passphrase before anything is written.
-      // Cancel the prompt and no file is produced at all.
+      // Backup: the one artefact that leaves this machine, so since v3.2.11 it
+      // is always AES-GCM encrypted. Protect on reuses that passphrase; Protect
+      // off is asked for one covering this file only. Cancel and no file is
+      // written — there is no plaintext path.
       async function downloadSessionJSON() {
-        // Nothing readable to back up, and buildSessionSnapshot() would capture
-        // the empty screen rather than the ciphertext the user actually wants.
+        // buildSessionSnapshot() would capture the empty screen rather than the
+        // ciphertext the user actually wants backed up.
         if (sessionLocked) {
           showStatus("Unlock the session before backing it up.");
           return;
         }
         if (!window.crypto?.subtle) {
-          // Refuse rather than quietly writing the notes out in the clear.
+          // No fallback by design: a browser that cannot encrypt does not get
+          // to write a backup at all. Checked up front so it fails with a
+          // reason instead of as a thrown error four lines into the seal.
           showStatus("Backup needs Web Crypto, which this browser did not provide.");
           return;
         }
         try {
           const snap = buildSessionSnapshot();
-          // Protect on: the backup rides the session passphrase, so one secret
-          // opens both. Protect off: a passphrase for this file only.
           let pass = sessionPassphrase;
           if (!pass) {
             pass = await promptNewPassphrase({
@@ -7856,11 +7852,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             showStatus("Session too large to download.");
             return;
           }
-          // Keep localStorage in sync with the snapshot we just backed up.
-          // Via persistSessionPayload, not a raw setItem of `serialized`: with
+          // Sync storage with the snapshot we just backed up — via
+          // persistSessionPayload, never a raw setItem of `serialized`. With
           // Protect off that string is sealed under a throwaway backup
-          // passphrase, and writing it to storage would lock the user out of
-          // their own browser session.
+          // passphrase, and storing it would lock the user out of their own
+          // browser session.
           await persistSessionPayload(snap);
           const blob = new Blob([serialized], { type: "application/json" });
           const url = URL.createObjectURL(blob);
@@ -8003,10 +7999,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               // Persist validated (and re-encrypted if Protect is active) form.
               const ok = await persistSessionPayload(buildSessionSnapshot());
               updateProtectButton();
-              // An encrypted import carries its passphrase into this tab, so
-              // the session it just replaced is now Protected under it. Say so
-              // — otherwise the next reload asks for a passphrase the user
-              // thought belonged only to a file. Unprotect undoes it.
+              // An encrypted import adopts its passphrase for this browser. Say
+              // so, or the next reload asks for a passphrase the user thought
+              // belonged only to a file.
               showStatus(
                 ok
                   ? keepPass
