@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.14 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.15 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2986,7 +2986,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.14";
+      const CB_APP_VERSION = "3.2.15";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3752,6 +3752,47 @@
         return pass;
       }
 
+      /**
+       * Demand the passphrase of the session that is currently open, for an
+       * action that would undo the protection it gives (v3.2.14: Reset,
+       * v3.2.15: Unprotect). Resolves true only on a match.
+       *
+       * `sessionPassphrase` is the passphrase this session is encrypted with,
+       * so comparing against it is the same check a decrypt would make without
+       * the round trip. Callers must only reach here with it set — an open
+       * protected session — since there is nothing to compare against
+       * otherwise; see confirmResetLocked() for the locked equivalent.
+       *
+       * Three tries, then it gives up rather than sitting there as an oracle.
+       */
+      async function requireSessionPassphrase({
+        title,
+        message,
+        okLabel,
+        cancelStatus,
+      } = {}) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const pass = await promptPassphrase({
+            title,
+            message,
+            label: "Passphrase",
+            okLabel,
+          });
+          if (pass === null) {
+            if (cancelStatus) showStatus(cancelStatus);
+            return false;
+          }
+          if (pass === sessionPassphrase) return true;
+          window.alert(
+            attempt < 2
+              ? "Wrong passphrase. Try again."
+              : "Wrong passphrase. Nothing was changed."
+          );
+        }
+        if (cancelStatus) showStatus(cancelStatus);
+        return false;
+      }
+
       async function unlockEnvelopeWithPrompt(envelope, reason) {
         for (let attempt = 0; attempt < 3; attempt++) {
           const pass = await promptPassphrase({
@@ -3979,10 +4020,22 @@
           return;
         }
         if (sessionPassphrase) {
+          // v3.2.15: the passphrase, not just a click. Unprotect rewrites the
+          // session as plaintext, so a click alone would let anyone at the
+          // keyboard strip the protection off and read everything on the next
+          // load — the same hole Reset had before v3.2.14, with the notes left
+          // behind rather than deleted.
           if (
-            !window.confirm(
-              "Remove passphrase protection?\n\nYour session will be saved in plaintext in this browser again. Backups stay encrypted either way — Backup will ask you for a passphrase each time instead of reusing this one."
-            )
+            !(await requireSessionPassphrase({
+              title: "Remove passphrase protection?",
+              message:
+                "Your session will be saved in plaintext in this browser again, " +
+                "readable by anyone who opens CB App here.\n\nBackups stay " +
+                "encrypted either way — Backup will ask for a passphrase each " +
+                "time instead of reusing this one.",
+              okLabel: "Remove protection",
+              cancelStatus: "Protection left on — nothing was changed.",
+            }))
           ) {
             return;
           }
@@ -7518,32 +7571,16 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         });
       }
 
-      // Protected and open. `sessionPassphrase` is the passphrase this session
-      // is encrypted with, so comparing against it is the same check a decrypt
-      // would make, without the round trip.
-      async function confirmResetProtected() {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          const pass = await promptPassphrase({
-            title: "Reset CB App?",
-            message:
-              RESET_WARNING +
-              "\n\nThis session is passphrase-protected, so Reset needs the passphrase.",
-            label: "Passphrase",
-            okLabel: "Reset everything",
-          });
-          if (pass === null) {
-            showStatus("Reset cancelled — nothing was deleted.");
-            return false;
-          }
-          if (pass === sessionPassphrase) return true;
-          window.alert(
-            attempt < 2
-              ? "Wrong passphrase. Try again."
-              : "Wrong passphrase. Nothing was deleted."
-          );
-        }
-        showStatus("Reset cancelled — nothing was deleted.");
-        return false;
+      // Protected and open, so the passphrase in memory is the thing to check.
+      function confirmResetProtected() {
+        return requireSessionPassphrase({
+          title: "Reset CB App?",
+          message:
+            RESET_WARNING +
+            "\n\nThis session is passphrase-protected, so Reset needs the passphrase.",
+          okLabel: "Reset everything",
+          cancelStatus: "Reset cancelled — nothing was deleted.",
+        });
       }
 
       // Protected and locked: this tab never opened the session, so the only

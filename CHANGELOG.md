@@ -7,6 +7,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.15] — 2026-08-05
+
+### Changed
+
+- **Unprotect needs the passphrase.** Removing protection rewrites the session
+  as plaintext, so a click alone let anyone at the keyboard strip the lock off
+  and read everything on the next load — the same hole Reset had before
+  3.2.14, except the notes are left behind rather than deleted. It now asks
+  for the passphrase, three tries, in the app's own dialog rather than a
+  `window.confirm`.
+- The check Reset introduced is now `requireSessionPassphrase()`, shared by
+  both callers so the two cannot drift on tries, wording or what counts as a
+  match.
+
+### Notes
+
+- Importing an older plaintext `.json` session is unchanged and still works.
+
+---
+
 ## [3.2.14] — 2026-08-05
 
 ### Changed
