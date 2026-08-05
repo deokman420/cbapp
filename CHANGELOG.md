@@ -7,6 +7,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.12] — 2026-08-05
+
+### Fixed
+
+- **The big canvas opens in the middle of the world again, not in its top-left
+  corner.** The corner is the worst place to start: it is empty, and because
+  pan is capped at 0 there is no world above or to the left of it, so half the
+  drag directions are dead on arrival.
+- The centring itself was never the broken part — `toggleCanvasMode()` had a
+  "first visit centres" branch all along. What defeated it was the *save*.
+  Every save made with the canvas off wrote a viewpoint of `{0, 0, zoom 1}` as
+  a placeholder, and (0, 0) is precisely the corner. On the next boot that
+  placeholder was indistinguishable from a real remembered position, so the
+  first-visit branch never ran again. Opening CB App once and reloading was
+  enough to poison it permanently.
+- Sessions now record `canvas.seen` — whether there is a viewpoint to remember
+  at all — so an unvisited canvas stops masquerading as one parked at the
+  corner. Sessions written by 3.2.9–3.2.11 say nothing about `seen`, so a
+  viewpoint of exactly `{0, 0, zoom 1}` is read back as the "never been" it
+  stood for; any other saved viewpoint from that era still restores exactly.
+  The only case given up is a user who deliberately parked at the exact corner
+  at 1:1, who gets centred once.
+- Booting straight onto a canvas that has never been positioned also centres
+  now. It previously used a `{0, 0, zoom 1}` fallback of its own, so it landed
+  in the corner even when the session carried no viewpoint at all.
+- `centerCanvasView()` is now one function serving the first visit, the boot
+  path, and the 1:1 button, which had three copies of the same arithmetic
+  between them.
+
+---
+
 ## [3.2.11] — 2026-08-05
 
 ### Security

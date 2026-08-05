@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.11 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.12 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2943,7 +2943,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.11";
+      const CB_APP_VERSION = "3.2.12";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3334,6 +3334,10 @@
             assertPlainObject(raw.canvas, "canvas");
             out.canvas = {
               on: !!raw.canvas.on,
+              // Tri-state on purpose: true/false when the writer said, null
+              // for a session written before v3.2.12, which said nothing at
+              // all. The restore path is what resolves null.
+              seen: raw.canvas.seen == null ? null : !!raw.canvas.seen,
               x: Number.isFinite(Number(raw.canvas.x))
                 ? Number(raw.canvas.x)
                 : 0,
@@ -4603,14 +4607,21 @@
         showStatus(`Fitted ${windows.length} window${windows.length === 1 ? "" : "s"}.`);
       }
 
+      /* The default viewpoint, and the one 1:1 goes back to: the middle of the
+         world, never its top-left CORNER. The corner is empty, windows are
+         placed into whatever is on screen, and clampPan() caps pan at 0 — so
+         opening there leaves no world above or to the left and half the drag
+         directions are dead on arrival. */
+      function centerCanvasView() {
+        const world = computeWorldSize();
+        view.zoom = 1;
+        view.x = Math.round((window.innerWidth - world.w) / 2);
+        view.y = Math.round((window.innerHeight - world.h) / 2);
+      }
+
       function resetView() {
         if (!view.on) return;
-        view.zoom = 1;
-        // Centre on the middle of the world rather than its corner: the corner
-        // is empty, and windows are placed into whatever is on screen.
-        const world = computeWorldSize();
-        view.x = (window.innerWidth - world.w) / 2;
-        view.y = (window.innerHeight - world.h) / 2;
+        centerCanvasView();
         applyView();
         saveSession();
       }
@@ -4629,8 +4640,8 @@
         view.on = next;
 
         if (next) {
-          const world = computeWorldSize();
           if (canvasViewMemory) {
+            computeWorldSize();
             view.zoom = Math.min(
               ZOOM_MAX,
               Math.max(ZOOM_MIN, parseFloat(canvasViewMemory.zoom) || 1)
@@ -4638,13 +4649,7 @@
             view.x = parseFloat(canvasViewMemory.x) || 0;
             view.y = parseFloat(canvasViewMemory.y) || 0;
           } else {
-            /* First time here. Pan to the middle of the world rather than its
-               top-left CORNER: clampPan() caps pan at 0, so starting at the
-               corner leaves no world above or to the left and half the drag
-               directions are dead on arrival. */
-            view.zoom = 1;
-            view.x = Math.round((window.innerWidth - world.w) / 2);
-            view.y = Math.round((window.innerHeight - world.h) / 2);
+            centerCanvasView(); // first visit
           }
           clampPan();
         } else {
@@ -5245,12 +5250,21 @@
            viewpoint. While the canvas is off, `view` holds the identity
            transform — persisting that would forget where the user was on the
            canvas and drop them at the default centre next time, so persist the
-           remembered viewpoint instead of the live one. */
+           remembered viewpoint instead of the live one.
+
+           `seen` says whether there is a viewpoint to remember at all. Without
+           it the placeholder written for a session that has never opened the
+           canvas — {0, 0, zoom 1} — is indistinguishable from a real viewpoint
+           parked at the top-left corner, and restore believed it. That is what
+           made the canvas open in the corner on every machine where it had
+           been saved once with the canvas off. */
+        const seenCanvas = view.on || !!canvasViewMemory;
         const canvasView = view.on
           ? { x: view.x, y: view.y, zoom: view.zoom }
           : canvasViewMemory || { x: 0, y: 0, zoom: 1 };
         session.canvas = {
           on: view.on,
+          seen: seenCanvas,
           x: canvasView.x,
           y: canvasView.y,
           zoom: canvasView.zoom,
@@ -7614,23 +7628,47 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         /* x/y/zoom always describe the canvas viewpoint, whichever desk was
            showing when this was saved, so it is remembered either way — that
            is what puts the user back where they were on the canvas rather than
-           at the default centre. */
-        canvasViewMemory = savedView
-          ? {
-              x: parseFloat(savedView.x) || 0,
-              y: parseFloat(savedView.y) || 0,
-              zoom: Math.min(
-                ZOOM_MAX,
-                Math.max(ZOOM_MIN, parseFloat(savedView.zoom) || 1)
-              ),
-            }
-          : null;
+           at the default centre.
+
+           Only if there is one to remember. A session written before v3.2.12
+           says nothing about `seen`, and every one of those that had never
+           opened the canvas carries the placeholder {0, 0, zoom 1} — which is
+           precisely the top-left corner. Read that back as the "never been" it
+           actually stood for. A real viewpoint from that era is anything else
+           and still survives the upgrade; the only thing given up is a user
+           who deliberately parked at the exact corner at 1:1, who gets centred
+           once. */
+        const seenCanvas =
+          savedView == null
+            ? false
+            : savedView.seen == null
+              ? !(
+                  savedView.x === 0 &&
+                  savedView.y === 0 &&
+                  savedView.zoom === 1
+                )
+              : savedView.seen;
+        canvasViewMemory =
+          savedView && seenCanvas
+            ? {
+                x: parseFloat(savedView.x) || 0,
+                y: parseFloat(savedView.y) || 0,
+                zoom: Math.min(
+                  ZOOM_MAX,
+                  Math.max(ZOOM_MIN, parseFloat(savedView.zoom) || 1)
+                ),
+              }
+            : null;
         if (view.on) {
-          computeWorldSize();
-          const v = canvasViewMemory || { x: 0, y: 0, zoom: 1 };
-          view.zoom = v.zoom;
-          view.x = v.x;
-          view.y = v.y;
+          if (canvasViewMemory) {
+            computeWorldSize();
+            view.zoom = canvasViewMemory.zoom;
+            view.x = canvasViewMemory.x;
+            view.y = canvasViewMemory.y;
+          } else {
+            // Booting straight onto a canvas that has never been positioned.
+            centerCanvasView();
+          }
         } else {
           view.zoom = 1;
           view.x = 0;
