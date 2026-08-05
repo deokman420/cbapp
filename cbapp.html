@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.13 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.14 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2589,12 +2589,14 @@
         }
       }
 
-      /* Passphrase dialog. window.prompt() renders the passphrase as plain
-         text on screen — fine for a URL, wrong for the one string that guards
-         the whole session. This replaces it with a masked field plus a Show
-         toggle. It lives outside .whiteboard so canvas pan/zoom transforms
-         never move it. */
-      #pass-modal {
+      /* In-app dialogs, shared by the passphrase prompt and the confirm box.
+         window.prompt() renders the passphrase as plain text on screen — fine
+         for a URL, wrong for the one string that guards the whole session — so
+         this replaces it with a masked field plus a Show toggle. window.confirm()
+         is no better for a destructive answer: it is chrome-styled, says
+         "phbeks.com says", and cannot carry the app's own emphasis. Both live
+         outside .whiteboard so canvas pan/zoom transforms never move them. */
+      .app-modal {
         position: fixed;
         inset: 0;
         z-index: 10000;
@@ -2605,11 +2607,11 @@
         background: rgba(4, 6, 10, 0.6);
       }
 
-      #pass-modal.open {
+      .app-modal.open {
         display: flex;
       }
 
-      #pass-modal .pass-card {
+      .app-modal .pass-card {
         width: 100%;
         max-width: 420px;
         background: var(--bg-card);
@@ -2622,13 +2624,13 @@
         gap: 12px;
       }
 
-      #pass-modal h2 {
+      .app-modal h2 {
         margin: 0;
         font-size: 16px;
         color: var(--text);
       }
 
-      #pass-modal .pass-message {
+      .app-modal .pass-message {
         margin: 0;
         font-size: 13px;
         line-height: 1.5;
@@ -2636,17 +2638,17 @@
         white-space: pre-line;
       }
 
-      #pass-modal label {
+      .app-modal label {
         font-size: 12px;
         color: var(--text-dim);
       }
 
-      #pass-modal .pass-field {
+      .app-modal .pass-field {
         display: flex;
         gap: 6px;
       }
 
-      #pass-modal input {
+      .app-modal input {
         flex: 1;
         min-width: 0;
         padding: 9px 10px;
@@ -2658,13 +2660,13 @@
         border-radius: 6px;
       }
 
-      #pass-modal input:focus {
+      .app-modal input:focus {
         outline: none;
         border-color: var(--accent);
         box-shadow: 0 0 0 2px var(--accent-dim);
       }
 
-      #pass-modal button {
+      .app-modal button {
         padding: 9px 14px;
         font-family: var(--font);
         font-size: 13px;
@@ -2675,50 +2677,68 @@
         cursor: pointer;
       }
 
-      #pass-modal button:hover {
+      .app-modal button:hover {
         color: var(--accent);
         border-color: var(--accent);
       }
 
-      #pass-modal button:focus-visible {
+      .app-modal button:focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 2px;
       }
 
-      #pass-modal .pass-reveal {
+      .app-modal .pass-reveal {
         min-width: 62px;
         font-family: var(--font);
       }
 
-      #pass-modal .pass-actions {
+      .app-modal .pass-actions {
         display: flex;
         justify-content: flex-end;
         gap: 8px;
         margin-top: 4px;
       }
 
-      #pass-modal .pass-actions .primary {
+      .app-modal .pass-actions .primary {
         color: #04120f;
         background: var(--accent);
         border-color: var(--accent);
         font-weight: 600;
       }
 
-      #pass-modal .pass-actions .primary:hover {
+      .app-modal .pass-actions .primary:hover {
         color: #04120f;
         filter: brightness(1.08);
       }
 
-      .light-mode #pass-modal .pass-actions .primary,
-      .light-mode #pass-modal .pass-actions .primary:hover {
+      .light-mode .app-modal .pass-actions .primary,
+      .light-mode .app-modal .pass-actions .primary:hover {
         color: #ffffff;
       }
 
-      #pass-modal .pass-error {
+      .app-modal .pass-error {
         margin: 0;
         min-height: 16px;
         font-size: 12px;
         color: var(--danger);
+      }
+
+      /* The confirm box's OK button when the answer destroys something. It is
+         the one control in the app that should never be clicked by muscle
+         memory, so it does not borrow the accent every other primary uses.
+         --danger-solid, not --danger: white on the lighter red is 3.3:1, and
+         this is the button that most needs to be read before it is pressed. */
+      .app-modal .pass-actions .danger {
+        color: #fff;
+        background: var(--danger-solid);
+        border-color: var(--danger-solid);
+        font-weight: 600;
+      }
+
+      .app-modal .pass-actions .danger:hover {
+        color: #fff;
+        background: #991b1b;
+        border-color: #991b1b;
       }
     </style>
   </head>
@@ -2896,6 +2916,7 @@
     </div>
     <div
       id="pass-modal"
+      class="app-modal"
       role="dialog"
       aria-modal="true"
       aria-labelledby="pass-modal-title"
@@ -2935,6 +2956,28 @@
         </div>
       </form>
     </div>
+    <!-- The app's own confirm box. Reset used window.confirm(), which puts the
+         browser's "phbeks.com says" chrome around the most destructive question
+         the app asks, cannot be styled or emphasised, and on file:// names an
+         origin that means nothing. This is the same card as the passphrase
+         dialog so the two read as one app. -->
+    <div
+      id="confirm-modal"
+      class="app-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-modal-title"
+      aria-describedby="confirm-modal-message"
+    >
+      <div class="pass-card">
+        <h2 id="confirm-modal-title">Are you sure?</h2>
+        <p id="confirm-modal-message" class="pass-message"></p>
+        <div class="pass-actions">
+          <button type="button" id="confirm-modal-cancel">Cancel</button>
+          <button type="button" class="primary" id="confirm-modal-ok">OK</button>
+        </div>
+      </div>
+    </div>
     <script type="text/javascript">
       /* The build this file is. Shown in small print on the Download chip so a
          copy saved to disk months ago can be told apart from the current one —
@@ -2943,7 +2986,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.13";
+      const CB_APP_VERSION = "3.2.14";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3484,8 +3527,18 @@
        * Resolves to the entered string, or null if the user cancels.
        * The field starts obscured; "Show" reveals it for the sighted-typo case
        * and flips back on every open so a passphrase is never left on screen.
+       *
+       * `masked: false` asks for a string that is not a secret — the one caller
+       * is the ERASE confirmation, where hiding what you type would be actively
+       * unhelpful. The Show toggle disappears with it.
        */
-      function promptPassphrase({ title, message, label, okLabel } = {}) {
+      function promptPassphrase({
+        title,
+        message,
+        label,
+        okLabel,
+        masked = true,
+      } = {}) {
         const modal = document.getElementById("pass-modal");
         const input = document.getElementById("pass-modal-input");
         const reveal = document.getElementById("pass-modal-reveal");
@@ -3516,7 +3569,8 @@
         input.focus();
 
         function setRevealed(on) {
-          input.type = on ? "text" : "password";
+          reveal.style.display = masked ? "" : "none";
+          input.type = on || !masked ? "text" : "password";
           reveal.textContent = on ? "Hide" : "Show";
           reveal.setAttribute("aria-pressed", on ? "true" : "false");
           reveal.setAttribute(
@@ -3558,7 +3612,9 @@
               onCancel();
             } else if (e.key === "Tab") {
               // Keep focus inside the dialog: it is the only thing on screen.
-              const focusables = [input, reveal, cancelBtn, okBtn];
+              const focusables = masked
+                ? [input, reveal, cancelBtn, okBtn]
+                : [input, cancelBtn, okBtn];
               const i = focusables.indexOf(document.activeElement);
               if (i === -1) return;
               e.preventDefault();
@@ -3571,6 +3627,93 @@
           }
           reveal.addEventListener("click", onReveal);
           form.addEventListener("submit", onSubmit);
+          cancelBtn.addEventListener("click", onCancel);
+          modal.addEventListener("keydown", onKey);
+          modal.addEventListener("mousedown", onBackdrop);
+        });
+      }
+
+      /**
+       * In-app replacement for window.confirm(). Resolves true only if the user
+       * picks the affirmative button — Escape, Cancel and a backdrop click all
+       * resolve false, which is the safe answer for every caller so far.
+       *
+       * `danger: true` colours the affirmative button with --danger and starts
+       * focus on Cancel, so Enter on a dialog nobody read does nothing.
+       * Falls back to window.confirm() if the markup is missing, for the same
+       * reason promptPassphrase() falls back to window.prompt().
+       */
+      function confirmDialog({ title, message, okLabel, danger } = {}) {
+        const modal = document.getElementById("confirm-modal");
+        const okBtn = document.getElementById("confirm-modal-ok");
+        const cancelBtn = document.getElementById("confirm-modal-cancel");
+        if (!modal || !okBtn || !cancelBtn) {
+          return Promise.resolve(
+            window.confirm(
+              [title, message].filter(Boolean).join("\n\n") || "Are you sure?"
+            )
+          );
+        }
+
+        document.getElementById("confirm-modal-title").textContent =
+          title || "Are you sure?";
+        document.getElementById("confirm-modal-message").textContent =
+          message || "";
+        okBtn.textContent = okLabel || "OK";
+        okBtn.classList.toggle("danger", !!danger);
+        okBtn.classList.toggle("primary", !danger);
+        const returnFocus =
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        modal.classList.add("open");
+        (danger ? cancelBtn : okBtn).focus();
+
+        return new Promise((resolve) => {
+          function close(value) {
+            modal.classList.remove("open");
+            okBtn.removeEventListener("click", onOk);
+            cancelBtn.removeEventListener("click", onCancel);
+            modal.removeEventListener("keydown", onKey);
+            modal.removeEventListener("mousedown", onBackdrop);
+            if (returnFocus && document.contains(returnFocus)) {
+              returnFocus.focus();
+            }
+            resolve(value);
+          }
+          function onOk() {
+            close(true);
+          }
+          function onCancel() {
+            close(false);
+          }
+          function onKey(e) {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              onCancel();
+            } else if (e.key === "Enter") {
+              // No <form> here, so Enter is ours to define: it activates
+              // whichever button is focused and nothing otherwise.
+              if (document.activeElement === okBtn) {
+                e.preventDefault();
+                onOk();
+              } else if (document.activeElement === cancelBtn) {
+                e.preventDefault();
+                onCancel();
+              }
+            } else if (e.key === "Tab") {
+              const focusables = [cancelBtn, okBtn];
+              const i = focusables.indexOf(document.activeElement);
+              if (i === -1) return;
+              e.preventDefault();
+              const next = e.shiftKey ? i - 1 : i + 1;
+              focusables[(next + focusables.length) % focusables.length].focus();
+            }
+          }
+          function onBackdrop(e) {
+            if (e.target === modal) onCancel();
+          }
+          okBtn.addEventListener("click", onOk);
           cancelBtn.addEventListener("click", onCancel);
           modal.addEventListener("keydown", onKey);
           modal.addEventListener("mousedown", onBackdrop);
@@ -3639,6 +3782,23 @@
       }
 
       /**
+       * The encrypted session sitting in storage right now, or null if what is
+       * there is plaintext, absent or unparseable. `lockedEnvelope` is only set
+       * in the tab that failed to open it, so anything that has to reason about
+       * the ciphertext — unlocking, and Reset's passphrase gate — reads through
+       * here rather than trusting that variable.
+       */
+      function readStoredEnvelope() {
+        if (lockedEnvelope) return lockedEnvelope;
+        try {
+          const parsed = JSON.parse(localStorage.getItem(SESSION_KEY) || "");
+          return isEncryptedEnvelope(parsed) ? parsed : null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      /**
        * Enter the locked state: the stored session is encrypted and we could
        * not open it. Saving is suspended (see saveSession) so the ciphertext
        * survives, and the user gets an unlimited number of further tries via
@@ -3681,16 +3841,8 @@
        */
       async function retryUnlockSession() {
         if (!sessionLocked) return;
-        let envelope = lockedEnvelope;
-        if (!envelope) {
-          // Re-read from storage in case this tab was reloaded into the state.
-          try {
-            const parsed = JSON.parse(localStorage.getItem(SESSION_KEY) || "");
-            if (isEncryptedEnvelope(parsed)) envelope = parsed;
-          } catch (e) {
-            /* fall through to the no-envelope case below */
-          }
-        }
+        // Re-reads storage when this tab was reloaded into the state.
+        const envelope = readStoredEnvelope();
         if (!envelope) {
           // Nothing encrypted is actually stored — release the brake.
           exitLockedState();
@@ -7330,27 +7482,150 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
+      const RESET_WARNING =
+        "This closes every window and deletes all CB App data saved in this " +
+        "browser: the session, any leftover keys from older versions, and any " +
+        "passphrase protection for this tab. Use Backup first if you want to " +
+        "keep it.";
+
+      /**
+       * The gate in front of Reset (v3.2.14). Resolves true only if the reset
+       * should go ahead.
+       *
+       * Protection has to mean more than "your notes are unreadable" — a
+       * passphrase that stops someone reading the desks but not throwing them
+       * away is barely a lock. So when the session is protected, Reset asks for
+       * the passphrase, not just for a click.
+       *
+       * Three cases, deliberately different:
+       *  - unprotected: a plain confirm, as before, just in the app's own box.
+       *  - protected and open: the passphrase is in memory, so check against it.
+       *  - protected and locked: nothing can verify it but the ciphertext, so
+       *    try to decrypt. Failing that there is the ERASE escape below,
+       *    because a forgotten passphrase must not brick the app forever.
+       */
+      async function confirmReset() {
+        const envelope = sessionLocked ? readStoredEnvelope() : null;
+        if (sessionLocked && envelope) return confirmResetLocked(envelope);
+        if (sessionPassphrase) return confirmResetProtected();
+        // Locked with nothing encrypted actually stored is not a protected
+        // session, whatever the banner says — treat it as the plain case.
+        return confirmDialog({
+          title: "Reset CB App?",
+          message: RESET_WARNING,
+          okLabel: "Reset everything",
+          danger: true,
+        });
+      }
+
+      // Protected and open. `sessionPassphrase` is the passphrase this session
+      // is encrypted with, so comparing against it is the same check a decrypt
+      // would make, without the round trip.
+      async function confirmResetProtected() {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const pass = await promptPassphrase({
+            title: "Reset CB App?",
+            message:
+              RESET_WARNING +
+              "\n\nThis session is passphrase-protected, so Reset needs the passphrase.",
+            label: "Passphrase",
+            okLabel: "Reset everything",
+          });
+          if (pass === null) {
+            showStatus("Reset cancelled — nothing was deleted.");
+            return false;
+          }
+          if (pass === sessionPassphrase) return true;
+          window.alert(
+            attempt < 2
+              ? "Wrong passphrase. Try again."
+              : "Wrong passphrase. Nothing was deleted."
+          );
+        }
+        showStatus("Reset cancelled — nothing was deleted.");
+        return false;
+      }
+
+      // Protected and locked: this tab never opened the session, so the only
+      // thing that can judge a passphrase is the ciphertext itself.
+      async function confirmResetLocked(envelope) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const pass = await promptPassphrase({
+            title: "Reset a protected session?",
+            message:
+              "The session saved in this browser is encrypted and has not been " +
+              "opened. Reset deletes it permanently, so it needs the passphrase.",
+            label: "Passphrase",
+            okLabel: "Reset everything",
+          });
+          if (pass === null) {
+            showStatus("Reset cancelled — the locked session is untouched.");
+            return false;
+          }
+          try {
+            await decryptSessionEnvelope(envelope, pass);
+            // Right passphrase. Whatever it caches is about to be cleared by
+            // the reset anyway.
+            return true;
+          } catch (e) {
+            if (attempt < 2) window.alert("Wrong passphrase. Try again.");
+          }
+        }
+        // Escape hatch, reachable only after three genuine failures. It is
+        // friction, not a second lock — a wrong passphrase three times over is
+        // exactly the state of someone who has lost it, and leaving them with a
+        // session that can never be opened *or* cleared would be worse than
+        // this. Everything else about Reset still demands the real passphrase.
+        const typed = await promptPassphrase({
+          title: "Erase the session without the passphrase?",
+          message:
+            "Wrong passphrase three times. If it is lost, this session can " +
+            "never be opened again and the only way forward is to delete it.\n\n" +
+            "Type ERASE to delete it permanently. This cannot be undone.",
+          label: 'Type ERASE to confirm',
+          okLabel: "Erase permanently",
+          masked: false,
+        });
+        if ((typed || "").trim().toUpperCase() !== "ERASE") {
+          showStatus("Reset cancelled — the locked session is untouched.");
+          return false;
+        }
+        return true;
+      }
+
       // Bound to the Reset button. Destroys the saved session, so confirm
-      // first when there is actually something to lose.
-      function loadSession(skipConfirm = false) {
+      // first when there is actually something to lose — and prove the
+      // passphrase first when the session is protected. See confirmReset().
+      async function loadSession(skipConfirm = false) {
         try {
           const hasWork =
             document.querySelectorAll(WINDOW_SELECTOR).length > 0 ||
             ALL_SESSION_KEYS.some((k) => !!localStorage.getItem(k));
           if (hasWork && skipConfirm !== true) {
-            if (
-              !confirm(
-                "Reset CB App?\n\nThis closes every window and deletes all CB App data saved in this browser (session, any leftover keys from older versions, and any passphrase protection for this tab). Use Backup first if you want to keep it."
-              )
-            ) {
-              return;
-            }
+            if (!(await confirmReset())) return;
           }
+          performReset();
+        } catch (e) {
+          console.error("Failed to reset UI:", e);
+          showStatus("Failed to reset UI.");
+        }
+      }
+
+      /**
+       * The reset itself, with no questions asked. Split out from loadSession()
+       * so it stays synchronous: Import calls it mid-flow and then keeps
+       * working on the state it just cleared, which an awaited call would let
+       * it do out of order.
+       */
+      function performReset() {
+        try {
           // Clear every key this app owns (not the entire origin).
           clearAllSessionStorage();
           clearSessionSecrets();
-          // Reset is the deliberate way out of a session nobody can open: the
-          // ciphertext is gone now, so there is nothing left to protect and
+          // Reset is still the way out of a session nobody can open — the gate
+          // in confirmReset() asks for the passphrase and, failing that, for
+          // ERASE, but by here the answer was given. The ciphertext is gone
+          // now, so there is nothing left to protect and
           // saving must resume — including after a boot that failed to read
           // the old copy and left the boot gate shut.
           exitLockedState();
@@ -7991,7 +8266,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               }
               // Clear UI without wiping the passphrase we just unlocked for this import.
               const keepPass = sessionPassphrase;
-              loadSession(true);
+              performReset();
               sessionPassphrase = keepPass;
               loadSessionFromStorage(session);
               // Persist validated (and re-encrypted if Protect is active) form.

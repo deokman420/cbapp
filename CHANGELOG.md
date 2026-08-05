@@ -7,6 +7,39 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.14] — 2026-08-05
+
+### Changed
+
+- **Reset asks in the app's own dialog, not the browser's.** The old prompt was
+  a `window.confirm` — chrome-styled, headed "phbeks.com says", and unable to
+  put any weight on the most destructive question the app asks. It is now the
+  same card the passphrase dialog uses, with a red "Reset everything" button
+  and focus starting on Cancel, so Enter on a dialog nobody read does nothing.
+- **A protected session cannot be reset without the passphrase.** Protection
+  used to stop someone reading your desks but not throwing them away, which is
+  barely a lock. Reset now asks for the passphrase whenever the session is
+  encrypted — checked against the one held in memory if the session is open, or
+  against the stored ciphertext if it is locked. Three tries, then it stops.
+
+### Added
+
+- **An ERASE escape for a lost passphrase.** After three wrong tries on a
+  locked session, Reset offers to delete it anyway if you type `ERASE`. Without
+  it a forgotten passphrase would leave a session that can neither be opened
+  nor cleared. It is friction rather than a second lock: anyone who reaches it
+  has already failed the passphrase three times.
+- `confirmDialog()`, an in-app replacement for `window.confirm()`, sharing the
+  passphrase dialog's card, focus trap, Escape handling and backdrop click.
+
+### Notes
+
+- The reset itself is now `performReset()`; `loadSession()` is the gate in
+  front of it. Import calls `performReset()` directly, so its synchronous
+  ordering is unchanged.
+
+---
+
 ## [3.2.13] — 2026-08-05
 
 ### Changed
