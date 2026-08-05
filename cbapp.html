@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.12 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.13 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2943,7 +2943,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.12";
+      const CB_APP_VERSION = "3.2.13";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3136,6 +3136,66 @@
         return validateSessionObject(session);
       }
 
+      /* One shape per kind, whichever desk the record came from. Same fields,
+         same caps and same coercions the four hand-written branches used to
+         carry — they are here once now so the two desks cannot drift. */
+      function validateSingletonRecord(base, raw, label) {
+        const common = {
+          mode: sanitizeMode(raw.mode),
+          visible: !!raw.visible,
+          position: sanitizePosition(
+            raw.position || { left: 50, top: 50 },
+            label
+          ),
+          locked: !!raw.locked,
+          minimized: !!raw.minimized,
+        };
+        if (base === "clock") {
+          return {
+            ...common,
+            width: String(raw.width ?? "200").slice(0, 20),
+            height: String(raw.height ?? "150").slice(0, 20),
+            name: String(raw.name || "Clock").slice(0, MAX_NAME_CHARS),
+            clockFormat: raw.clockFormat === "24" ? "24" : "12",
+          };
+        }
+        if (base === "calculator") {
+          let history = Array.isArray(raw.history)
+            ? raw.history.slice(0, MAX_HISTORY)
+            : [];
+          history = history.map((h, i) => {
+            assertPlainObject(h, `${label}.history[${i}]`);
+            return {
+              expression: String(h.expression ?? "").slice(0, 500),
+              result: String(h.result ?? "").slice(0, 100),
+            };
+          });
+          return {
+            ...common,
+            history,
+            width: String(raw.width ?? "250").slice(0, 20),
+          };
+        }
+        if (base === "log") {
+          let logs = Array.isArray(raw.logs) ? raw.logs.slice(0, MAX_LOGS) : [];
+          logs = logs.map((l, i) => {
+            assertPlainObject(l, `${label}.logs[${i}]`);
+            return {
+              timestamp: String(l.timestamp ?? "").slice(0, 80),
+              description: String(l.description ?? "").slice(0, 4000),
+            };
+          });
+          return {
+            ...common,
+            width: String(raw.width ?? "300").slice(0, 20),
+            height: String(raw.height ?? "300").slice(0, 20),
+            name: String(raw.name || "Log").slice(0, MAX_NAME_CHARS),
+            logs,
+          };
+        }
+        return common; // help — position, lock and minimised state only
+      }
+
       function isDangerousKey(key) {
         return (
           key === "__proto__" ||
@@ -3300,14 +3360,16 @@
           }
         }
         const out = {};
+        /* The singleton keys come from the registry rather than a hand-written
+           list: unknown top-level keys are dropped here on purpose (forward
+           compatibility), so a key missing from this set is not a validation
+           error you would see — it is a window that silently fails to come
+           back. That is exactly what happened to `log-canvas` the first time. */
         const known = new Set([
           "theme",
           "canvas",
-          "clock",
-          "calculator",
-          "log",
-          "help",
           "zIndexCounter",
+          ...Object.keys(SINGLETON_KEY_KIND),
         ]);
         for (const key of Object.keys(raw)) {
           if (key.startsWith("window")) {
@@ -3348,87 +3410,51 @@
                 ? Number(raw.canvas.zoom)
                 : 1,
             };
-          } else if (key === "clock" && raw.clock) {
-            assertPlainObject(raw.clock, "clock");
-            out.clock = {
-              mode: sanitizeMode(raw.clock.mode),
-              visible: !!raw.clock.visible,
-              position: sanitizePosition(
-                raw.clock.position || { left: 50, top: 50 },
-                "clock"
-              ),
-              width: String(raw.clock.width ?? "200").slice(0, 20),
-              height: String(raw.clock.height ?? "150").slice(0, 20),
-              name: String(raw.clock.name || "Clock").slice(0, MAX_NAME_CHARS),
-              clockFormat: raw.clock.clockFormat === "24" ? "24" : "12",
-              locked: !!raw.clock.locked,
-              minimized: !!raw.clock.minimized,
-            };
-          } else if (key === "calculator" && raw.calculator) {
-            assertPlainObject(raw.calculator, "calculator");
-            let history = Array.isArray(raw.calculator.history)
-              ? raw.calculator.history.slice(0, MAX_HISTORY)
-              : [];
-            history = history.map((h, i) => {
-              assertPlainObject(h, `calculator.history[${i}]`);
-              return {
-                expression: String(h.expression ?? "").slice(0, 500),
-                result: String(h.result ?? "").slice(0, 100),
-              };
-            });
-            out.calculator = {
-              mode: sanitizeMode(raw.calculator.mode),
-              visible: !!raw.calculator.visible,
-              history,
-              position: sanitizePosition(
-                raw.calculator.position || { left: 50, top: 50 },
-                "calculator"
-              ),
-              width: String(raw.calculator.width ?? "250").slice(0, 20),
-              locked: !!raw.calculator.locked,
-              minimized: !!raw.calculator.minimized,
-            };
-          } else if (key === "log" && raw.log) {
-            assertPlainObject(raw.log, "log");
-            let logs = Array.isArray(raw.log.logs)
-              ? raw.log.logs.slice(0, MAX_LOGS)
-              : [];
-            logs = logs.map((l, i) => {
-              assertPlainObject(l, `log.logs[${i}]`);
-              return {
-                timestamp: String(l.timestamp ?? "").slice(0, 80),
-                description: String(l.description ?? "").slice(0, 4000),
-              };
-            });
-            out.log = {
-              mode: sanitizeMode(raw.log.mode),
-              visible: !!raw.log.visible,
-              position: sanitizePosition(
-                raw.log.position || { left: 50, top: 50 },
-                "log"
-              ),
-              width: String(raw.log.width ?? "300").slice(0, 20),
-              height: String(raw.log.height ?? "300").slice(0, 20),
-              name: String(raw.log.name || "Log").slice(0, MAX_NAME_CHARS),
-              locked: !!raw.log.locked,
-              minimized: !!raw.log.minimized,
-              logs,
-            };
-          } else if (key === "help" && raw.help) {
-            assertPlainObject(raw.help, "help");
-            out.help = {
-              mode: sanitizeMode(raw.help.mode),
-              visible: !!raw.help.visible,
-              position: sanitizePosition(
-                raw.help.position || { left: 50, top: 50 },
-                "help"
-              ),
-              minimized: !!raw.help.minimized,
-              locked: !!raw.help.locked,
-            };
+          } else if (SINGLETON_KEY_KIND[key] && raw[key]) {
+            assertPlainObject(raw[key], key);
+            out[key] = validateSingletonRecord(
+              SINGLETON_KEY_KIND[key].base,
+              raw[key],
+              key
+            );
           }
         }
         return out;
+      }
+
+      /* The write side of validateSingletonRecord(). Mirrors it field for
+         field, keyed off the element rather than the record. */
+      function buildSingletonRecord(base, el) {
+        const record = {
+          visible: true,
+          mode: windowMode(el),
+          position: { left: el.dataset.x || "50", top: el.dataset.y || "50" },
+          locked: el.dataset.locked === "true",
+          minimized: el.style.display === "none",
+        };
+        if (base === "clock") {
+          record.width = el.dataset.width || "200";
+          record.height = el.dataset.height || "150";
+          record.name = el.querySelector(".clock-title").textContent;
+          record.clockFormat =
+            instancePart(el.id, "clock-format")?.value || "12";
+        } else if (base === "calculator") {
+          record.width = el.dataset.width || "250";
+          record.history = stateFor(el.id).history;
+        } else if (base === "log") {
+          record.width = el.dataset.width || "300";
+          record.height = el.dataset.height || "300";
+          record.name = el.querySelector(".log-title").textContent;
+          // Read back off the DOM, so a rename or a deleted row is captured
+          // even if something wrote the array without re-rendering.
+          record.logs = Array.from(el.querySelectorAll(".log-item")).map(
+            (item) => ({
+              timestamp: item.querySelector(".timestamp").textContent,
+              description: item.querySelector(".description").textContent,
+            })
+          );
+        }
+        return record;
       }
 
       async function persistSessionPayload(session) {
@@ -3717,26 +3743,9 @@
         taskCount = 0;
         stickyCount = 0;
         t2Count = 0;
-        calculatorCount = 0;
-        clockCount = 0;
         activeWindow = null;
         zIndexCounter = 1;
-        calculatorVisible = false;
-        clockVisible = false;
-        logVisible = false;
-        calculatorHistory = [];
-        logEntries = [];
-        [
-          ["calculator-toggle", "Calc"],
-          ["clock-toggle", "Clock"],
-          ["log-toggle", "Log"],
-        ].forEach(([id, label]) => {
-          const btn = document.getElementById(id);
-          if (btn) {
-            btn.textContent = label;
-            btn.classList.remove("active");
-          }
-        });
+        dropAllInstanceState();
         cascadeIndex = 0;
         cascadeAnchor = null;
         refreshChrome();
@@ -4010,8 +4019,6 @@
       let taskCount = 0;
       let stickyCount = 0;
       let t2Count = 0;
-      let calculatorCount = 0;
-      let clockCount = 0;
       let activeWindow = null;
       // lockedWindows removed along with the orphaned toggleLock(): lock state
       // lives on each element's dataset.locked, which is what toggleWindowLock()
@@ -4029,11 +4036,6 @@
       let activeTool = null;
       let offsetX = 0;
       let offsetY = 0;
-      let calculatorVisible = false;
-      let clockVisible = false;
-      let logVisible = false;
-      let calculatorHistory = [];
-      let logEntries = [];
       /* Counted across BOTH desks, deliberately, unlike every other "how many
          windows" question in here — this one guards how big a session can get
          before it stops fitting in localStorage, and a window costs the same
@@ -4183,57 +4185,108 @@
         });
       }
 
-      /* Moving a window to the desk you are on. The four singleton windows
-         (clock, calculator, log, help) have fixed ids, so a second one cannot
-         be created while the first exists — their toolbar buttons bring the
-         one that exists here instead, which doubles as the way to get a window
-         across when you built it on the wrong desk. Coordinates change meaning
-         between desks (screen pixels vs world pixels), so convert rather than
-         copy, and land it somewhere visible. */
-      function adoptIntoCurrentMode(el) {
-        if (!el || inCurrentMode(el)) return false;
-        const from = windowMode(el);
-        const x = parseFloat(el.dataset.x) || 0;
-        const y = parseFloat(el.dataset.y) || 0;
-        let next;
-        if (from === WINDOWED && currentMode() === CANVAS) {
-          // Screen -> world, through the view that is now on screen.
-          next = { x: (x - view.x) / view.zoom, y: (y - view.y) / view.zoom };
-        } else {
-          // World -> screen, through the canvas view it was living in.
-          const v = canvasViewMemory || { x: 0, y: 0, zoom: 1 };
-          next = { x: x * v.zoom + v.x, y: y * v.zoom + v.y };
-        }
-        el.dataset.mode = currentMode();
-        el.style.left = `${Math.round(next.x)}px`;
-        el.style.top = `${Math.round(next.y)}px`;
-        el.dataset.x = Math.round(next.x);
-        el.dataset.y = Math.round(next.y);
-        el.classList.remove("mode-hidden");
-        clampWindowIntoView(el);
-        return true;
+      /* ==========================================================
+         ONE PER DESK (v3.2.13)
+         ----------------------------------------------------------
+         Calc, Clock, Log and Help used to be one window each in total, with a
+         fixed id, so pressing the button from the other desk could only drag
+         the single window across. They are one per *desk* now — two at most,
+         independent of each other: separate log entries, separate calculator
+         history, separate stopwatch and countdown.
+
+         The windowed instance keeps the historic id so every session ever
+         written still restores into it untouched; the canvas one takes a
+         suffix. Everything inside a window is likewise suffixed with its
+         owner's id, because two of them in one document would otherwise be two
+         elements answering to `calculator-input` — and getElementById returns
+         the first, so the canvas keypad would have driven the plain view's
+         calculator. That per-window-id suffix is the same convention notes
+         (`clipboard-<id>`) and the clock (`clock-time-<id>`) already used.
+         ========================================================== */
+      const CANVAS_ID_SUFFIX = "-canvas";
+
+      /* The four, and the session key each one's record lives under. The key
+         is not always the element id: help's window has always been
+         `help-window` in the DOM and `help` in the session, and changing
+         either would strand every session already written. The canvas
+         instance takes the same suffix on both. */
+      const SINGLETON_KINDS = [
+        { base: "calculator", key: "calculator" },
+        { base: "clock", key: "clock" },
+        { base: "log", key: "log" },
+        { base: "help-window", key: "help" },
+      ];
+
+      function singletonKey(kindKey, mode) {
+        return (mode || currentMode()) === CANVAS
+          ? kindKey + CANVAS_ID_SUFFIX
+          : kindKey;
       }
 
-      /* Pressed the Clock button while the only clock is on the other desk.
-         Its id is fixed, so a second one cannot be made, and the toggle's
-         plain "it exists → remove it" branch would destroy the other desk's
-         clock from over here. Bring it across instead — which is also the only
-         way to move one of these four between desks. Returns true when it
-         handled the press. */
-      function claimSingleton(id, label) {
-        const el = document.getElementById(id);
-        if (!el || inCurrentMode(el)) return false;
-        adoptIntoCurrentMode(el);
-        // It may have been minimised over there; the button asked for it, so
-        // it arrives open.
-        el.style.display = "";
-        setActiveWindow(id);
-        refreshChrome();
-        showStatus(
-          `${label} moved to ${view.on ? "the big canvas" : "the plain view"}.`
-        );
-        saveSession();
-        return true;
+      /* Session key -> which kind it is, for both desks. Built once so the
+         validator and the restore path cannot drift from the writer. */
+      const SINGLETON_KEY_KIND = {};
+      SINGLETON_KINDS.forEach((kind) => {
+        SINGLETON_KEY_KIND[kind.key] = kind;
+        SINGLETON_KEY_KIND[kind.key + CANVAS_ID_SUFFIX] = kind;
+      });
+
+      function deskInstanceId(baseId, mode) {
+        return (mode || currentMode()) === CANVAS
+          ? baseId + CANVAS_ID_SUFFIX
+          : baseId;
+      }
+
+      /* The mutable state that used to be module-level globals — one calculator
+         history, one array of log entries, one stopwatch, one countdown, one
+         clock tick. All of it belongs to a window now. Keyed by window id
+         rather than by element so the save path can read it without holding a
+         node, and torn down explicitly: an interval outliving its window would
+         tick forever against elements that are no longer in the document. */
+      const instanceState = {};
+
+      function stateFor(windowId) {
+        let s = instanceState[windowId];
+        if (!s) {
+          s = {
+            history: [],
+            entries: [],
+            stopwatch: { interval: null, start: null, elapsed: 0 },
+            countdown: { interval: null, endTime: null, active: false },
+            tick: null,
+          };
+          instanceState[windowId] = s;
+        }
+        return s;
+      }
+
+      /* Closing a window stops its timers but keeps its data, which is how
+         the Log has always behaved: close it, reopen it, the entries are still
+         there. An interval, by contrast, would tick for the life of the tab
+         against elements that left the document. */
+      function stopInstanceTimers(windowId) {
+        const s = instanceState[windowId];
+        if (!s) return;
+        clearInterval(s.stopwatch.interval);
+        clearInterval(s.countdown.interval);
+        clearInterval(s.tick);
+        s.stopwatch.interval = null;
+        s.countdown.interval = null;
+        s.tick = null;
+      }
+
+      // Reset and Import, where the data itself is meant to go.
+      function dropInstanceState(windowId) {
+        stopInstanceTimers(windowId);
+        delete instanceState[windowId];
+      }
+
+      function dropAllInstanceState() {
+        Object.keys(instanceState).forEach(dropInstanceState);
+      }
+
+      function instancePart(windowId, part) {
+        return document.getElementById(`${part}-${windowId}`);
       }
 
       /* The canvas viewpoint, kept while you are away from it. It cannot live
@@ -4869,6 +4922,13 @@
 
       // The empty canvas and the minimised-window bar both derive purely from
       // the DOM, so one function keeps them honest after any change.
+      /* Which toolbar button lights up for which singleton window. */
+      const SINGLETON_TOGGLES = [
+        ["calculator-toggle", "calculator"],
+        ["clock-toggle", "clock"],
+        ["log-toggle", "log"],
+      ];
+
       function refreshChrome() {
         // This desk only: the other one's windows are in the DOM but are not
         // open as far as the user is concerned, so they must not suppress the
@@ -4876,6 +4936,23 @@
         const all = modeWindows();
         const emptyState = document.getElementById("empty-state");
         if (emptyState) emptyState.hidden = all.length > 0;
+
+        /* Derived, never bookkept. "Is the Log open?" is a question about
+           *this desk*, and the answer changes without anyone touching the Log
+           — switching desks is enough. The lit state used to be written at
+           open and cleared at close, so after a mode switch all three buttons
+           still advertised windows that were sitting on the desk you had just
+           left, and clicking one moved it here rather than doing what the lit
+           state implied. */
+        SINGLETON_TOGGLES.forEach(([buttonId, base]) => {
+          const btn = document.getElementById(buttonId);
+          if (btn) {
+            btn.classList.toggle(
+              "active",
+              !!document.getElementById(deskInstanceId(base))
+            );
+          }
+        });
         // Everything that adds, closes, minimises or restores a window already
         // funnels through here, so the minimap gets one hook instead of six.
         if (view.on) scheduleMapWindows();
@@ -5160,86 +5237,22 @@
                 : [],
             };
           });
-        const clock = document.getElementById("clock");
-        if (clock) {
-          session.clock = {
-            visible: clockVisible,
-            mode: windowMode(clock),
-            position: {
-              left: clock.dataset.x || "50",
-              top: clock.dataset.y || "50",
-            },
-            width: clock.dataset.width || "200",
-            height: clock.dataset.height || "150",
-            name: clock.querySelector(".clock-title").textContent,
-            clockFormat:
-              document.getElementById("clock-format-clock")?.value || "12",
-            locked: clock.dataset.locked === "true",
-            minimized: clock.style.display === "none",
-          };
-        }
-        if (document.getElementById("calculator")) {
-          session.calculator = {
-            visible: calculatorVisible,
-            mode: windowMode(document.getElementById("calculator")),
-            history: calculatorHistory,
-            position: {
-              left: document.getElementById("calculator").dataset.x || "50",
-              top: document.getElementById("calculator").dataset.y || "50",
-            },
-            width: document.getElementById("calculator").dataset.width || "250",
-            locked:
-              document.getElementById("calculator").dataset.locked === "true",
-            minimized:
-              document.getElementById("calculator").style.display === "none",
-          };
-        }
-        const log = document.getElementById("log");
-        if (log) {
-          session.log = {
-            visible: logVisible,
-            mode: windowMode(log),
-            position: {
-              left: log.dataset.x || "50",
-              top: log.dataset.y || "50",
-            },
-            width: log.dataset.width || "300",
-            height: log.dataset.height || "300",
-            name: log.querySelector(".log-title").textContent,
-            locked: log.dataset.locked === "true",
-            minimized: log.style.display === "none",
-            logs: Array.from(document.querySelectorAll(".log-item")).map(
-              (item) => ({
-                timestamp: item.querySelector(".timestamp").textContent,
-                description: item.querySelector(".description").textContent,
-              })
-            ),
-          };
-        } else {
-          session.log = {
-            visible: logVisible,
-            position: { left: "50", top: "50" },
-            width: "300",
-            height: "300",
-            name: "Log",
-            logs: logEntries,
-          };
-        }
-        // The help window was the one window type that silently vanished on
-        // refresh while every other one came back.
-        const help = document.getElementById("help-window");
-        session.help = help
-          ? {
-              visible: true,
-              mode: windowMode(help),
-              position: {
-                left: help.dataset.x || "50",
-                top: help.dataset.y || "50",
-              },
-              minimized: help.style.display === "none",
-              locked: help.dataset.locked === "true",
-            }
-          : { visible: false };
+        /* Up to two of each — one per desk — each under its own key. The
+           old code wrote a phantom `log` record when no log window existed,
+           carrying the entries; nothing ever read it back (restore only acts
+           on a record with visible:true), so it is gone rather than
+           reproduced twice. Entries still survive close-and-reopen within a
+           tab, which is where that behaviour was actually visible. */
+        SINGLETON_KINDS.forEach((kind) => {
+          [WINDOWED, CANVAS].forEach((mode) => {
+            const el = document.getElementById(deskInstanceId(kind.base, mode));
+            if (!el) return;
+            session[singletonKey(kind.key, mode)] = buildSingletonRecord(
+              kind.base,
+              el
+            );
+          });
+        });
         // The theme token only. <body> now also carries the transient canvas
         // classes, and persisting the whole className would save "canvas-panning"
         // if the tab closed mid-drag and restore a stuck grabbing cursor.
@@ -5629,11 +5642,11 @@
         showStatus("Log entry added to note!");
       }
 
-      function toggleHelpWindow() {
-        if (claimSingleton("help-window", "Help")) return;
-        const existing = document.getElementById("help-window");
+      function toggleHelpWindow(targetMode) {
+        const existingId = deskInstanceId("help-window", targetMode);
+        const existing = document.getElementById(existingId);
         if (existing && existing.style.display === "none") {
-          restoreWindow("help-window");
+          restoreWindow(existingId);
           return;
         }
         if (existing) {
@@ -5645,7 +5658,9 @@
         const windowsContainer = document.getElementById("windows");
         const helpWindow = document.createElement("div");
         helpWindow.className = "help-window";
-        helpWindow.id = "help-window";
+        const helpid = deskInstanceId("help-window", targetMode);
+        helpWindow.id = helpid;
+        if (targetMode) helpWindow.dataset.mode = targetMode;
 
         const defaultWidth = 620;
         const defaultHeight = 520;
@@ -5691,10 +5706,10 @@ Big canvas
 - The first time you turn the canvas on it is empty, because nothing has
   been created there yet. Your other windows are not gone - switch back
   and they are exactly as you left them.
-- Clock, Calc, Log and Help can only ever have one window each. Pressing
-  their toolbar button from the other workspace brings that window
-  across rather than making a second one, which is also how you move one
-  of them between workspaces.
+- Clock, Calc, Log and Help are one window per workspace, so you can have
+  one of each on both. The two are independent: separate log entries,
+  separate calculator history, separate stopwatch and countdown. Their
+  toolbar buttons light up only for the workspace you are looking at.
 
 Keyboard
 - Ctrl+Shift+N    new note
@@ -5743,9 +5758,9 @@ Enterprise browser
           <div class="help-header">
             <span class="help-title">CB App Instructions</span>
             <div class="help-controls">
-              <span class="minimize-window" onclick="minimizeWindow('help-window')" title="Minimize" role="button" tabindex="0">🗕</span>
-              <span class="lock-window" onclick="toggleWindowLock('help-window')" title="Freeze dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
-              <span class="close-window" onclick="toggleHelpWindow()" title="Close" role="button" tabindex="0">×</span>
+              <span class="minimize-window" onclick="minimizeWindow('${helpid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+              <span class="lock-window" onclick="toggleWindowLock('${helpid}')" title="Freeze dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
+              <span class="close-window" onclick="closeWindow('${helpid}')" title="Close" role="button" tabindex="0">×</span>
             </div>
           </div>
           <div class="help-content">
@@ -5756,7 +5771,7 @@ Enterprise browser
         windowsContainer.appendChild(helpWindow);
         makeDraggable(helpWindow);
         wireWindowFocus(helpWindow);
-        setActiveWindow("help-window");
+        setActiveWindow(helpid);
         refreshChrome();
         saveSession();
       }
@@ -5820,7 +5835,7 @@ Enterprise browser
         }
       }
 
-      function addCalculator() {
+      function addCalculator(targetMode) {
         // addClock and addCalculator had no cap guard at all, so the "maximum"
         // could be walked past two windows at a time.
         if (document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS) {
@@ -5830,8 +5845,9 @@ Enterprise browser
         const windowsContainer = document.getElementById("windows");
         const calculator = document.createElement("div");
         calculator.className = "calculator";
-        calculator.id = "calculator";
-        calculatorCount++;
+        const cid = deskInstanceId("calculator", targetMode);
+        calculator.id = cid;
+        if (targetMode) calculator.dataset.mode = targetMode;
         const calculatorLabel = "Calculator";
         // 250 was below the .calculator min-width of 350, so the declared and
         // rendered widths disagreed and placement was computed from the wrong one.
@@ -5846,38 +5862,38 @@ Enterprise browser
         <div class="calculator-header">
           <span class="calculator-title">${calculatorLabel}</span>
             <div class="calculator-controls">
-                <span class="minimize-window" onclick="minimizeWindow('calculator')" title="Minimize" role="button" tabindex="0">🗕</span>
-                <span class="lock-window" onclick="toggleWindowLock('calculator')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
-                <span class="close-calculator" onclick="toggleCalculator()" title="Close" role="button" tabindex="0">×</span>
+                <span class="minimize-window" onclick="minimizeWindow('${cid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+                <span class="lock-window" onclick="toggleWindowLock('${cid}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                <span class="close-calculator" onclick="closeWindow('${cid}')" title="Close" role="button" tabindex="0">×</span>
             </div>
         </div>
         <div class="calculator-content">
-            <input type="text" class="calculator-input" id="calculator-input" placeholder="Enter expression...">
-            <input type="text" class="calculator-display" id="calculator-display" readonly value="0" aria-label="Result" aria-live="polite">
+            <input type="text" class="calculator-input" id="calculator-input-${cid}" placeholder="Enter expression...">
+            <input type="text" class="calculator-display" id="calculator-display-${cid}" readonly value="0" aria-label="Result" aria-live="polite">
             <div class="calculator-buttons">
-                <button class="special" onclick="clearCalculator()">C</button>
-                <button class="operation" onclick="appendToDisplay('√')">√</button>
-                <button class="operation" onclick="appendToDisplay('%')">%</button>
-                <button class="operation" onclick="appendToDisplay('/')">/</button>
-                <button class="number" onclick="appendToDisplay('7')">7</button>
-                <button class="number" onclick="appendToDisplay('8')">8</button>
-                <button class="number" onclick="appendToDisplay('9')">9</button>
-                <button class="operation" onclick="appendToDisplay('*')">×</button>
-                <button class="number" onclick="appendToDisplay('4')">4</button>
-                <button class="number" onclick="appendToDisplay('5')">5</button>
-                <button class="number" onclick="appendToDisplay('6')">6</button>
-                <button class="operation" onclick="appendToDisplay('-')">-</button>
-                <button class="number" onclick="appendToDisplay('1')">1</button>
-                <button class="number" onclick="appendToDisplay('2')">2</button>
-                <button class="number" onclick="appendToDisplay('3')">3</button>
-                <button class="operation" onclick="appendToDisplay('+')">+</button>
-                <button class="number" onclick="appendToDisplay('0')" style="grid-column: span 2;">0</button>
-                <button class="number" onclick="appendToDisplay('.')">.</button>
-                <button class="operation" onclick="calculate()">=</button>
+                <button class="special" onclick="clearCalculator('${cid}')">C</button>
+                <button class="operation" onclick="appendToDisplay('${cid}','√')">√</button>
+                <button class="operation" onclick="appendToDisplay('${cid}','%')">%</button>
+                <button class="operation" onclick="appendToDisplay('${cid}','/')">/</button>
+                <button class="number" onclick="appendToDisplay('${cid}','7')">7</button>
+                <button class="number" onclick="appendToDisplay('${cid}','8')">8</button>
+                <button class="number" onclick="appendToDisplay('${cid}','9')">9</button>
+                <button class="operation" onclick="appendToDisplay('${cid}','*')">×</button>
+                <button class="number" onclick="appendToDisplay('${cid}','4')">4</button>
+                <button class="number" onclick="appendToDisplay('${cid}','5')">5</button>
+                <button class="number" onclick="appendToDisplay('${cid}','6')">6</button>
+                <button class="operation" onclick="appendToDisplay('${cid}','-')">-</button>
+                <button class="number" onclick="appendToDisplay('${cid}','1')">1</button>
+                <button class="number" onclick="appendToDisplay('${cid}','2')">2</button>
+                <button class="number" onclick="appendToDisplay('${cid}','3')">3</button>
+                <button class="operation" onclick="appendToDisplay('${cid}','+')">+</button>
+                <button class="number" onclick="appendToDisplay('${cid}','0')" style="grid-column: span 2;">0</button>
+                <button class="number" onclick="appendToDisplay('${cid}','.')">.</button>
+                <button class="operation" onclick="calculate('${cid}')">=</button>
             </div>
-            <div class="calculator-history" id="calculator-history"></div>
+            <div class="calculator-history" id="calculator-history-${cid}"></div>
             <div style="display: flex; gap: 5px; margin-top: 5px;">
-                <button class="special" onclick="clearHistory()" style="flex: 1;">Clear History</button>
+                <button class="special" onclick="clearHistory('${cid}')" style="flex: 1;">Clear History</button>
             </div>
         </div>
     `;
@@ -5886,18 +5902,15 @@ Enterprise browser
         // The calculator had no focus wiring at all, so clicking it never
         // raised it above whatever window was sitting on top of it.
         wireWindowFocus(calculator);
-        setActiveWindow("calculator");
+        setActiveWindow(cid);
         refreshChrome();
-        calculatorVisible = true;
-        document.getElementById("calculator-toggle").textContent = "Calc";
-        document.getElementById("calculator-toggle").classList.add("active");
-        updateCalculatorHistory();
-        const input = document.getElementById("calculator-input");
+        updateCalculatorHistory(cid);
+        const input = instancePart(cid, "calculator-input");
         if (input) {
           input.addEventListener("keydown", (e) => {
             if (e.key === "Enter") {
               e.preventDefault();
-              calculate();
+              calculate(cid);
             }
           });
         }
@@ -5906,28 +5919,26 @@ Enterprise browser
       }
 
       function toggleCalculator() {
-        if (claimSingleton("calculator", "Calculator")) return;
-        const calculator = document.getElementById("calculator");
-        const calcButton = document.getElementById("calculator-toggle");
+        const cid = deskInstanceId("calculator");
+        const calculator = document.getElementById(cid);
         // Minimize then click the toolbar button and this used to silently
         // destroy the window instead of bringing it back.
         if (calculator && calculator.style.display === "none") {
-          restoreWindow("calculator");
+          restoreWindow(cid);
           return;
         }
         if (calculator) {
           calculator.remove();
-          calculatorVisible = false;
-          calcButton.textContent = "Calc";
-          calcButton.classList.remove("active");
+          stopInstanceTimers(cid);
+          refreshChrome();
         } else {
           addCalculator();
         }
         saveSession();
       }
 
-      function appendToDisplay(value) {
-        const input = document.getElementById("calculator-input");
+      function appendToDisplay(windowId, value) {
+        const input = instancePart(windowId, "calculator-input");
         if (input) {
           if (input.value === "" && value === ".") {
             input.value = "0.";
@@ -5937,21 +5948,21 @@ Enterprise browser
         }
       }
 
-      function clearCalculator() {
-        const input = document.getElementById("calculator-input");
-        const display = document.getElementById("calculator-display");
+      function clearCalculator(windowId) {
+        const input = instancePart(windowId, "calculator-input");
+        const display = instancePart(windowId, "calculator-display");
         if (input) input.value = "";
         if (display) display.value = "0";
       }
 
-      function clearHistory() {
-        calculatorHistory = [];
-        updateCalculatorHistory();
+      function clearHistory(windowId) {
+        stateFor(windowId).history = [];
+        updateCalculatorHistory(windowId);
         saveSession();
       }
 
-      function updateCalculatorHistory() {
-        const historyDiv = document.getElementById("calculator-history");
+      function updateCalculatorHistory(windowId) {
+        const historyDiv = instancePart(windowId, "calculator-history");
         if (!historyDiv) return;
         // textContent, not innerHTML: the expression is whatever was typed into
         // the calculator, it is stored verbatim on the error path too, and it is
@@ -5959,34 +5970,33 @@ Enterprise browser
         // sink that survived a reload and rode along inside Backup — i.e.
         // it executed in the recipient's origin.
         historyDiv.textContent = "";
-        calculatorHistory.forEach((entry) => {
+        stateFor(windowId).history.forEach((entry) => {
           const row = document.createElement("p");
           row.textContent = `${entry.expression} = ${entry.result}`;
           historyDiv.appendChild(row);
         });
       }
 
-      function calculate() {
-        const input = document.getElementById("calculator-input");
-        const display = document.getElementById("calculator-display");
+      function calculate(windowId) {
+        const input = instancePart(windowId, "calculator-input");
+        const display = instancePart(windowId, "calculator-display");
         if (input && display) {
           let expression = input.value;
           if (!expression) {
             display.value = "0";
             return;
           }
+          const history = stateFor(windowId).history;
           try {
             let result = evaluateExpression(expression);
             display.value = isFinite(result) ? result : "Error";
-            calculatorHistory.push({ expression, result: display.value });
-            updateCalculatorHistory();
-            saveSession();
+            history.push({ expression, result: display.value });
           } catch {
             display.value = "Error";
-            calculatorHistory.push({ expression, result: "Error" });
-            updateCalculatorHistory();
-            saveSession();
+            history.push({ expression, result: "Error" });
           }
+          updateCalculatorHistory(windowId);
+          saveSession();
         }
       }
 
@@ -6037,7 +6047,7 @@ Enterprise browser
         return result;
       }
 
-      function addClock() {
+      function addClock(targetMode) {
         if (document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS) {
           showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
           return null;
@@ -6045,8 +6055,9 @@ Enterprise browser
         const windowsContainer = document.getElementById("windows");
         const newWindow = document.createElement("div");
         newWindow.className = "clock-window";
-        newWindow.id = "clock";
-        clockCount++;
+        const clkid = deskInstanceId("clock", targetMode);
+        newWindow.id = clkid;
+        if (targetMode) newWindow.dataset.mode = targetMode;
         const clockLabel = "Clock";
 
         /* 350x516 was not in fact tall enough: .clock-content overflowed by
@@ -6075,77 +6086,75 @@ Enterprise browser
         <div class="clock-header">
           <span class="clock-title">${clockLabel}</span>
             <div class="clock-controls">
-                <span class="minimize-window" onclick="minimizeWindow('clock')" title="Minimize" role="button" tabindex="0">🗕</span>
-                <span class="lock-window" onclick="toggleWindowLock('clock')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
-                <span class="close-clock" onclick="toggleClock()" title="Close" role="button" tabindex="0">×</span>
+                <span class="minimize-window" onclick="minimizeWindow('${clkid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+                <span class="lock-window" onclick="toggleWindowLock('${clkid}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                <span class="close-clock" onclick="closeWindow('${clkid}')" title="Close" role="button" tabindex="0">×</span>
             </div>
         </div>
         <div class="clock-content">
-            <div class="clock-time" id="clock-time-clock"></div>
-            <div class="clock-date" id="clock-date-clock"></div>
+            <div class="clock-time" id="clock-time-${clkid}"></div>
+            <div class="clock-date" id="clock-date-${clkid}"></div>
             <div class="timezone-times">
-                <div>Eastern: <span id="clock-eastern"></span></div>
-                <div>Central: <span id="clock-central"></span></div>
-                <div>Mountain: <span id="clock-mountain"></span></div>
-                <div>Pacific: <span id="clock-pacific"></span></div>
+                <div>Eastern: <span id="clock-eastern-${clkid}"></span></div>
+                <div>Central: <span id="clock-central-${clkid}"></span></div>
+                <div>Mountain: <span id="clock-mountain-${clkid}"></span></div>
+                <div>Pacific: <span id="clock-pacific-${clkid}"></span></div>
             </div>
             <div class="format-buttons">
-                <select id="clock-format-clock" onchange="updateClock('clock'); saveSession();">
+                <select id="clock-format-${clkid}" onchange="updateClock('${clkid}'); saveSession();">
                     <option value="12">12-Hour</option>
                     <option value="24">24-Hour</option>
                 </select>
             </div>
             <div style="margin-top:15px;">
                 <div style="font-weight:bold;">Stopwatch</div>
-                <div id="stopwatch-display" style="font-family:monospace;font-size:20px;">00:00:00.000</div>
+                <div id="stopwatch-display-${clkid}" style="font-family:monospace;font-size:20px;">00:00:00.000</div>
                 <div style="margin-top:5px;">
-                    <button onclick="startStopwatch()">Start</button>
-                    <button onclick="pauseStopwatch()">Pause</button>
-                    <button onclick="resetStopwatch()">Reset</button>
+                    <button onclick="startStopwatch('${clkid}')">Start</button>
+                    <button onclick="pauseStopwatch('${clkid}')">Pause</button>
+                    <button onclick="resetStopwatch('${clkid}')">Reset</button>
                 </div>
             </div>
             <div class="countdown-timer-container">
                 <div style="font-weight:bold;">Countdown Timer</div>
                 <div class="countdown-controls">
-                    <label class="countdown-field"><input type="number" id="countdown-minutes" min="0" max="120" value="30" aria-label="Countdown minutes"><span>min</span></label>
-                    <label class="countdown-field"><input type="number" id="countdown-seconds" min="0" max="59" value="0" aria-label="Countdown seconds"><span>sec</span></label>
-                    <button onclick="startCountdown()">Start</button>
-                    <button onclick="resetCountdown()">Reset</button>
+                    <label class="countdown-field"><input type="number" id="countdown-minutes-${clkid}" min="0" max="120" value="30" aria-label="Countdown minutes"><span>min</span></label>
+                    <label class="countdown-field"><input type="number" id="countdown-seconds-${clkid}" min="0" max="59" value="0" aria-label="Countdown seconds"><span>sec</span></label>
+                    <button onclick="startCountdown('${clkid}')">Start</button>
+                    <button onclick="resetCountdown('${clkid}')">Reset</button>
                 </div>
-                <div id="countdown-display" class="countdown-display">00:30:00</div>
+                <div id="countdown-display-${clkid}" class="countdown-display">00:30:00</div>
             </div>
         </div>
     `;
         windowsContainer.appendChild(newWindow);
         makeDraggable(newWindow);
         wireWindowFocus(newWindow);
-        setActiveWindow("clock");
+        setActiveWindow(clkid);
         refreshChrome();
-        updateClock("clock");
-        if (window._clockInterval) clearInterval(window._clockInterval);
-        window._clockInterval = setInterval(() => updateClock("clock"), 1000);
-        clockVisible = true;
-        document.getElementById("clock-toggle").textContent = "Clock";
-        document.getElementById("clock-toggle").classList.add("active");
+        updateClock(clkid);
+        // Its own ticker. One shared interval meant the second clock to open
+        // silently stopped the first one.
+        const clockState = stateFor(clkid);
+        clearInterval(clockState.tick);
+        clockState.tick = setInterval(() => updateClock(clkid), 1000);
         saveSession();
         showStatus("Clock window created!");
         return newWindow;
       }
 
       function toggleClock() {
-        if (claimSingleton("clock", "Clock")) return;
-        const clock = document.getElementById("clock");
-        const clockButton = document.getElementById("clock-toggle");
+        const clkid = deskInstanceId("clock");
+        const clock = document.getElementById(clkid);
         if (clock && clock.style.display === "none") {
-          restoreWindow("clock");
+          restoreWindow(clkid);
           return;
         }
         if (clock) {
           clock.remove();
-          if (window._clockInterval) { clearInterval(window._clockInterval); window._clockInterval = null; }
-          clockVisible = false;
-          clockButton.textContent = "Clock";
-          clockButton.classList.remove("active");
+          // Takes the tick, the stopwatch and the countdown down with it.
+          stopInstanceTimers(clkid);
+          refreshChrome();
         } else {
           addClock();
         }
@@ -6154,15 +6163,13 @@ Enterprise browser
 
       function updateClock(windowId) {
         if (!windowId) return;
-        const timeDiv = document.getElementById(`clock-time-${windowId}`);
-        const dateDiv = document.getElementById(`clock-date-${windowId}`);
-        const formatSelect = document.getElementById(
-          `clock-format-${windowId}`
-        );
-        const easternDiv = document.getElementById("clock-eastern");
-        const centralDiv = document.getElementById("clock-central");
-        const mountainDiv = document.getElementById("clock-mountain");
-        const pacificDiv = document.getElementById("clock-pacific");
+        const timeDiv = instancePart(windowId, "clock-time");
+        const dateDiv = instancePart(windowId, "clock-date");
+        const formatSelect = instancePart(windowId, "clock-format");
+        const easternDiv = instancePart(windowId, "clock-eastern");
+        const centralDiv = instancePart(windowId, "clock-central");
+        const mountainDiv = instancePart(windowId, "clock-mountain");
+        const pacificDiv = instancePart(windowId, "clock-pacific");
         if (
           timeDiv &&
           dateDiv &&
@@ -6225,16 +6232,13 @@ Enterprise browser
           });
         }
       }
-      let stopwatchInterval = null;
-      let stopwatchStart = null;
-      let stopwatchElapsed = 0;
-
-      function updateStopwatchDisplay() {
-        const display = document.getElementById("stopwatch-display");
+      function updateStopwatchDisplay(windowId) {
+        const display = instancePart(windowId, "stopwatch-display");
         if (!display) return;
-        let elapsed = stopwatchElapsed;
-        if (stopwatchStart) {
-          elapsed += Date.now() - stopwatchStart;
+        const sw = stateFor(windowId).stopwatch;
+        let elapsed = sw.elapsed;
+        if (sw.start) {
+          elapsed += Date.now() - sw.start;
         }
         const ms = elapsed % 1000;
         const totalSeconds = Math.floor(elapsed / 1000);
@@ -6248,30 +6252,38 @@ Enterprise browser
           `${ms.toString().padStart(3, "0")}`;
       }
 
-      function startStopwatch() {
-        if (!stopwatchStart) {
-          stopwatchStart = Date.now();
-          stopwatchInterval = setInterval(updateStopwatchDisplay, 31);
+      function startStopwatch(windowId) {
+        const sw = stateFor(windowId).stopwatch;
+        if (!sw.start) {
+          sw.start = Date.now();
+          sw.interval = setInterval(
+            () => updateStopwatchDisplay(windowId),
+            31
+          );
         }
       }
 
-      function pauseStopwatch() {
-        if (stopwatchStart) {
-          stopwatchElapsed += Date.now() - stopwatchStart;
-          stopwatchStart = null;
-          clearInterval(stopwatchInterval);
-          updateStopwatchDisplay();
+      function pauseStopwatch(windowId) {
+        const sw = stateFor(windowId).stopwatch;
+        if (sw.start) {
+          sw.elapsed += Date.now() - sw.start;
+          sw.start = null;
+          clearInterval(sw.interval);
+          sw.interval = null;
+          updateStopwatchDisplay(windowId);
         }
       }
 
-      function resetStopwatch() {
-        stopwatchElapsed = 0;
-        stopwatchStart = null;
-        clearInterval(stopwatchInterval);
-        updateStopwatchDisplay();
+      function resetStopwatch(windowId) {
+        const sw = stateFor(windowId).stopwatch;
+        sw.elapsed = 0;
+        sw.start = null;
+        clearInterval(sw.interval);
+        sw.interval = null;
+        updateStopwatchDisplay(windowId);
       }
 
-      function addLog() {
+      function addLog(targetMode) {
         if (
           document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
@@ -6281,7 +6293,9 @@ Enterprise browser
         const windowsContainer = document.getElementById("windows");
         const newWindow = document.createElement("div");
         newWindow.className = "log-window";
-        newWindow.id = "log";
+        const logid = deskInstanceId("log", targetMode);
+        newWindow.id = logid;
+        if (targetMode) newWindow.dataset.mode = targetMode;
         newWindow.style.zIndex = nextWindowZ();
         newWindow.dataset.width = 400;
         newWindow.dataset.height = 400;
@@ -6294,54 +6308,49 @@ Enterprise browser
                 <div class="log-header">
                     <span class="log-title">Log</span>
                     <div class="log-controls">
-                        <span class="edit-window" onclick="startRename('log')" title="Rename" role="button" tabindex="0">✏️</span>
-                        <span class="minimize-window" onclick="minimizeWindow('log')" title="Minimize" role="button" tabindex="0">🗕</span>
-                        <span class="lock-window" onclick="toggleWindowLock('log')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
-                        <span class="close-log" onclick="toggleLog()" title="Close" role="button" tabindex="0">×</span>
+                        <span class="edit-window" onclick="startRename('${logid}')" title="Rename" role="button" tabindex="0">✏️</span>
+                        <span class="minimize-window" onclick="minimizeWindow('${logid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+                        <span class="lock-window" onclick="toggleWindowLock('${logid}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
+                        <span class="close-log" onclick="closeWindow('${logid}')" title="Close" role="button" tabindex="0">×</span>
                     </div>
                 </div>
                 <div class="log-content">
                     <div class="log-input-container">
-                        <input type="text" class="log-input" id="log-input" placeholder="Enter log description...">
-                        <button onclick="addLogEntry()">Log</button>
+                        <input type="text" class="log-input" id="log-input-${logid}" placeholder="Enter log description...">
+                        <button onclick="addLogEntry('${logid}')">Log</button>
                     </div>
-                    <div class="log-list" id="log-list"></div>
+                    <div class="log-list" id="log-list-${logid}"></div>
                 </div>
             `;
         windowsContainer.appendChild(newWindow);
         makeDraggable(newWindow);
         wireWindowFocus(newWindow);
-        setActiveWindow("log");
+        setActiveWindow(logid);
         refreshChrome();
-        const logInput = document.getElementById("log-input");
+        const logInput = instancePart(logid, "log-input");
         logInput.addEventListener("keydown", (e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            addLogEntry();
+            addLogEntry(logid);
           }
         });
-        restoreLogEntries();
-        logVisible = true;
-        document.getElementById("log-toggle").textContent = "Log";
-        document.getElementById("log-toggle").classList.add("active");
+        restoreLogEntries(logid);
         saveSession();
         showStatus("Log window opened!");
         return newWindow;
       }
 
       function toggleLog() {
-        if (claimSingleton("log", "Log")) return;
-        const log = document.getElementById("log");
-        const logButton = document.getElementById("log-toggle");
+        const logid = deskInstanceId("log");
+        const log = document.getElementById(logid);
         if (log && log.style.display === "none") {
-          restoreWindow("log");
+          restoreWindow(logid);
           return;
         }
         if (log) {
           log.remove();
-          logVisible = false;
-          logButton.textContent = "Log";
-          logButton.classList.remove("active");
+          stopInstanceTimers(logid);
+          refreshChrome();
           showStatus("Log window hidden.");
         } else {
           addLog();
@@ -6352,7 +6361,7 @@ Enterprise browser
       // Single builder for new and restored entries so the two can't drift, and
       // so both get the delete control the log previously lacked entirely - it
       // was append-only with no way to remove a mistyped line.
-      function createLogItem(entry) {
+      function createLogItem(windowId, entry) {
         const logItem = document.createElement("div");
         logItem.className = "log-item";
         const ts = document.createElement("span");
@@ -6369,8 +6378,9 @@ Enterprise browser
         del.setAttribute("aria-label", `Delete log entry: ${entry.description}`);
         del.onclick = (e) => {
           e.stopPropagation();
-          const i = logEntries.indexOf(entry);
-          if (i > -1) logEntries.splice(i, 1);
+          const entries = stateFor(windowId).entries;
+          const i = entries.indexOf(entry);
+          if (i > -1) entries.splice(i, 1);
           logItem.remove();
           saveSession();
           showStatus("Log entry deleted.");
@@ -6382,9 +6392,9 @@ Enterprise browser
         return logItem;
       }
 
-      function addLogEntry() {
-        const logInput = document.getElementById("log-input");
-        const logList = document.getElementById("log-list");
+      function addLogEntry(windowId) {
+        const logInput = instancePart(windowId, "log-input");
+        const logList = instancePart(windowId, "log-list");
         if (!logInput || !logList) return;
         const description = logInput.value.trim();
         if (!description) {
@@ -6402,8 +6412,8 @@ Enterprise browser
           hour12: true,
         });
         const entry = { timestamp, description };
-        logEntries.push(entry);
-        logList.appendChild(createLogItem(entry));
+        stateFor(windowId).entries.push(entry);
+        logList.appendChild(createLogItem(windowId, entry));
         logInput.value = "";
         logInput.focus();
         logList.scrollTop = logList.scrollHeight;
@@ -6411,11 +6421,56 @@ Enterprise browser
         showStatus("Log entry added.");
       }
 
-      function restoreLogEntries() {
-        const logList = document.getElementById("log-list");
+      /* Rebuild one Calc / Clock / Log / Help from its record. The desk comes
+         from the record's own `mode`, not from whatever is on screen: this runs
+         before the view is restored, so currentMode() is still the boot default
+         and would put everything on the plain view. A record written before
+         v3.2.10 says nothing, and the caller's later fallback pass adopts those
+         onto whichever desk was showing — so windowed is the right guess here
+         and `restoredMode` is left alone for it to correct. */
+      function restoreSingleton(kind, record) {
+        const mode = record.mode === CANVAS ? CANVAS : WINDOWED;
+        const id = deskInstanceId(kind.base, mode);
+        // A pre-v3.2.13 session can name the same desk twice — its `calculator`
+        // record with mode:canvas, plus a `calculator-canvas` key from a later
+        // save. Two windows would collide on one id; first record wins.
+        if (document.getElementById(id)) return;
+        if (kind.base === "clock") addClock(mode);
+        else if (kind.base === "calculator") addCalculator(mode);
+        else if (kind.base === "log") addLog(mode);
+        else toggleHelpWindow(mode);
+
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.style.left = `${record.position.left}px`;
+        el.style.top = `${record.position.top}px`;
+        el.dataset.x = record.position.left;
+        el.dataset.y = record.position.top;
+
+        if (kind.base === "clock") {
+          const format = instancePart(id, "clock-format");
+          if (format) format.value = record.clockFormat;
+          updateClock(id);
+        } else if (kind.base === "calculator") {
+          stateFor(id).history = record.history || [];
+          updateCalculatorHistory(id);
+        } else if (kind.base === "log") {
+          stateFor(id).entries = record.logs || [];
+          restoreLogEntries(id);
+        }
+
+        if (record.minimized) el.style.display = "none";
+        if (record.mode) el.dataset.restoredMode = record.mode;
+        if (record.locked) applyWindowLock(el, true);
+      }
+
+      function restoreLogEntries(windowId) {
+        const logList = instancePart(windowId, "log-list");
         if (!logList) return;
         logList.innerHTML = "";
-        logEntries.forEach((entry) => logList.appendChild(createLogItem(entry)));
+        stateFor(windowId).entries.forEach((entry) =>
+          logList.appendChild(createLogItem(windowId, entry))
+        );
         logList.scrollTop = logList.scrollHeight;
       }
 
@@ -6782,34 +6837,17 @@ Enterprise browser
         }
       }
 
-      // Clock, Calculator and Log are singletons whose bookkeeping — the
-      // toolbar button's lit state, the *Visible flag, and the clock's 1s
-      // interval — lives in their toggle*() functions. closeWindow() only
-      // removed the element, so Ctrl+Shift+W on one of them left a stuck
-      // toolbar button and, for the clock, an interval ticking for the life of
-      // the tab. Route the singletons through the toggle that owns their state.
-      const SINGLETON_CLOSERS = {
-        clock: () => toggleClock(),
-        calculator: () => toggleCalculator(),
-        log: () => toggleLog(),
-      };
-
+      /* One path for every window type. The Clock, Calculator and Log used to
+         need routing through their toggle*() because that is where their
+         bookkeeping lived — the lit toolbar button, a *Visible flag, the 1s
+         interval — and closing one any other way left a stuck button and a
+         ticker running for the life of the tab. The lit state is derived now
+         and the timers hang off the instance, so stopping them here covers it. */
       function closeWindow(windowId) {
-        const singletonClose = SINGLETON_CLOSERS[windowId];
-        const singletonEl = singletonClose && document.getElementById(windowId);
-        if (singletonEl) {
-          disconnectResizeObserver(windowId);
-          if (activeWindow === windowId) activeWindow = null;
-          // Each toggle treats display:none as "minimized — bring it back", so
-          // clear that first or closing a minimized singleton would reopen it.
-          singletonEl.style.display = "";
-          singletonClose();
-          refreshChrome();
-          return;
-        }
         const windowElement = document.getElementById(windowId);
         if (windowElement) {
           disconnectResizeObserver(windowId);
+          stopInstanceTimers(windowId);
           windowElement.remove();
           if (activeWindow === windowId) {
             activeWindow = null;
@@ -7343,32 +7381,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           taskCount = 0;
           stickyCount = 0;
           t2Count = 0;
-          calculatorCount = 0;
-          clockCount = 0;
           activeWindow = null;
           zIndexCounter = 1;
-          calculatorVisible = false;
-          clockVisible = false;
-          logVisible = false;
-          calculatorHistory = [];
-          logEntries = [];
-
-          // Reset toggle buttons
-          const calcToggle = document.getElementById("calculator-toggle");
-          const clockToggle = document.getElementById("clock-toggle");
-          const logToggle = document.getElementById("log-toggle");
-          if (calcToggle) {
-            calcToggle.textContent = "Calc";
-            calcToggle.classList.remove("active");
-          }
-          if (clockToggle) {
-            clockToggle.textContent = "Clock";
-            clockToggle.classList.remove("active");
-          }
-          if (logToggle) {
-            logToggle.textContent = "Log";
-            logToggle.classList.remove("active");
-          }
+          dropAllInstanceState();
 
           cascadeIndex = 0;
           cascadeAnchor = null;
@@ -7478,63 +7493,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             if (windowData.locked) {
               applyWindowLock(windowElement, true);
             }
-          } else if (key === "clock" && session.clock.visible) {
-            addClock();
-            const clock = document.getElementById("clock");
-            if (clock) {
-              clock.style.left = `${session.clock.position.left}px`;
-              clock.style.top = `${session.clock.position.top}px`;
-              clock.dataset.x = session.clock.position.left;
-              clock.dataset.y = session.clock.position.top;
-              document.getElementById("clock-format-clock").value =
-                session.clock.clockFormat;
-              updateClock("clock");
-              if (session.clock.minimized) clock.style.display = "none";
-              if (session.clock.mode) clock.dataset.restoredMode = session.clock.mode;
-              if (session.clock.locked) applyWindowLock(clock, true);
-            }
-          } else if (key === "calculator" && session.calculator.visible) {
-            addCalculator();
-            const calculator = document.getElementById("calculator");
-            if (calculator) {
-              calculator.style.left = `${session.calculator.position.left}px`;
-              calculator.style.top = `${session.calculator.position.top}px`;
-              calculator.dataset.x = session.calculator.position.left;
-              calculator.dataset.y = session.calculator.position.top;
-              calculatorHistory = session.calculator.history || [];
-              updateCalculatorHistory();
-              if (session.calculator.minimized)
-                calculator.style.display = "none";
-              if (session.calculator.mode)
-                calculator.dataset.restoredMode = session.calculator.mode;
-              if (session.calculator.locked) applyWindowLock(calculator, true);
-            }
-          } else if (key === "log" && session.log.visible) {
-            addLog();
-            const log = document.getElementById("log");
-            if (log) {
-              log.style.left = `${session.log.position.left}px`;
-              log.style.top = `${session.log.position.top}px`;
-              log.dataset.x = session.log.position.left;
-              log.dataset.y = session.log.position.top;
-              logEntries = session.log.logs || [];
-              restoreLogEntries();
-              if (session.log.minimized) log.style.display = "none";
-              if (session.log.mode) log.dataset.restoredMode = session.log.mode;
-              if (session.log.locked) applyWindowLock(log, true);
-            }
-          } else if (key === "help" && session.help.visible) {
-            toggleHelpWindow();
-            const help = document.getElementById("help-window");
-            if (help) {
-              help.style.left = `${session.help.position.left}px`;
-              help.style.top = `${session.help.position.top}px`;
-              help.dataset.x = session.help.position.left;
-              help.dataset.y = session.help.position.top;
-              if (session.help.minimized) help.style.display = "none";
-              if (session.help.mode) help.dataset.restoredMode = session.help.mode;
-              if (session.help.locked) applyWindowLock(help, true);
-            }
+          } else if (SINGLETON_KEY_KIND[key] && session[key].visible) {
+            restoreSingleton(SINGLETON_KEY_KIND[key], session[key]);
           } else if (key.startsWith("sticky-note")) {
             const stickyNoteData = session[key];
             const newStickyNote = addStickyNote();
@@ -8062,15 +8022,12 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         input.click();
         document.body.removeChild(input);
       }
-      let countdownInterval = null;
-      let countdownEndTime = null;
-      let countdownActive = false;
       let originalFavicon = null;
 
-      function startCountdown() {
-        const minInput = document.getElementById("countdown-minutes");
-        const secInput = document.getElementById("countdown-seconds");
-        const display = document.getElementById("countdown-display");
+      function startCountdown(windowId) {
+        const minInput = instancePart(windowId, "countdown-minutes");
+        const secInput = instancePart(windowId, "countdown-seconds");
+        if (!minInput || !secInput) return;
         let minutes = parseInt(minInput.value, 10) || 0;
         let seconds = parseInt(secInput.value, 10) || 0;
         let totalMs = (minutes * 60 + seconds) * 1000;
@@ -8078,21 +8035,25 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           showStatus("Please enter a time greater than 0.");
           return;
         }
-        countdownEndTime = Date.now() + totalMs;
-        countdownActive = true;
-        updateCountdownDisplay();
-        if (countdownInterval) clearInterval(countdownInterval);
-        countdownInterval = setInterval(updateCountdownDisplay, 500);
+        const cd = stateFor(windowId).countdown;
+        cd.endTime = Date.now() + totalMs;
+        cd.active = true;
+        updateCountdownDisplay(windowId);
+        if (cd.interval) clearInterval(cd.interval);
+        cd.interval = setInterval(() => updateCountdownDisplay(windowId), 500);
         showStatus(`Countdown started for ${minutes} min ${seconds} sec!`);
       }
 
-      function resetCountdown() {
-        countdownActive = false;
-        countdownEndTime = null;
-        clearInterval(countdownInterval);
-        const minInput = document.getElementById("countdown-minutes");
-        const secInput = document.getElementById("countdown-seconds");
-        const display = document.getElementById("countdown-display");
+      function resetCountdown(windowId) {
+        const cd = stateFor(windowId).countdown;
+        cd.active = false;
+        cd.endTime = null;
+        clearInterval(cd.interval);
+        cd.interval = null;
+        const minInput = instancePart(windowId, "countdown-minutes");
+        const secInput = instancePart(windowId, "countdown-seconds");
+        const display = instancePart(windowId, "countdown-display");
+        if (!minInput || !secInput || !display) return;
         let minutes = parseInt(minInput.value, 10) || 0;
         let seconds = parseInt(secInput.value, 10) || 0;
         display.textContent = `${Math.floor(minutes / 60)
@@ -8103,14 +8064,16 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         restoreFavicon();
       }
 
-      function updateCountdownDisplay() {
-        const display = document.getElementById("countdown-display");
-        if (!countdownActive || !countdownEndTime) return;
-        let msLeft = countdownEndTime - Date.now();
+      function updateCountdownDisplay(windowId) {
+        const display = instancePart(windowId, "countdown-display");
+        const cd = stateFor(windowId).countdown;
+        if (!display || !cd.active || !cd.endTime) return;
+        let msLeft = cd.endTime - Date.now();
         if (msLeft <= 0) {
           display.textContent = "00:00:00";
-          countdownActive = false;
-          clearInterval(countdownInterval);
+          cd.active = false;
+          clearInterval(cd.interval);
+          cd.interval = null;
           upliftingNotification();
           setCountdownFavicon();
           return;

@@ -7,6 +7,57 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.13] — 2026-08-05
+
+### Changed
+
+- **Clock, Calc, Log and Help are one window per workspace, not one in total.**
+  You can have a calculator on the canvas and another in the plain view, and
+  they are genuinely independent: separate log entries, separate calculator
+  history, separate stopwatch and countdown. Previously a single fixed id meant
+  a second one could not exist, so pressing the button from the other desk
+  could only drag the one window across.
+- Each window's inner elements are now suffixed with their owner's id
+  (`calculator-input-calculator`, `stopwatch-display-clock-canvas`), which is
+  the convention notes (`clipboard-<id>`) and the clock (`clock-time-<id>`)
+  already used. Two windows sharing one set of ids would have been two elements
+  answering to `calculator-input`, and `getElementById` returns the first — so
+  the canvas keypad would have driven the plain view's calculator.
+- The mutable state that used to be module-level globals — one calculator
+  history, one array of log entries, one stopwatch, one countdown, one 1-second
+  clock tick — belongs to a window now, keyed by window id. One shared interval
+  meant the second clock to open silently stopped the first.
+- Sessions store up to two records per kind, under the window's own key
+  (`log`, `log-canvas`). A session written by any earlier version carries one
+  unsuffixed record and restores onto the desk its own `mode` names, so a
+  calculator saved on the canvas comes back on the canvas.
+- `claimSingleton()` and `adoptIntoCurrentMode()` are gone with the behaviour
+  they existed for, and `closeWindow()` no longer needs to route these four
+  through their toggles: the lit button is derived and the timers hang off the
+  instance, so one path closes every window type. The `calculatorCount` and
+  `clockCount` counters went too — both were write-only, and with a fixed name
+  and at most one per desk they could never have numbered anything.
+
+### Fixed
+
+- **The Calc, Clock and Log buttons no longer claim a window is open when it is
+  on the other workspace.** Open all three in the plain view, switch to the
+  canvas, and all three stayed lit while the windows were correctly back on the
+  other desk. The lit state was bookkept — written at open, cleared at close —
+  but "is the Log open?" is a question about the desk you are looking at, and
+  its answer changes when nobody has touched the Log at all. It is derived in
+  `refreshChrome()` now.
+- Closing any of the three from the toolbar never called `refreshChrome()`, so
+  it left the empty-state hint suppressed by a window that no longer existed,
+  and a stale block in the canvas minimap.
+- The session validator drops unknown top-level keys on purpose, for forward
+  compatibility — which meant a key missing from its allowlist was not a
+  validation error anyone would see, but a window that silently failed to come
+  back. The allowlist is built from the singleton registry now rather than
+  hand-written, which is how `log-canvas` was caught.
+
+---
+
 ## [3.2.12] — 2026-08-05
 
 ### Fixed
