@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.8 — 2026-07-30. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.11 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -1189,6 +1189,16 @@
         align-self: flex-start;
       }
 
+      /* A window belonging to the other desk. Deliberately a class and not
+         style.display, which is the minimise flag: a window minimised on the
+         canvas has to come back minimised when you return to the canvas, so
+         the two states must not share a channel. !important because the
+         window types set display in their own rules (.clock-window is flex),
+         and minimise writes it inline. */
+      .mode-hidden {
+        display: none !important;
+      }
+
       .clock-window {
         display: flex;
         flex-direction: column;
@@ -1217,19 +1227,29 @@
         margin-bottom: 16px;
       }
 
+      /* These two rules described a countdown inside .clock-content and had
+         been inert since it was moved out to a sibling — moving it back in
+         (below) switched them on for the first time, and between the wider gap
+         and 8px on each side of both number inputs the row no longer fit,
+         wrapping Reset onto a line of its own. The base .countdown-controls
+         rule is the one that was actually keeping it on a single row, so let
+         it. Only the top margin is wanted here. */
       .clock-content .countdown-controls {
         margin-top: 12px;
-        gap: 12px;
         padding-bottom: 6px;
       }
 
-      .clock-content .countdown-controls input[type="number"],
       .clock-content select {
         margin: 0 8px;
       }
 
-      .countdown-timer-container {
-        padding: 0 20px 16px;
+      /* Inside .clock-content since v3.2.9 — it used to be a sibling below the
+         flex:1 scroller, so every pixel the window was taller than its content
+         opened as dead space between the stopwatch buttons and this block.
+         The scroller's own padding covers it now. */
+      .clock-content .countdown-timer-container {
+        padding: 0;
+        margin-top: 0;
       }
 
       /* Unified custom scrollbar styling - clock is the reference */
@@ -2059,6 +2079,16 @@
         transition: color 0.2s, border-color 0.2s, background 0.2s;
       }
 
+      /* Small print, and it stays small print on hover — the chip already turns
+         red to say it writes a file, and a version stamp brightening along with
+         it would read as part of the warning rather than as a label. */
+      .download-app-version {
+        font-size: 9px;
+        letter-spacing: 0.06em;
+        opacity: 0.65;
+        font-variant-numeric: tabular-nums;
+      }
+
       /* Deliberately the one control that highlights red rather than the accent
          teal: it writes a file to disk, so it reads as distinct from the
          in-app actions that all share the teal hover. */
@@ -2778,7 +2808,7 @@
             </button>
             <button
               onclick="downloadSessionJSON()"
-              data-tooltip="Download Session JSON"
+              data-tooltip="Download an encrypted backup (.json)"
             >
               Backup
             </button>
@@ -2861,6 +2891,7 @@
         title="Save a blank copy of CB App as a single .html file — your notes are not included, use Backup for those"
       >
         Download CB App
+        <span class="download-app-version" id="download-app-version"></span>
       </a>
     </div>
     <div
@@ -2905,6 +2936,15 @@
       </form>
     </div>
     <script type="text/javascript">
+      /* The build this file is. Shown in small print on the Download chip so a
+         copy saved to disk months ago can be told apart from the current one —
+         the file is always called cbapp.html, and until now nothing inside it
+         said which build it was without reading the source comment.
+
+         Stamped into the chip at boot rather than written straight into the
+         markup, so the constant is the only place a release has to change. */
+      const CB_APP_VERSION = "3.2.11";
+
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
       // validation. Passphrase stays in memory only for this tab session.
@@ -3040,14 +3080,7 @@
         return key;
       }
 
-      async function encryptSessionObject(session, passphrase) {
-        // Reuse salt+key across saves in this tab; new IV every encrypt.
-        const salt =
-          sessionKeySalt && sessionPassphrase === passphrase
-            ? sessionKeySalt
-            : crypto.getRandomValues(new Uint8Array(16));
-        const iv = crypto.getRandomValues(new Uint8Array(12));
-        const key = await ensureSessionKey(passphrase, salt);
+      async function sealEnvelope(session, key, salt, iv) {
         const plain = new TextEncoder().encode(JSON.stringify(session));
         const ct = await crypto.subtle.encrypt(
           { name: "AES-GCM", iv },
@@ -3063,6 +3096,30 @@
           iv: bufToB64(iv),
           ct: bufToB64(ct),
         };
+      }
+
+      async function encryptSessionObject(session, passphrase) {
+        // Reuse salt+key across saves in this tab; new IV every encrypt.
+        const salt =
+          sessionKeySalt && sessionPassphrase === passphrase
+            ? sessionKeySalt
+            : crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await ensureSessionKey(passphrase, salt);
+        return sealEnvelope(session, key, salt, iv);
+      }
+
+      // Encryption for a file that leaves this browser. Deliberately does NOT
+      // go through ensureSessionKey(): that caches into sessionPassphrase /
+      // sessionCryptoKey / sessionKeySalt, so a one-off Backup passphrase
+      // would silently re-key — or newly encrypt — this tab's own localStorage
+      // session. A Backup passphrase belongs to the file, nothing else. Fresh
+      // salt and IV every time, so two backups never share key material.
+      async function encryptForExport(session, passphrase) {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await deriveAesKey(passphrase, salt);
+        return sealEnvelope(session, key, salt, iv);
       }
 
       async function decryptSessionEnvelope(envelope, passphrase) {
@@ -3147,6 +3204,22 @@
         return { left: String(lx), top: String(ty) };
       }
 
+      /* Which desk a window belongs to. Anything else — including a session
+         written before v3.2.10, which says nothing at all — is adopted by the
+         plain view, and the restore path re-homes those to whichever desk was
+         active when the session was saved. */
+      function sanitizeMode(value) {
+        /* Absent has to stay absent rather than defaulting to "windowed" here.
+           A session written before v3.2.10 says nothing about modes, and if
+           that silence were read as "the plain view", one saved with the
+           canvas on would restore every window onto the desk the user was not
+           looking at — an empty canvas that reads as having lost the lot. The
+           restore path re-homes an absent mode to whichever desk was active.
+           A malformed one is a different case: it is coerced, not dropped. */
+        if (value === undefined || value === null) return undefined;
+        return value === "canvas" ? "canvas" : "windowed";
+      }
+
       function sanitizeWindowRecord(data, label, { isSticky = false } = {}) {
         assertPlainObject(data, label);
         for (const k of Object.keys(data)) {
@@ -3155,6 +3228,7 @@
           }
         }
         const out = {
+          mode: sanitizeMode(data.mode),
           position: sanitizePosition(data.position || { left: 50, top: 50 }, label),
           width:
             data.width === undefined
@@ -3275,6 +3349,7 @@
           } else if (key === "clock" && raw.clock) {
             assertPlainObject(raw.clock, "clock");
             out.clock = {
+              mode: sanitizeMode(raw.clock.mode),
               visible: !!raw.clock.visible,
               position: sanitizePosition(
                 raw.clock.position || { left: 50, top: 50 },
@@ -3300,6 +3375,7 @@
               };
             });
             out.calculator = {
+              mode: sanitizeMode(raw.calculator.mode),
               visible: !!raw.calculator.visible,
               history,
               position: sanitizePosition(
@@ -3323,6 +3399,7 @@
               };
             });
             out.log = {
+              mode: sanitizeMode(raw.log.mode),
               visible: !!raw.log.visible,
               position: sanitizePosition(
                 raw.log.position || { left: 50, top: 50 },
@@ -3338,6 +3415,7 @@
           } else if (key === "help" && raw.help) {
             assertPlainObject(raw.help, "help");
             out.help = {
+              mode: sanitizeMode(raw.help.mode),
               visible: !!raw.help.visible,
               position: sanitizePosition(
                 raw.help.position || { left: 50, top: 50 },
@@ -3469,6 +3547,38 @@
           modal.addEventListener("keydown", onKey);
           modal.addEventListener("mousedown", onBackdrop);
         });
+      }
+
+      /**
+       * Ask twice for a brand-new passphrase and only return it when both
+       * entries match and clear the length floor. Shared by Protect and by
+       * Backup so the two can't drift on rules or wording. Resolves to null
+       * on cancel or on any failed check — callers just abort.
+       */
+      async function promptNewPassphrase({ title, message, okLabel } = {}) {
+        const pass = await promptPassphrase({
+          title,
+          message,
+          label: "New passphrase (6+ characters)",
+          okLabel: "Continue",
+        });
+        if (pass === null) return null;
+        if (!pass || pass.length < 6) {
+          window.alert("Use a passphrase of at least 6 characters.");
+          return null;
+        }
+        const again = await promptPassphrase({
+          title: "Confirm passphrase",
+          message: "Type the same passphrase again to confirm.",
+          label: "Confirm passphrase",
+          okLabel: okLabel || "OK",
+        });
+        if (again === null) return null;
+        if (pass !== again) {
+          window.alert("Passphrases did not match.");
+          return null;
+        }
+        return pass;
       }
 
       async function unlockEnvelopeWithPrompt(envelope, reason) {
@@ -3708,7 +3818,7 @@
         if (sessionPassphrase) {
           if (
             !window.confirm(
-              "Remove passphrase protection?\n\nYour session will be saved in plaintext in this browser again. Backups will also be plaintext unless you re-enable Protect."
+              "Remove passphrase protection?\n\nYour session will be saved in plaintext in this browser again. Backups stay encrypted either way — Backup will ask you for a passphrase each time instead of reusing this one."
             )
           ) {
             return;
@@ -3724,29 +3834,13 @@
           }
           return;
         }
-        const pass = await promptPassphrase({
+        const pass = await promptNewPassphrase({
           title: "Protect this session",
           message:
-            "Choose a passphrase to encrypt this session in the browser and in backups.\n\nYou will need it every time you open CB App on this origin. It is never stored — only you know it.",
-          label: "New passphrase (6+ characters)",
-          okLabel: "Continue",
-        });
-        if (pass === null) return;
-        if (!pass || pass.length < 6) {
-          window.alert("Use a passphrase of at least 6 characters.");
-          return;
-        }
-        const again = await promptPassphrase({
-          title: "Confirm passphrase",
-          message: "Type the same passphrase again to confirm.",
-          label: "Confirm passphrase",
+            "Choose a passphrase to encrypt this session in the browser.\n\nYou will need it every time you open CB App on this origin. It is never stored — only you know it.",
           okLabel: "Protect",
         });
-        if (again === null) return;
-        if (pass !== again) {
-          window.alert("Passphrases did not match.");
-          return;
-        }
+        if (pass === null) return;
         try {
           // Fresh salt for a newly protected session.
           sessionCryptoKey = null;
@@ -3938,6 +4032,10 @@
       let logVisible = false;
       let calculatorHistory = [];
       let logEntries = [];
+      /* Counted across BOTH desks, deliberately, unlike every other "how many
+         windows" question in here — this one guards how big a session can get
+         before it stops fitting in localStorage, and a window costs the same
+         whether or not it is the desk you are looking at. */
       const MAX_WINDOWS = 25;
 
       // Every window type used to spawn at a fixed spot - notes, calculator,
@@ -3998,6 +4096,149 @@
       const ZOOM_MAX = 2;
       const ZOOM_STEP = 1.15;
       const view = { on: false, x: 0, y: 0, zoom: 1 };
+
+      /* ==========================================================
+         Mode-scoped windows (v3.2.10)
+         ----------------------------------------------------------
+         The two modes are two different desks, not two views of one desk.
+         Windowed is a single screen you arrange tightly; the canvas is three
+         screens you spread out across. A window belongs to the desk it was
+         created on and appears on that desk only.
+
+         v3.2.9 got this half right — it gave each mode its own *positions*
+         while every window stayed in both — so opening a T2 template on the
+         canvas also put one in windowed mode, and closing it in one place
+         left the other behind. Membership is the thing that has to be
+         per-mode; once it is, positions follow for free, because a window
+         that only ever exists on one desk never needs a second coordinate.
+
+         Mode is a data attribute so it survives everything that already
+         round-trips a window (save, restore, backup, import). Hiding is a
+         class rather than style.display, which is the minimise flag — the two
+         are independent, and a window minimised on the canvas must still come
+         back minimised when you return to it.
+         ========================================================== */
+      const WINDOWED = "windowed";
+      const CANVAS = "canvas";
+
+      function currentMode() {
+        return view.on ? CANVAS : WINDOWED;
+      }
+
+      // Sessions written before v3.2.10 have no mode on their windows. They
+      // are adopted by whichever desk is active when they load, which is the
+      // one the user was last looking at them on.
+      function windowMode(el) {
+        return el.dataset.mode === CANVAS ? CANVAS : WINDOWED;
+      }
+
+      function inCurrentMode(el) {
+        return windowMode(el) === currentMode();
+      }
+
+      /* Every "what is open" question means the desk on screen: the empty-state
+         hint, the minimised bar, the overview map, zoom-to-fit, the cascade
+         staircase, the nav tooltips, and what gets focused when the active
+         window closes. The DOM holds both desks, so asking it directly is the
+         bug — that is what made a window created in one mode show up in the
+         other. The window cap is the deliberate exception (see MAX_WINDOWS). */
+      function modeWindows() {
+        return Array.from(document.querySelectorAll(WINDOW_SELECTOR)).filter(
+          inCurrentMode
+        );
+      }
+
+      /* offsetWidth/offsetHeight are 0 for anything display:none. That was
+         already quietly true of a minimised window — minimise it, and the very
+         next save wrote width:0 and height:0 into its record, which restore
+         faithfully rebuilt as a 0px window that came back from the chip bar
+         invisible. Mode-hidden windows are display:none for a second reason,
+         so the same hole would have swallowed the size of every window on the
+         desk you were not looking at, on every save.
+
+         So: whenever a window is measured while it is actually being rendered,
+         remember the box; when it is not, answer with what it last was. */
+      function measuredBox(el) {
+        const w = el.offsetWidth;
+        const h = el.offsetHeight;
+        if (w && h) {
+          el.dataset.boxW = w;
+          el.dataset.boxH = h;
+          return { width: w, height: h };
+        }
+        return {
+          width: parseFloat(el.dataset.boxW) || parseFloat(el.dataset.width) || 0,
+          height: parseFloat(el.dataset.boxH) || parseFloat(el.dataset.height) || 0,
+        };
+      }
+
+      function applyModeVisibility() {
+        document.querySelectorAll(WINDOW_SELECTOR).forEach((el) => {
+          const hide = !inCurrentMode(el);
+          // Take the measurement while it is still rendered.
+          if (hide && !el.classList.contains("mode-hidden")) measuredBox(el);
+          el.classList.toggle("mode-hidden", hide);
+        });
+      }
+
+      /* Moving a window to the desk you are on. The four singleton windows
+         (clock, calculator, log, help) have fixed ids, so a second one cannot
+         be created while the first exists — their toolbar buttons bring the
+         one that exists here instead, which doubles as the way to get a window
+         across when you built it on the wrong desk. Coordinates change meaning
+         between desks (screen pixels vs world pixels), so convert rather than
+         copy, and land it somewhere visible. */
+      function adoptIntoCurrentMode(el) {
+        if (!el || inCurrentMode(el)) return false;
+        const from = windowMode(el);
+        const x = parseFloat(el.dataset.x) || 0;
+        const y = parseFloat(el.dataset.y) || 0;
+        let next;
+        if (from === WINDOWED && currentMode() === CANVAS) {
+          // Screen -> world, through the view that is now on screen.
+          next = { x: (x - view.x) / view.zoom, y: (y - view.y) / view.zoom };
+        } else {
+          // World -> screen, through the canvas view it was living in.
+          const v = canvasViewMemory || { x: 0, y: 0, zoom: 1 };
+          next = { x: x * v.zoom + v.x, y: y * v.zoom + v.y };
+        }
+        el.dataset.mode = currentMode();
+        el.style.left = `${Math.round(next.x)}px`;
+        el.style.top = `${Math.round(next.y)}px`;
+        el.dataset.x = Math.round(next.x);
+        el.dataset.y = Math.round(next.y);
+        el.classList.remove("mode-hidden");
+        clampWindowIntoView(el);
+        return true;
+      }
+
+      /* Pressed the Clock button while the only clock is on the other desk.
+         Its id is fixed, so a second one cannot be made, and the toggle's
+         plain "it exists → remove it" branch would destroy the other desk's
+         clock from over here. Bring it across instead — which is also the only
+         way to move one of these four between desks. Returns true when it
+         handled the press. */
+      function claimSingleton(id, label) {
+        const el = document.getElementById(id);
+        if (!el || inCurrentMode(el)) return false;
+        adoptIntoCurrentMode(el);
+        // It may have been minimised over there; the button asked for it, so
+        // it arrives open.
+        el.style.display = "";
+        setActiveWindow(id);
+        refreshChrome();
+        showStatus(
+          `${label} moved to ${view.on ? "the big canvas" : "the plain view"}.`
+        );
+        saveSession();
+        return true;
+      }
+
+      /* The canvas viewpoint, kept while you are away from it. It cannot live
+         in `view` because that is reset to the identity transform whenever the
+         canvas is off, and it is what makes returning to the canvas put you
+         back where you were rather than at the default centre. */
+      let canvasViewMemory = null;
 
       // Grow-only: shrinking the world after windows have been parked out
       // there would strand them past the clamp, with no way to reach them.
@@ -4203,7 +4444,7 @@
         if (!s) return;
         inner.querySelectorAll(".map-window").forEach((n) => n.remove());
         const frame = document.getElementById("map-viewport");
-        document.querySelectorAll(WINDOW_SELECTOR).forEach((el) => {
+        modeWindows().forEach((el) => {
           if (el.style.display === "none") return; // minimised
           const block = document.createElement("div");
           block.className = "map-window";
@@ -4323,9 +4564,9 @@
       // size of the screen.
       function zoomToFit() {
         if (!view.on) return;
-        const windows = Array.from(
-          document.querySelectorAll(WINDOW_SELECTOR)
-        ).filter((el) => el.style.display !== "none");
+        const windows = modeWindows().filter(
+          (el) => el.style.display !== "none"
+        );
         if (!windows.length) {
           resetView();
           return;
@@ -4379,63 +4620,71 @@
       function toggleCanvasMode(force) {
         const next = force === undefined ? !view.on : !!force;
         if (next === view.on) return;
+
+        /* Windows do not move across the toggle any more — each desk keeps its
+           own, and they simply stop being shown. What still has to be carried
+           is the canvas viewpoint, because `view` is reset to the identity
+           transform while the canvas is off. */
+        if (view.on) {
+          canvasViewMemory = { x: view.x, y: view.y, zoom: view.zoom };
+        }
         view.on = next;
+
         if (next) {
           const world = computeWorldSize();
-          /* Entering used to just set pan to (0,0), which is the world's
-             top-left CORNER — and since clampPan() caps pan at 0, that left no
-             world above or to the left, so dragging down and to the right was
-             dead on arrival. Half the directions simply did not work.
-
-             The windows are in screen coordinates, i.e. world coordinates in
-             the first viewport-sized cell of a 3x3 world. Shift every one of
-             them into the middle cell and cancel the shift in the pan: the
-             screen position of everything is unchanged to the pixel
-             (screen = world + pan, and both terms moved by equal and opposite
-             amounts), but now there is a full viewport of canvas in every
-             direction. */
-          const offsetX = Math.round((world.w - window.innerWidth) / 2);
-          const offsetY = Math.round((world.h - window.innerHeight) / 2);
-          document.querySelectorAll(WINDOW_SELECTOR).forEach((el) => {
-            const x = (parseFloat(el.dataset.x) || 0) + offsetX;
-            const y = (parseFloat(el.dataset.y) || 0) + offsetY;
-            el.style.left = `${x}px`;
-            el.style.top = `${y}px`;
-            el.dataset.x = x;
-            el.dataset.y = y;
-          });
-          view.zoom = 1;
-          view.x = -offsetX;
-          view.y = -offsetY;
-          // The staircase anchor is a world coordinate from before the shift,
-          // so leaving it set would drop the next window a full viewport away
-          // from the pile it is supposed to cascade from.
-          cascadeAnchor = null;
-          applyView();
-          drawMapWindows();
-          showStatus("Big canvas on — drag the background to pan, Ctrl+wheel to zoom.");
+          if (canvasViewMemory) {
+            view.zoom = Math.min(
+              ZOOM_MAX,
+              Math.max(ZOOM_MIN, parseFloat(canvasViewMemory.zoom) || 1)
+            );
+            view.x = parseFloat(canvasViewMemory.x) || 0;
+            view.y = parseFloat(canvasViewMemory.y) || 0;
+          } else {
+            /* First time here. Pan to the middle of the world rather than its
+               top-left CORNER: clampPan() caps pan at 0, so starting at the
+               corner leaves no world above or to the left and half the drag
+               directions are dead on arrival. */
+            view.zoom = 1;
+            view.x = Math.round((window.innerWidth - world.w) / 2);
+            view.y = Math.round((window.innerHeight - world.h) / 2);
+          }
+          clampPan();
         } else {
-          // Leaving: anything parked outside the viewport would be unreachable
-          // with no way to pan to it, so pull it all back in and say so.
           view.zoom = 1;
           view.x = 0;
           view.y = 0;
-          applyView();
-          let moved = 0;
-          document.querySelectorAll(WINDOW_SELECTOR).forEach((el) => {
-            const beforeX = parseFloat(el.dataset.x) || 0;
-            const beforeY = parseFloat(el.dataset.y) || 0;
-            clampWindowIntoView(el);
-            if (
-              Math.abs((parseFloat(el.dataset.x) || 0) - beforeX) > 0.5 ||
-              Math.abs((parseFloat(el.dataset.y) || 0) - beforeY) > 0.5
-            )
-              moved++;
-          });
+        }
+
+        applyModeVisibility();
+        /* The staircase anchor is a coordinate on the desk we just left, and
+           the two desks do not share a coordinate space. Left set, it would
+           drop the next window somewhere off-screen. */
+        cascadeAnchor = null;
+        applyView();
+        // The active window may belong to the desk that just went away.
+        const active = activeWindow && document.getElementById(activeWindow);
+        if (active && !inCurrentMode(active)) {
+          activeWindow = null;
+          active.classList.remove("active");
+        }
+        refreshChrome();
+        if (next) drawMapWindows();
+
+        /* Say what happened to the windows. An empty canvas after a toggle is
+           the correct result of a separate desk, but it looks exactly like
+           having lost everything, so it is worth a sentence. */
+        const here = modeWindows().length;
+        if (next) {
           showStatus(
-            moved
-              ? `Big canvas off — ${moved} window${moved === 1 ? "" : "s"} pulled back on screen.`
-              : "Big canvas off."
+            here
+              ? "Big canvas on — drag the background to pan, Ctrl+wheel to zoom."
+              : "Big canvas on — a separate workspace, so it starts empty. Your windows are safe in the plain view."
+          );
+        } else {
+          showStatus(
+            here
+              ? "Big canvas off."
+              : "Big canvas off — the plain view is empty; your canvas windows are still on the canvas."
           );
         }
         saveSession();
@@ -4524,7 +4773,9 @@
 
       function placeWindow(element, width, height) {
         const b = canvasBounds();
-        const openCount = document.querySelectorAll(WINDOW_SELECTOR).length;
+        // The staircase cascades off what is on this desk, not off windows the
+        // user cannot see.
+        const openCount = modeWindows().length;
 
         // The anchor is a world coordinate, and on the big canvas the visible
         // slice of the world moves. An anchor left over from before a pan would
@@ -4581,6 +4832,12 @@
       // one, with no way to drag a window back into view.
       function clampWindowIntoView(element) {
         if (!element || element.style.display === "none") return;
+        /* A window on the other desk is measured in that desk's coordinates —
+           world pixels while we are showing screen pixels, or the reverse — so
+           clamping it here would silently rewrite a position that was correct
+           where it lives. It is also display:none, so offsetWidth/Height read
+           0 and the clamp would compute against a zero-sized box. */
+        if (!inCurrentMode(element)) return;
         const spot = clampToCanvas(
           element.offsetWidth,
           element.offsetHeight,
@@ -4596,6 +4853,11 @@
       // Raise + focus. Previously .active was set but never styled, so nothing
       // told the user which note Copy/Paste/Search would act on.
       function wireWindowFocus(element) {
+        /* The one call every window type makes on the way in, which makes it
+           the place to stamp the desk it was born on — a per-creator stamp
+           would be seven chances to forget one, and forgetting one is exactly
+           the bug this fixes. Restore overwrites it from the saved record. */
+        if (!element.dataset.mode) element.dataset.mode = currentMode();
         const raise = () => setActiveWindow(element.id);
         // mousedown, not click: raising on mouseup felt a beat behind the cursor.
         element.addEventListener("mousedown", raise);
@@ -4605,7 +4867,10 @@
       // The empty canvas and the minimised-window bar both derive purely from
       // the DOM, so one function keeps them honest after any change.
       function refreshChrome() {
-        const all = Array.from(document.querySelectorAll(WINDOW_SELECTOR));
+        // This desk only: the other one's windows are in the DOM but are not
+        // open as far as the user is concerned, so they must not suppress the
+        // empty-state hint or put chips in the minimised bar.
+        const all = modeWindows();
         const emptyState = document.getElementById("empty-state");
         if (emptyState) emptyState.hidden = all.length > 0;
         // Everything that adds, closes, minimises or restores a window already
@@ -4854,21 +5119,28 @@
             // that default, and the debounced save then wrote the shrunken size
             // back over the real one. One reload destroyed the resize for good.
             const sizeTarget = resizeTargetFor(windowElement);
-            const ownSize =
+            // Through measuredBox for the same reason as the window box: the
+            // container is inside a display:none window and measures 0 too.
+            const targetBox =
               sizeTarget && sizeTarget !== windowElement
-                ? {
-                    containerWidth: sizeTarget.offsetWidth,
-                    containerHeight: sizeTarget.offsetHeight,
-                  }
+                ? measuredBox(sizeTarget)
                 : null;
+            const ownSize = targetBox
+              ? {
+                  containerWidth: targetBox.width,
+                  containerHeight: targetBox.height,
+                }
+              : null;
+            const box = measuredBox(windowElement);
             session[windowId] = {
               ...(ownSize || {}),
+              mode: windowMode(windowElement),
               position: {
                 left: windowElement.dataset.x || "50",
                 top: windowElement.dataset.y || "50",
               },
-              width: windowElement.offsetWidth,
-              height: windowElement.offsetHeight,
+              width: box.width,
+              height: box.height,
               zIndex: parseInt(windowElement.style.zIndex) || 0,
               minimized: windowElement.style.display === "none",
               content: textarea ? textarea.value : "",
@@ -4889,6 +5161,7 @@
         if (clock) {
           session.clock = {
             visible: clockVisible,
+            mode: windowMode(clock),
             position: {
               left: clock.dataset.x || "50",
               top: clock.dataset.y || "50",
@@ -4905,6 +5178,7 @@
         if (document.getElementById("calculator")) {
           session.calculator = {
             visible: calculatorVisible,
+            mode: windowMode(document.getElementById("calculator")),
             history: calculatorHistory,
             position: {
               left: document.getElementById("calculator").dataset.x || "50",
@@ -4921,6 +5195,7 @@
         if (log) {
           session.log = {
             visible: logVisible,
+            mode: windowMode(log),
             position: {
               left: log.dataset.x || "50",
               top: log.dataset.y || "50",
@@ -4953,6 +5228,7 @@
         session.help = help
           ? {
               visible: true,
+              mode: windowMode(help),
               position: {
                 left: help.dataset.x || "50",
                 top: help.dataset.y || "50",
@@ -4967,7 +5243,20 @@
         session.theme = document.body.classList.contains("dark-mode")
           ? "dark-mode"
           : "light-mode";
-        session.canvas = { on: view.on, x: view.x, y: view.y, zoom: view.zoom };
+        /* `on` is which desk is showing; x/y/zoom always mean the canvas
+           viewpoint. While the canvas is off, `view` holds the identity
+           transform — persisting that would forget where the user was on the
+           canvas and drop them at the default centre next time, so persist the
+           remembered viewpoint instead of the live one. */
+        const canvasView = view.on
+          ? { x: view.x, y: view.y, zoom: view.zoom }
+          : canvasViewMemory || { x: 0, y: 0, zoom: 1 };
+        session.canvas = {
+          on: view.on,
+          x: canvasView.x,
+          y: canvasView.y,
+          zoom: canvasView.zoom,
+        };
         document
           .querySelectorAll(".sticky-note-window")
           .forEach((stickyNote) => {
@@ -4982,14 +5271,16 @@
               stickyNote.querySelector(".sticky-note-content").style.color || "";
             const title =
               stickyNote.querySelector(".sticky-note-title").textContent;
+            const stickyBox = measuredBox(stickyNote);
             session[windowId] = {
               locked: stickyNote.dataset.locked === "true",
+              mode: windowMode(stickyNote),
               position: {
                 left: stickyNote.dataset.x || "50",
                 top: stickyNote.dataset.y || "50",
               },
-              width: stickyNote.offsetWidth,
-              height: stickyNote.offsetHeight,
+              width: stickyBox.width,
+              height: stickyBox.height,
               zIndex: parseInt(stickyNote.style.zIndex) || 0,
               minimized: stickyNote.style.display === "none",
               content,
@@ -5327,6 +5618,7 @@
       }
 
       function toggleHelpWindow() {
+        if (claimSingleton("help-window", "Help")) return;
         const existing = document.getElementById("help-window");
         if (existing && existing.style.display === "none") {
           restoreWindow("help-window");
@@ -5377,8 +5669,20 @@ Big canvas
 - Below it, the overview map shows every window as a block and the part
   of the canvas you are looking at as a frame. Click or drag the map to
   jump straight there.
-- Turning the canvas off pulls any window parked off-screen back into
-  view, so nothing is ever stranded out there.
+- The canvas and the plain window view are separate workspaces. A window
+  belongs to the one it was created on and appears only there, so a note
+  you open on the canvas does not turn up in the plain view, and closing
+  it in one place does not leave a copy in the other.
+- Switching does not move or resize anything. The canvas also remembers
+  its pan and zoom, so you come back to the view you left. Both
+  workspaces are saved with the session.
+- The first time you turn the canvas on it is empty, because nothing has
+  been created there yet. Your other windows are not gone - switch back
+  and they are exactly as you left them.
+- Clock, Calc, Log and Help can only ever have one window each. Pressing
+  their toolbar button from the other workspace brings that window
+  across rather than making a second one, which is also how you move one
+  of them between workspaces.
 
 Keyboard
 - Ctrl+Shift+N    new note
@@ -5395,16 +5699,20 @@ Saving & security
 - Everything is saved to this browser automatically as you type, and
   restored the next time you open the file.
 - By default storage is plaintext in this browser profile. Protect
-  encrypts it with a passphrase (AES-GCM) so localStorage and backups
-  need that passphrase to open. The passphrase is never stored.
+  encrypts it with a passphrase (AES-GCM) so localStorage needs that
+  passphrase to open. The passphrase is never stored.
 - Freeze (🔓) only stops accidental edits — it is not a password.
 - Get the passphrase wrong (three tries a go) or cancel, and the session
   stays locked rather than being lost: nothing is saved over it, and the
   🔒 banner in the corner re-opens the prompt as many times as you like.
   Only Reset or an Import deletes a locked session, and both ask first.
-- Backup writes your session out as a .json file; Import reads one back
-  (strict schema validation). Encrypted backups stay encrypted. This is
-  the only way to move your notes off this browser.
+- Backup writes your session out as a .json file and is ALWAYS encrypted
+  (AES-GCM, PBKDF2-SHA256). With Protect on it reuses that passphrase;
+  with Protect off it asks for one for that file. Cancel the prompt and
+  no file is written — there is no plaintext backup.
+- Import reads a backup back (strict schema validation) and asks for the
+  passphrase that file was sealed with. Backup + Import is the only way
+  to move your notes off this browser.
 - "Download CB App" saves the program only - one blank .html file, no
   third-party fonts or CDNs, and none of your notes in it. Copies never
   carry content: a file you open can no longer touch what is already
@@ -5445,6 +5753,19 @@ Enterprise browser
           `#${windowId} .textarea-container`
         );
         const windowElement = document.getElementById(windowId);
+        /* Every measurement below reads 0 on a window that is not being
+           rendered — minimised, or belonging to the other desk — and the
+           results are written straight back as style.width/height. Hiding a
+           window fires the ResizeObserver (its box really did change, to
+           nothing), so without this guard switching desks permanently resized
+           every note on the desk being left to 32x52. */
+        if (
+          windowElement &&
+          !windowElement.offsetWidth &&
+          !windowElement.offsetHeight
+        ) {
+          return;
+        }
         if (textareaContainer && windowElement) {
           // sizingBasis(), not window.innerWidth: on the big canvas the note
           // can legitimately be wider than the screen, and clamping to the
@@ -5573,6 +5894,7 @@ Enterprise browser
       }
 
       function toggleCalculator() {
+        if (claimSingleton("calculator", "Calculator")) return;
         const calculator = document.getElementById("calculator");
         const calcButton = document.getElementById("calculator-toggle");
         // Minimize then click the toolbar button and this used to silently
@@ -5715,12 +6037,21 @@ Enterprise browser
         clockCount++;
         const clockLabel = "Clock";
 
-        // 350x516 was not in fact tall enough: .clock-content overflowed by
-        // ~40px, so the stopwatch buttons were sliced in half by the countdown
-        // block below them. This fits all four sections with no scrollbar, and
-        // the extra width keeps the countdown controls on a single row.
-        const defaultWidth = 390;
-        const defaultHeight = 566;
+        /* 350x516 was not in fact tall enough: .clock-content overflowed by
+           ~40px, so the stopwatch buttons were sliced in half by the countdown
+           block below them. 566 fixed that but overshot — and because the
+           countdown sat outside the flex:1 scroller, the surplus opened as a
+           band of dead space above it rather than below everything. The
+           countdown is inside the scroller now, so the surplus is just window;
+           502 is the measured height of all four sections (452 of content, 39
+           of header, 2 of border) plus the 8px WebKit needs on top of that —
+           it lays the same markup out taller, and coming up short there means
+           a scrollbar rather than a few px of slack. 390 was the
+           width that kept the countdown controls on one row as a sibling of
+           the scroller; inside it they also clear the scroller's own 10px side
+           margins, so the window needs those 20px back. */
+        const defaultWidth = 410;
+        const defaultHeight = 502;
         newWindow.style.zIndex = nextWindowZ();
         newWindow.dataset.width = defaultWidth;
         newWindow.dataset.height = defaultHeight;
@@ -5761,17 +6092,17 @@ Enterprise browser
                     <button onclick="resetStopwatch()">Reset</button>
                 </div>
             </div>
+            <div class="countdown-timer-container">
+                <div style="font-weight:bold;">Countdown Timer</div>
+                <div class="countdown-controls">
+                    <label class="countdown-field"><input type="number" id="countdown-minutes" min="0" max="120" value="30" aria-label="Countdown minutes"><span>min</span></label>
+                    <label class="countdown-field"><input type="number" id="countdown-seconds" min="0" max="59" value="0" aria-label="Countdown seconds"><span>sec</span></label>
+                    <button onclick="startCountdown()">Start</button>
+                    <button onclick="resetCountdown()">Reset</button>
+                </div>
+                <div id="countdown-display" class="countdown-display">00:30:00</div>
+            </div>
         </div>
-        <div class="countdown-timer-container">
-    <div style="font-weight:bold;">Countdown Timer</div>
-    <div class="countdown-controls">
-        <label class="countdown-field"><input type="number" id="countdown-minutes" min="0" max="120" value="30" aria-label="Countdown minutes"><span>min</span></label>
-        <label class="countdown-field"><input type="number" id="countdown-seconds" min="0" max="59" value="0" aria-label="Countdown seconds"><span>sec</span></label>
-        <button onclick="startCountdown()">Start</button>
-        <button onclick="resetCountdown()">Reset</button>
-    </div>
-    <div id="countdown-display" class="countdown-display">00:30:00</div>
-</div>
     `;
         windowsContainer.appendChild(newWindow);
         makeDraggable(newWindow);
@@ -5790,6 +6121,7 @@ Enterprise browser
       }
 
       function toggleClock() {
+        if (claimSingleton("clock", "Clock")) return;
         const clock = document.getElementById("clock");
         const clockButton = document.getElementById("clock-toggle");
         if (clock && clock.style.display === "none") {
@@ -5986,6 +6318,7 @@ Enterprise browser
       }
 
       function toggleLog() {
+        if (claimSingleton("log", "Log")) return;
         const log = document.getElementById("log");
         const logButton = document.getElementById("log-toggle");
         if (log && log.style.display === "none") {
@@ -6470,9 +6803,9 @@ Enterprise browser
             activeWindow = null;
             // Fall back to whatever is visually on top, not to whichever
             // happens to be first in document order.
-            const remaining = Array.from(
-              document.querySelectorAll(WINDOW_SELECTOR)
-            ).filter((el) => el.style.display !== "none");
+            const remaining = modeWindows().filter(
+              (el) => el.style.display !== "none"
+            );
             if (remaining.length) {
               const topMost = remaining.reduce((a, b) =>
                 (parseInt(b.style.zIndex) || 0) > (parseInt(a.style.zIndex) || 0)
@@ -6926,7 +7259,7 @@ This cbapp.html is the complete application. No zip or extra files needed.
 How to use:
 - Open this file directly in your Enterprise browser.
 - Click "Download CB App" at the bottom anytime to save a fresh blank copy of the app.
-- Use Backup to save your notes to an (optionally encrypted) .json file.
+- Use Backup to save your notes to an encrypted .json file (it asks for a passphrase).
 - Recommended: Save to Documents or a dedicated folder and create a bookmark/shortcut.
 
 Enterprise Browser:
@@ -6985,6 +7318,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           view.y = 0;
           view.zoom = 1;
           worldSize = { w: 0, h: 0 };
+          // Or the next canvas toggle would return to the viewpoint of the
+          // session the user just deleted.
+          canvasViewMemory = null;
           applyView();
           document.querySelector(".nav-menu").classList.remove("collapsed"); // Expand nav menu
           document.getElementById("search-replace").classList.remove("active"); // Hide search/replace
@@ -7068,8 +7404,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             // Restore position, size, and content
             windowElement.style.left = `${windowData.position.left}px`;
             windowElement.style.top = `${windowData.position.top}px`;
-            windowElement.style.width = `${windowData.width}px`;
-            windowElement.style.height = `${windowData.height}px`;
+            /* Sessions written before v3.2.10 can carry width:0/height:0 for
+               any window that was minimised when they were saved (offsetWidth
+               reads 0 while display:none). Restoring that literally rebuilds a
+               0px window that comes back from the chip bar invisible, so treat
+               a zero as "no saved size" and leave the default. */
+            if (windowData.width) windowElement.style.width = `${windowData.width}px`;
+            if (windowData.height)
+              windowElement.style.height = `${windowData.height}px`;
             windowElement.dataset.x = windowData.position.left;
             windowElement.dataset.y = windowData.position.top;
             windowElement.dataset.width = windowData.width;
@@ -7091,6 +7433,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             }
             if (windowData.zIndex) windowElement.style.zIndex = windowData.zIndex;
             if (windowData.minimized) windowElement.style.display = "none";
+            if (windowData.mode) windowElement.dataset.restoredMode = windowData.mode;
 
             if (windowData.isTaskWindow) {
               // Restore tasks
@@ -7135,6 +7478,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
                 session.clock.clockFormat;
               updateClock("clock");
               if (session.clock.minimized) clock.style.display = "none";
+              if (session.clock.mode) clock.dataset.restoredMode = session.clock.mode;
               if (session.clock.locked) applyWindowLock(clock, true);
             }
           } else if (key === "calculator" && session.calculator.visible) {
@@ -7149,6 +7493,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               updateCalculatorHistory();
               if (session.calculator.minimized)
                 calculator.style.display = "none";
+              if (session.calculator.mode)
+                calculator.dataset.restoredMode = session.calculator.mode;
               if (session.calculator.locked) applyWindowLock(calculator, true);
             }
           } else if (key === "log" && session.log.visible) {
@@ -7162,6 +7508,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               logEntries = session.log.logs || [];
               restoreLogEntries();
               if (session.log.minimized) log.style.display = "none";
+              if (session.log.mode) log.dataset.restoredMode = session.log.mode;
               if (session.log.locked) applyWindowLock(log, true);
             }
           } else if (key === "help" && session.help.visible) {
@@ -7173,6 +7520,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               help.dataset.x = session.help.position.left;
               help.dataset.y = session.help.position.top;
               if (session.help.minimized) help.style.display = "none";
+              if (session.help.mode) help.dataset.restoredMode = session.help.mode;
               if (session.help.locked) applyWindowLock(help, true);
             }
           } else if (key.startsWith("sticky-note")) {
@@ -7185,14 +7533,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             const stickyNoteElement = document.getElementById(newStickyNote.id);
             stickyNoteElement.style.left = `${stickyNoteData.position.left}px`;
             stickyNoteElement.style.top = `${stickyNoteData.position.top}px`;
-            stickyNoteElement.style.width = `${stickyNoteData.width}px`;
-            stickyNoteElement.style.height = `${stickyNoteData.height}px`;
+            // Same zero-size guard as notes above.
+            if (stickyNoteData.width)
+              stickyNoteElement.style.width = `${stickyNoteData.width}px`;
+            if (stickyNoteData.height)
+              stickyNoteElement.style.height = `${stickyNoteData.height}px`;
             stickyNoteElement.dataset.x = stickyNoteData.position.left;
             stickyNoteElement.dataset.y = stickyNoteData.position.top;
             if (stickyNoteData.zIndex)
               stickyNoteElement.style.zIndex = stickyNoteData.zIndex;
             if (stickyNoteData.minimized)
               stickyNoteElement.style.display = "none";
+            if (stickyNoteData.mode)
+              stickyNoteElement.dataset.restoredMode = stickyNoteData.mode;
 
             const content = stickyNoteElement.querySelector(
               ".sticky-note-content"
@@ -7260,25 +7613,51 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         // and silently collapse the canvas.
         const savedView = session.canvas;
         view.on = !!(savedView && savedView.on);
+        /* x/y/zoom always describe the canvas viewpoint, whichever desk was
+           showing when this was saved, so it is remembered either way — that
+           is what puts the user back where they were on the canvas rather than
+           at the default centre. */
+        canvasViewMemory = savedView
+          ? {
+              x: parseFloat(savedView.x) || 0,
+              y: parseFloat(savedView.y) || 0,
+              zoom: Math.min(
+                ZOOM_MAX,
+                Math.max(ZOOM_MIN, parseFloat(savedView.zoom) || 1)
+              ),
+            }
+          : null;
         if (view.on) {
           computeWorldSize();
-          view.zoom = Math.min(
-            ZOOM_MAX,
-            Math.max(ZOOM_MIN, parseFloat(savedView.zoom) || 1)
-          );
-          view.x = parseFloat(savedView.x) || 0;
-          view.y = parseFloat(savedView.y) || 0;
+          const v = canvasViewMemory || { x: 0, y: 0, zoom: 1 };
+          view.zoom = v.zoom;
+          view.x = v.x;
+          view.y = v.y;
         } else {
           view.zoom = 1;
           view.x = 0;
           view.y = 0;
         }
+        /* A session written before v3.2.10 has no mode on any window. Adopt
+           those onto whichever desk was showing when it was saved — that is
+           the desk the user was looking at them on, so nothing appears to
+           vanish on the upgrade. Windows restored with an explicit mode keep
+           it; addWindow() stamped them with the boot-time default on the way
+           in, which is why this runs over everything rather than just the
+           untagged. */
+        const fallbackMode = view.on ? CANVAS : WINDOWED;
+        document.querySelectorAll(WINDOW_SELECTOR).forEach((el) => {
+          if (!el.dataset.restoredMode) el.dataset.mode = fallbackMode;
+          else el.dataset.mode = el.dataset.restoredMode;
+          delete el.dataset.restoredMode;
+        });
+        applyModeVisibility();
         applyView();
         // A session saved on a large display used to restore partly or wholly
         // off-screen on a smaller one, with no way to drag anything back.
-        document
-          .querySelectorAll(WINDOW_SELECTOR)
-          .forEach((el) => clampWindowIntoView(el));
+        // Only this desk: the other one's coordinates mean something else, and
+        // its windows measure 0 while hidden.
+        modeWindows().forEach((el) => clampWindowIntoView(el));
         refreshChrome();
         // One complete, consistent write now that the whole DOM is rebuilt.
         saveSession();
@@ -7289,6 +7668,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
       // Boot: restore this browser's session. Nothing else can write to it.
       window.onload = async () => {
+        // Ahead of everything else, and unconditional: a session that fails to
+        // load leaves the app in a state the user has to reason about, and the
+        // build they are reasoning about is the first thing worth knowing.
+        // downloadCbApp() clones the live DOM, so the stamp travels with the
+        // copy without needing a second write on that path.
+        const versionEl = document.getElementById("download-app-version");
+        if (versionEl) versionEl.textContent = `v${CB_APP_VERSION}`;
+
         // One-time purge of the retired calendar feature's stale storage key.
         localStorage.removeItem("calendarEvents");
         // Same, for the retired embedded-export mechanism (<= v3.2.6). Left in
@@ -7426,37 +7813,65 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
+      // Backup. A backup is the one artefact that leaves this machine — it
+      // gets mailed to yourself, dropped on a share, left in Downloads — so as
+      // of v3.2.11 it is ALWAYS AES-GCM encrypted. There is no plaintext path
+      // left: a session with Protect on reuses that passphrase, and one
+      // without is asked for a per-file passphrase before anything is written.
+      // Cancel the prompt and no file is produced at all.
       async function downloadSessionJSON() {
+        // Nothing readable to back up, and buildSessionSnapshot() would capture
+        // the empty screen rather than the ciphertext the user actually wants.
+        if (sessionLocked) {
+          showStatus("Unlock the session before backing it up.");
+          return;
+        }
+        if (!window.crypto?.subtle) {
+          // Refuse rather than quietly writing the notes out in the clear.
+          showStatus("Backup needs Web Crypto, which this browser did not provide.");
+          return;
+        }
         try {
           const snap = buildSessionSnapshot();
-          let payload = snap;
-          if (sessionPassphrase) {
-            payload = await encryptSessionObject(snap, sessionPassphrase);
+          // Protect on: the backup rides the session passphrase, so one secret
+          // opens both. Protect off: a passphrase for this file only.
+          let pass = sessionPassphrase;
+          if (!pass) {
+            pass = await promptNewPassphrase({
+              title: "Encrypt this backup",
+              message:
+                "Backups are always encrypted. Choose a passphrase for this file.\n\nYou will need it to import the backup. It is never stored — only you know it — and it does not change how this browser saves your session.",
+              okLabel: "Encrypt & download",
+            });
+            if (pass === null) {
+              showStatus("Backup cancelled — no file was written.");
+              return;
+            }
           }
+          const payload = sessionPassphrase
+            ? await encryptSessionObject(snap, sessionPassphrase)
+            : await encryptForExport(snap, pass);
           const serialized = JSON.stringify(payload);
           if (serialized.length > MAX_SESSION_CHARS) {
             showStatus("Session too large to download.");
             return;
           }
-          // Keep localStorage in sync with what we just exported.
-          localStorage.setItem(SESSION_KEY, serialized);
-          clearSaveFailure();
+          // Keep localStorage in sync with the snapshot we just backed up.
+          // Via persistSessionPayload, not a raw setItem of `serialized`: with
+          // Protect off that string is sealed under a throwaway backup
+          // passphrase, and writing it to storage would lock the user out of
+          // their own browser session.
+          await persistSessionPayload(snap);
           const blob = new Blob([serialized], { type: "application/json" });
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = sessionPassphrase
-            ? "cbapp-session.encrypted.json"
-            : "cbapp-session.json";
+          a.download = "cbapp-session.encrypted.json";
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          showStatus(
-            sessionPassphrase
-              ? "Encrypted session JSON downloaded."
-              : "Session JSON downloaded."
-          );
+          showStatus("Encrypted backup downloaded.");
         } catch (e) {
           console.error(e);
           showStatus("Failed to download session.");
@@ -7588,9 +8003,15 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               // Persist validated (and re-encrypted if Protect is active) form.
               const ok = await persistSessionPayload(buildSessionSnapshot());
               updateProtectButton();
+              // An encrypted import carries its passphrase into this tab, so
+              // the session it just replaced is now Protected under it. Say so
+              // — otherwise the next reload asks for a passphrase the user
+              // thought belonged only to a file. Unprotect undoes it.
               showStatus(
                 ok
-                  ? "Session imported (validated)."
+                  ? keepPass
+                    ? "Session imported — this browser is now protected with that passphrase."
+                    : "Session imported (validated)."
                   : "Session imported but failed to re-save."
               );
             } catch (err) {
@@ -7771,7 +8192,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const SINGLETON_TYPES = ["calculator", "clock", "help"];
         const singletonHidden = (sel) => {
           const el = document.querySelector(sel);
-          return !!el && el.style.display === "none";
+          return !!el && inCurrentMode(el) && el.style.display === "none";
         };
         if (type) {
           let selector = "";
@@ -7805,8 +8226,12 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           const listWorthShowing =
             selector &&
             (!SINGLETON_TYPES.includes(type) || singletonHidden(selector));
+          // This desk only — the tooltip is a way to jump to a window, and
+          // the other desk's windows are not reachable from here.
           const items = listWorthShowing
-            ? Array.from(document.querySelectorAll(selector))
+            ? Array.from(document.querySelectorAll(selector)).filter(
+                inCurrentMode
+              )
             : [];
           const entries = items
             .map((win) => ({
@@ -7961,7 +8386,12 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const arrow = ARROWS[e.key];
         if (arrow && e.ctrlKey && (e.shiftKey || e.altKey) && activeWindow) {
           const el = document.getElementById(activeWindow);
-          if (!el || el.dataset.locked === "true" || el.style.display === "none")
+          if (
+            !el ||
+            el.dataset.locked === "true" ||
+            el.style.display === "none" ||
+            !inCurrentMode(el)
+          )
             return;
           e.preventDefault();
           const STEP = 20;
@@ -8213,9 +8643,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // The world is sized from the viewport, so a resize can grow it (it
           // never shrinks) and always invalidates the pan clamp.
           if (view.on) applyView();
-          document
-            .querySelectorAll(WINDOW_SELECTOR)
-            .forEach((el) => clampWindowIntoView(el));
+          // This desk only: clampWindowIntoView() ignores the other one anyway,
+          // but iterating it here would be claiming otherwise.
+          modeWindows().forEach((el) => clampWindowIntoView(el));
           setMaxDimensions();
           debouncedSave(200);
         }, 150);

@@ -2,8 +2,8 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v3.2.8`  
-**Released:** July 29, 2026  
+**Version:** `v3.2.11`  
+**Released:** August 5, 2026  
 **Size:** ~253 KB (single file)  
 **License:** Provided as-is
 
@@ -28,9 +28,9 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 - **Clock** with multiple timezones, stopwatch, and countdown timer
 - **Log** with timestamped entries and per-entry deletion
 - **Session persistence** — Everything is automatically saved to localStorage
-- **Optional passphrase protection** — AES-GCM encrypts your session in the browser and in exports; the passphrase is entered masked, with a Show toggle, and is never stored
-- **Import / Export** — Save and load full sessions as JSON
-- **One-click HTML download** — Export your workspace as a standalone `cbapp.html` file with your session embedded
+- **Optional passphrase protection** — AES-GCM encrypts your session in the browser; the passphrase is entered masked, with a Show toggle, and is never stored
+- **Always-encrypted Backup** — Backup writes your session out as an AES-GCM `.json` file and never as plaintext. With Protect on it reuses that passphrase; with Protect off it asks for one for that file. Import reads a backup back, through strict schema validation
+- **One-click HTML download** — Save a blank standalone `cbapp.html`; copies carry the program only, never your notes
 - **Dark & Light themes**, both meeting WCAG AA contrast
 - **Keyboard shortcuts** and full focus-ring support
 - **Touch and pen support** — works on tablets and phones
@@ -41,7 +41,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.2.8)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.2.11)
 
 Simply save the file and open it in your browser.
 
@@ -50,7 +50,7 @@ Simply save the file and open it in your browser.
 1. Save `cbapp.html` to your computer
 2. Open it in any modern browser (best in Chrome / Edge / Enterprise Browser)
 3. Create notes, tasks, sticky notes, etc.
-4. Click **Download .html** in the bottom-right corner to export your workspace
+4. Click **Backup** in the toolbar to save an encrypted copy of your notes
 
 No installation or server required.
 
@@ -155,7 +155,8 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 - **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~253KB` file.
 - **Persistence** — Uses `localStorage` under the key `notepadSession`.
-- **Download behavior** — "Download .html" writes a pristine copy of the app with your session embedded as JSON. Opening that file restores the session once; edits you make inside it take precedence from then on.
+- **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
+- **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 (210,000 iteration) key, with a fresh salt and IV per file. There is no plaintext backup path.
 - **Window limit** — 25 windows. A session containing more restores what fits and reports what was skipped.
 - **Browser support** — Works in any modern Chromium-based browser. Best experience in Chrome/Edge.
 
@@ -165,7 +166,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v3.2.8)
+├── cbapp.html          # The complete application (v3.2.11)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -178,4 +179,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v3.2.8** — A self-contained productivity workspace that just works.
+**CB App v3.2.11** — A self-contained productivity workspace that just works.

@@ -7,6 +7,190 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.11] — 2026-08-05
+
+### Security
+
+- **Backups are always encrypted.** Backup used to mirror the session's own
+  state: Protect on gave you an encrypted `.json`, Protect off wrote every note
+  you had in plaintext. That is exactly backwards for the one artefact designed
+  to leave the machine — a backup gets mailed to yourself, dropped on a share,
+  or left sitting in Downloads, where the browser profile's protections do not
+  reach. There is no plaintext path left. With Protect on the backup reuses
+  that passphrase, so one secret opens both. With Protect off, Backup asks for
+  a passphrase (entered twice, 6+ characters) for that file alone; cancel and
+  **no file is written at all**. Same envelope as before — AES-GCM-256 over a
+  PBKDF2-SHA256/210k key, fresh salt and IV per file — and the download is now
+  always named `cbapp-session.encrypted.json`.
+- A per-file backup passphrase is sealed by `encryptForExport()`, which
+  deliberately bypasses the `ensureSessionKey()` cache. The old encrypt path
+  writes `sessionPassphrase` / `sessionCryptoKey` / `sessionKeySalt` as a side
+  effect, so routing a throwaway backup passphrase through it would silently
+  re-key — or newly encrypt — this browser's own localStorage session under a
+  secret the user never meant to keep.
+- For the same reason Backup no longer does a raw `setItem` of the bytes it
+  just exported. It syncs storage through `persistSessionPayload()`, so an
+  unprotected session stays plaintext-in-browser rather than being locked
+  behind a passphrase chosen for a file.
+- Backup now refuses to run when the session is locked (it would have backed up
+  the empty screen, not the ciphertext) or when `crypto.subtle` is missing
+  (previously that threw its way into a plaintext-shaped failure).
+- Importing an encrypted backup already adopted its passphrase for this
+  browser; the status message now says so, since with backups always encrypted
+  that path is the common one and the next reload will ask for it.
+
+---
+
+## [3.2.10] — 2026-08-05
+
+### Fixed
+
+- **A window created in one mode no longer appears in both.** 3.2.9 gave each
+  mode its own *positions* while every window stayed in both, which is the
+  wrong half of the problem: opening a T2 template on the canvas also put one
+  in the plain view, and closing it in one place left the other behind. The two
+  modes are two desks, and **membership** is what has to be per-mode. Once it
+  is, positions follow for free — a window that only ever exists on one desk
+  never needs a second coordinate — so the whole per-mode position bank added
+  in 3.2.9 is gone, along with the id-reuse pruning it needed.
+
+  A window is stamped with the desk it was created on, in `wireWindowFocus()` —
+  the one call every window type makes on the way in, because a per-creator
+  stamp would have been seven chances to forget one. Hiding is a class rather
+  than `style.display`, which is the minimise flag: a window minimised on the
+  canvas has to come back minimised when you return, so the two states must not
+  share a channel.
+
+  Everything that asks "what is open" now means the desk on screen — the
+  empty-state hint, the minimised bar, the overview map, zoom-to-fit, the
+  cascade staircase, the nav tooltips, and what gets focused when the active
+  window closes. Asking the DOM directly is what the bug *was*. The window cap
+  is the deliberate exception: it guards how big a session can get, and a window
+  costs the same on either desk.
+
+  Turning the canvas on for the first time now shows an empty workspace, which
+  is correct but looks exactly like having lost everything, so the status
+  message says where the windows went.
+
+- **The four singleton windows can no longer be destroyed from the mode that
+  cannot see them.** Clock, Calc, Log and Help have fixed ids, so a second one
+  cannot exist. Pressing Clock while the only clock was on the other desk fell
+  through to the toggle's "it exists → remove it" branch and deleted it from a
+  mode that was not even showing it. The button now brings that window across,
+  which doubles as the way to move one between desks.
+
+- **A minimised window no longer loses its size.** `offsetWidth`/`offsetHeight`
+  read 0 on anything `display:none`, so the first save after a minimise wrote
+  `width: 0, height: 0` into the record and restore faithfully rebuilt a 0px
+  window that came back from the chip bar invisible. This was already true in
+  3.2.9 and earlier — mode-hiding would have widened it to every window on the
+  desk you were not looking at, on every save. Sizes are now remembered from
+  the last time the window was actually rendered, and a stored zero is treated
+  as "no saved size" so existing broken sessions heal on load.
+
+- **Switching desks no longer shrinks every note to 32px.** Hiding a window
+  fires the ResizeObserver — its box genuinely did change, to nothing — and
+  `updateWindowSize()` measured the collapsed box and wrote the result straight
+  back as `style.width`. It now declines to measure a window that is not being
+  rendered.
+
+### Upgrade
+
+- Sessions written before 3.2.10 say nothing about modes. An absent mode is
+  deliberately not read as "the plain view": a session saved with the canvas on
+  would then restore every window onto the desk the user was not looking at, and
+  the canvas would come up empty — indistinguishable from having lost the lot.
+  Untagged windows are adopted by whichever desk was active when the session was
+  saved. A *malformed* mode is a different case and is coerced, not dropped.
+
+### Tests
+
+- Nine new Playwright cases covering the reported bug directly, the empty-state
+  hint on a fresh canvas, membership surviving a reload, minimise being
+  independent of which desk is showing, the singleton move, the remembered
+  viewpoint, both size regressions, the pre-3.2.10 upgrade path, and a malformed
+  mode. The toolbar smoke test now asserts the round trip rather than expecting
+  windows to be visible from both modes. 117 pass across Chromium, Firefox and
+  WebKit.
+
+---
+
+## [3.2.9] — 2026-08-05
+
+### Added
+
+- **The Download chip shows the build version in small print.** The saved file
+  is always called `cbapp.html`, so a copy pulled down months ago was
+  indistinguishable from a current one without opening it and reading the
+  release comment in the source. The chip now reads `DOWNLOAD CB APP v3.2.9`,
+  and because the download clones the live DOM the stamp travels with the copy.
+
+  `CB_APP_VERSION` is the single place a release changes it; the stamp is
+  written into the chip at boot rather than sitting in the markup, so the two
+  cannot drift. A test asserts the rendered stamp matches the release comment
+  at the top of the file and that a downloaded copy still carries it.
+
+- **Canvas and windowed mode each keep their own layout.** They are two desks,
+  not two views of one: windowed is a single screen you arrange tightly, the
+  canvas is three screens you spread out across. Until now a single set of
+  coordinates served both, so every trip through the toggle destroyed the
+  arrangement you were leaving — entering shoved every window into the middle
+  cell, and leaving clamped everything spread across the world back onto one
+  screen. Glancing at windowed mode collapsed a canvas you had spent time
+  laying out, with no way to get it back.
+
+  Each mode now banks where its windows sat, and the canvas banks its pan and
+  zoom alongside them, so you return to the viewpoint you left rather than the
+  default one. Toggling saves the desk you are leaving and replays the desk you
+  are entering. Both snapshots persist with the session, so a reload does not
+  cost you the mode you are not currently looking at.
+
+  Windows the destination mode has never seen — opened since the last toggle —
+  are carried across by inverting the view rather than by copying raw numbers,
+  so they arrive on the patch of screen the user last saw them on instead of a
+  viewport away. Coming back to windowed mode, they are still clamped into the
+  viewport; a window opened out on the canvas would otherwise land off-screen
+  with no way to pan to it.
+
+  Two details that would have bitten later: banked positions are pruned against
+  the live DOM on every save, because window ids come from a counter that
+  restore replays from zero — a stale entry for a closed `window3` would
+  otherwise be applied to whatever inherited the id after a reload. And Reset
+  clears both banks, or the first canvas toggle after a reset would replay the
+  layout of the session just deleted.
+
+### Fixed
+
+- **The band of dead space in the Clock window.** The countdown timer was a
+  sibling *below* `.clock-content`, which is `flex: 1` — so every pixel the
+  window was taller than its content was absorbed by the scroller and opened as
+  a gap between the stopwatch buttons and the countdown heading, rather than as
+  ordinary slack at the bottom. The default height of 566 overshot the content
+  by about 30px, which is exactly what that gap was.
+
+  The countdown now lives inside `.clock-content` with the other three
+  sections, so surplus height falls below everything as it should, and the
+  default size (410x502) is the measured height of the content with no
+  scrollbar in Chromium, Firefox or WebKit.
+
+  Moving it in switched on two `.clock-content .countdown-controls` rules that
+  had been inert since it was moved out — a wider gap plus 8px on either side
+  of both number inputs — which was enough to wrap **Reset** onto a line of its
+  own. Those are trimmed back to the top margin they were meant to contribute.
+  The window is 20px wider because inside the scroller the controls also have
+  to clear its 10px side margins.
+
+### Tests
+
+- Five new Playwright cases: the toggle round trip restores each mode's
+  positions and the canvas zoom; both layouts survive a reload; a window opened
+  on the canvas lands on screen when leaving; a malformed `layouts` block is
+  dropped without taking the session with it; and the clock fits its default
+  size with no scrollbar and no wrapped countdown row. 96 pass across Chromium,
+  Firefox and WebKit.
+
+---
+
 ## [3.2.8] — 2026-07-30
 
 ### Fixed
