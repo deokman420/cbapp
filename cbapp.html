@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.15 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.16 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -2986,7 +2986,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.15";
+      const CB_APP_VERSION = "3.2.16";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3161,6 +3161,33 @@
         const iv = crypto.getRandomValues(new Uint8Array(12));
         const key = await deriveAesKey(passphrase, salt);
         return sealEnvelope(session, key, salt, iv);
+      }
+
+      /**
+       * Is this the passphrase the envelope was sealed with? AES-GCM's auth tag
+       * answers that on its own, so nothing is parsed and nothing is returned
+       * but the verdict.
+       *
+       * Deliberately does NOT go through ensureSessionKey(), for the reason
+       * encryptForExport() doesn't: this runs while a session is locked, and
+       * caching would quietly adopt the passphrase for a session the tab has
+       * not actually opened. Asking "is this right?" must not change anything.
+       */
+      async function verifyEnvelopePassphrase(envelope, passphrase) {
+        try {
+          const salt = b64ToBytes(envelope.salt);
+          const iv = b64ToBytes(envelope.iv);
+          if (salt.length !== 16 || iv.length !== 12) return false;
+          const key = await deriveAesKey(passphrase, salt);
+          await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv },
+            key,
+            b64ToBytes(envelope.ct)
+          );
+          return true;
+        } catch (e) {
+          return false;
+        }
       }
 
       async function decryptSessionEnvelope(envelope, passphrase) {
@@ -7583,49 +7610,105 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         });
       }
 
-      // Protected and locked: this tab never opened the session, so the only
-      // thing that can judge a passphrase is the ciphertext itself.
-      async function confirmResetLocked(envelope) {
+      /**
+       * The gate for destroying a session this tab never opened. Locked means
+       * `sessionPassphrase` is empty, so the only thing that can judge an
+       * answer is the ciphertext itself.
+       *
+       * Shared by Reset and Import (v3.2.16), which differ only in wording:
+       * both delete the stored session outright, so both have to ask.
+       */
+      async function confirmDestroyLocked(
+        envelope,
+        { title, message, okLabel, cancelStatus, eraseMessage } = {}
+      ) {
         for (let attempt = 0; attempt < 3; attempt++) {
           const pass = await promptPassphrase({
-            title: "Reset a protected session?",
-            message:
-              "The session saved in this browser is encrypted and has not been " +
-              "opened. Reset deletes it permanently, so it needs the passphrase.",
+            title,
+            message,
             label: "Passphrase",
-            okLabel: "Reset everything",
+            okLabel,
           });
           if (pass === null) {
-            showStatus("Reset cancelled — the locked session is untouched.");
+            showStatus(cancelStatus);
             return false;
           }
-          try {
-            await decryptSessionEnvelope(envelope, pass);
-            // Right passphrase. Whatever it caches is about to be cleared by
-            // the reset anyway.
-            return true;
-          } catch (e) {
-            if (attempt < 2) window.alert("Wrong passphrase. Try again.");
-          }
+          if (await verifyEnvelopePassphrase(envelope, pass)) return true;
+          if (attempt < 2) window.alert("Wrong passphrase. Try again.");
         }
         // Escape hatch, reachable only after three genuine failures. It is
         // friction, not a second lock — a wrong passphrase three times over is
         // exactly the state of someone who has lost it, and leaving them with a
         // session that can never be opened *or* cleared would be worse than
-        // this. Everything else about Reset still demands the real passphrase.
+        // this. Every other path still demands the real passphrase.
         const typed = await promptPassphrase({
           title: "Erase the session without the passphrase?",
-          message:
-            "Wrong passphrase three times. If it is lost, this session can " +
-            "never be opened again and the only way forward is to delete it.\n\n" +
-            "Type ERASE to delete it permanently. This cannot be undone.",
-          label: 'Type ERASE to confirm',
+          message: eraseMessage,
+          label: "Type ERASE to confirm",
           okLabel: "Erase permanently",
           masked: false,
         });
         if ((typed || "").trim().toUpperCase() !== "ERASE") {
-          showStatus("Reset cancelled — the locked session is untouched.");
+          showStatus(cancelStatus);
           return false;
+        }
+        return true;
+      }
+
+      function confirmResetLocked(envelope) {
+        return confirmDestroyLocked(envelope, {
+          title: "Reset a protected session?",
+          message:
+            "The session saved in this browser is encrypted and has not been " +
+            "opened. Reset deletes it permanently, so it needs the passphrase.",
+          okLabel: "Reset everything",
+          cancelStatus: "Reset cancelled — the locked session is untouched.",
+          eraseMessage:
+            "Wrong passphrase three times. If it is lost, this session can " +
+            "never be opened again and the only way forward is to delete it.\n\n" +
+            "Type ERASE to delete it permanently. This cannot be undone.",
+        });
+      }
+
+      /**
+       * Import writes over whatever is saved here, so it destroys the current
+       * session exactly as Reset does — and it did it behind a single click.
+       * Same gate as Reset (v3.2.16), asked before the file is even parsed:
+       * unlocking an encrypted backup replaces `sessionPassphrase` with the
+       * file's, and by then there is nothing left to check the *current*
+       * session's passphrase against.
+       *
+       * An unprotected session is unchanged — no passphrase to ask for, and
+       * Import has never stopped to confirm one.
+       */
+      async function confirmImportOverCurrent() {
+        const envelope = sessionLocked ? readStoredEnvelope() : null;
+        if (sessionLocked && envelope) {
+          return confirmDestroyLocked(envelope, {
+            title: "Replace a protected session?",
+            message:
+              "The session saved in this browser is encrypted and has not been " +
+              "opened. Importing deletes it permanently, so it needs the " +
+              "passphrase. Cancel if you still want to try unlocking it.",
+            okLabel: "Replace it",
+            cancelStatus: "Import cancelled — the locked session is untouched.",
+            eraseMessage:
+              "Wrong passphrase three times. If it is lost, the session saved " +
+              "here can never be opened again, and importing over it is one way " +
+              "forward.\n\nType ERASE to delete it and import anyway. This " +
+              "cannot be undone.",
+          });
+        }
+        if (sessionPassphrase) {
+          return requireSessionPassphrase({
+            title: "Replace this protected session?",
+            message:
+              "Importing deletes the session saved in this browser and replaces " +
+              "it with the contents of the file. This session is " +
+              "passphrase-protected, so that needs the passphrase.",
+            okLabel: "Replace it",
+            cancelStatus: "Import cancelled — nothing was changed.",
+          });
         }
         return true;
       }
@@ -8281,24 +8364,17 @@ Tip: Use the Download button inside the app to preserve your open windows and no
                 showStatus("Import failed: file too large or invalid.");
                 return;
               }
+              // Ask permission to destroy what is here before touching the
+              // file: parseAndUnlockSession() caches the *backup's* passphrase
+              // into sessionPassphrase, which is the very thing the protected
+              // case has to compare against.
+              if (!(await confirmImportOverCurrent())) return;
               const session = await parseAndUnlockSession(text, {
                 promptReason:
                   "This backup is passphrase-protected. Enter the passphrase:",
               });
               if (!session) {
                 showStatus("Import cancelled or passphrase incorrect.");
-                return;
-              }
-              // Import resets first, and reset deletes every stored key — so
-              // while locked this is the one remaining path that can destroy a
-              // session the user still cannot open. Make it deliberate.
-              if (
-                sessionLocked &&
-                !window.confirm(
-                  "Replace the locked session with this import?\n\nThe encrypted session saved in this browser has not been opened, and importing deletes it permanently. Cancel if you still want to try the passphrase."
-                )
-              ) {
-                showStatus("Import cancelled — the locked session is untouched.");
                 return;
               }
               // Clear UI without wiping the passphrase we just unlocked for this import.

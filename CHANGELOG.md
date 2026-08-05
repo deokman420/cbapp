@@ -7,6 +7,36 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.16] — 2026-08-05
+
+### Changed
+
+- **Import over a protected session needs the passphrase.** Import overwrites
+  what is saved here, destroying it exactly as Reset does — and a plaintext
+  backup file needs no passphrase of its own, so this was the last way to
+  clear the desks without knowing the passphrase. A locked session is checked
+  against its ciphertext, with the same ERASE escape Reset has; an open
+  protected session is checked against the passphrase in memory.
+- The gate is asked **before** the file is parsed. Unlocking an encrypted
+  backup caches that file's passphrase into `sessionPassphrase`, which is the
+  very thing the protected case has to compare against.
+- An unprotected session is unchanged: no passphrase to ask for, and Import
+  has never stopped to confirm one.
+
+### Added
+
+- `verifyEnvelopePassphrase()` — answers "is this the passphrase?" from the
+  AES-GCM auth tag alone, without going through `ensureSessionKey()`. Asking
+  the question must not quietly adopt a session the tab has not opened, which
+  is why importing over a locked session still lands as plaintext.
+- `confirmDestroyLocked()`, now shared by Reset and Import.
+
+### Notes
+
+- Importing an older plaintext `.json` session is still unchanged.
+
+---
+
 ## [3.2.15] — 2026-08-05
 
 ### Changed
