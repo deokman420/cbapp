@@ -7,6 +7,44 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.18] — 2026-08-06
+
+### Fixed
+
+- **A frozen window no longer swallows input in silence.** Reported from Island:
+  after restoring a backup, "the countdown time cannot be changed". The clock had
+  come back **frozen** — `restoreSingleton()` reapplies a saved lock — so its
+  number fields were `readOnly` and Start/Reset were `disabled`. Nothing said so:
+  a readOnly field takes keystrokes and drops them, a disabled button does not
+  even dispatch a click, and the only clue was 16px of 🔒 in the title bar of a
+  window the user did not freeze in this sitting. An untouchable timer reads as
+  a broken timer.
+- Typing or clicking inside a frozen window now says
+  `<name> is frozen — click 🔒 in its title bar to unfreeze it.` Wired in
+  `wireWindowFocus()`, the one call every window type makes, so it covers notes,
+  tasks, sticky notes, the calculator, the log and the clock alike.
+- The listener is on the window and in the **capture** phase, because a disabled
+  control dispatches no pointer event of its own — the event that arrives has the
+  surrounding row as its target.
+- **Reading a frozen window stays silent.** Cursor keys, Tab/Escape and the
+  Ctrl/Cmd shortcuts (select-all, copy) draw no message. That is the whole reason
+  text fields go `readOnly` instead of `disabled`, and the message must not
+  punish it.
+- Frozen `readOnly` fields now *look* frozen — dashed border, `not-allowed`
+  cursor. Disabled buttons dim themselves natively; readOnly inputs did not, so
+  a frozen clock's countdown fields looked perfectly editable. The text stays at
+  full contrast rather than being faded, since a frozen note still has to be
+  readable.
+
+### Notes
+
+- Freeze is unchanged in what it freezes; this is about saying so. It remains
+  layout-and-edit only — Protect is the encryption.
+- `windowLabel()` extracted from `toggleWindowLock()`, now shared with the
+  frozen-input message.
+
+---
+
 ## [3.2.17] — 2026-08-05
 
 ### Changed

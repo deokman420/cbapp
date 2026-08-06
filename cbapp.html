@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.17 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.18 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -1767,6 +1767,24 @@
         }
       }
 
+      /* --- Frozen windows ---
+         A disabled button dims itself; a readOnly input does not, so the
+         countdown fields of a frozen clock looked perfectly editable and simply
+         refused every keystroke. Cursor and border carry the state, and the text
+         stays on --text rather than being faded — a frozen note still has to be
+         readable, which is the whole reason text fields go readOnly instead of
+         disabled. */
+      [data-locked="true"] input:read-only,
+      [data-locked="true"] textarea:read-only {
+        cursor: not-allowed;
+        border-style: dashed;
+      }
+
+      [data-locked="true"] button:disabled,
+      [data-locked="true"] select:disabled {
+        cursor: not-allowed;
+      }
+
       /* --- Notes ---
          .window-content reserved 32px for a .clear-note-container that no
          longer lives there (Clear moved into .format-buttons), leaving a dead
@@ -3112,7 +3130,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.17";
+      const CB_APP_VERSION = "3.2.18";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -5286,6 +5304,9 @@
         // mousedown, not click: raising on mouseup felt a beat behind the cursor.
         element.addEventListener("mousedown", raise);
         element.addEventListener("focusin", raise);
+        // The one call every window type makes, so it is also the one place a
+        // frozen window can be taught to explain itself.
+        wireFrozenFeedback(element);
       }
 
       // The empty canvas and the minimised-window bar both derive purely from
@@ -7156,19 +7177,72 @@ Enterprise browser
 
       // Freeze = content frozen, no dragging, no resizing. Not secrecy.
       // Everything hangs off dataset.locked, which makeDraggable() reads.
+      function windowLabel(windowElement) {
+        return (
+          windowElement.querySelector(
+            ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calculator-title, .help-title"
+          )?.textContent || "Window"
+        ).trim();
+      }
+
       function toggleWindowLock(windowId) {
         const windowElement = document.getElementById(windowId);
         if (!windowElement) return;
         const isLocked = windowElement.dataset.locked !== "true";
         applyWindowLock(windowElement, isLocked);
-        const label =
-          windowElement.querySelector(
-            ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calculator-title, .help-title"
-          )?.textContent || "Window";
         showStatus(
-          `${label} ${isLocked ? "frozen" : "unfrozen"} (layout only — use Protect to encrypt).`
+          `${windowLabel(windowElement)} ${isLocked ? "frozen" : "unfrozen"} (layout only — use Protect to encrypt).`
         );
         saveSession();
+      }
+
+      /* Frozen windows used to swallow input in silence, and a session restored
+         with a frozen window put the user in front of controls that simply did
+         not respond: readOnly fields take keystrokes and drop them, and a
+         disabled button does not even dispatch a click. The lock icon in the
+         title bar was the only clue, and it is 16px of a window you did not
+         freeze in this sitting. Say it out loud instead. */
+      const FROZEN_IGNORED_KEYS = new Set([
+        "Tab",
+        "Escape",
+        "Shift",
+        "Control",
+        "Alt",
+        "Meta",
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowDown",
+        "Home",
+        "End",
+        "PageUp",
+        "PageDown",
+      ]);
+
+      function wireFrozenFeedback(element) {
+        const explain = (e) => {
+          if (element.dataset.locked !== "true") return;
+          // The title-bar controls are never frozen — unfreeze, minimize and
+          // close have to keep working, so they must not draw the message.
+          if (e.target instanceof Element && e.target.closest(HEADER_SELECTOR)) {
+            return;
+          }
+          if (e.type === "keydown") {
+            // Reading a frozen window is allowed: navigation keys and the
+            // copy/select-all shortcuts are not attempts to edit.
+            if (FROZEN_IGNORED_KEYS.has(e.key)) return;
+            if (e.ctrlKey || e.metaKey) return;
+          }
+          showStatus(
+            `${windowLabel(element)} is frozen — click 🔒 in its title bar to unfreeze it.`
+          );
+        };
+        /* pointerdown on the window, not click on the control: a disabled
+           button dispatches no pointer event of its own, so the event that
+           reaches here has the surrounding row as its target. Capture phase so
+           a frozen control's own handler cannot swallow it first. */
+        element.addEventListener("pointerdown", explain, true);
+        element.addEventListener("keydown", explain, true);
       }
 
       function setActiveWindow(windowId) {
