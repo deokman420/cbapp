@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v3.2.19`  
+**Version:** `v4.0.0`  
 **Released:** August 5, 2026  
 **Size:** ~253 KB (single file)  
 **License:** Provided as-is
@@ -28,6 +28,10 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 - **Clock** with multiple timezones, stopwatch, and a countdown timer that ends
   in an in-app alert card and a soft synthesised chime (mutable) — no OS
   notifications, no permission prompts
+- **Calendar** with events, all-day entries, daily/weekly/monthly/yearly
+  repeats and in-app reminders (a soft chime and a card, no OS notifications).
+  One set of events shared by both workspaces; reminders missed while the app
+  was closed are listed once when it reopens
 - **Log** with timestamped entries and per-entry deletion
 - **Session persistence** — Everything is automatically saved to localStorage
 - **Optional passphrase protection** — AES-GCM encrypts your session in the browser; the passphrase is entered masked, with a Show toggle, and is never stored
@@ -43,7 +47,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.2.19)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.0.0)
 
 Simply save the file and open it in your browser.
 
@@ -168,7 +172,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v3.2.19)
+├── cbapp.html          # The complete application (v4.0.0)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -181,4 +185,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v3.2.19** — A self-contained productivity workspace that just works.
+**CB App v4.0.0** — A self-contained productivity workspace that just works.

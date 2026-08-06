@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.19 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.0.0 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -54,6 +54,7 @@
       .task-window,
       .clock-window,
       .log-window,
+      .calendar-window,
       .help-window {
         position: absolute;
         min-width: 350px;
@@ -769,6 +770,7 @@
       .task-window,
       .clock-window,
       .log-window,
+      .calendar-window,
       .sticky-note-window {
         background: var(--bg-card);
         border: 1px solid var(--border);
@@ -782,6 +784,7 @@
       .task-window:hover,
       .clock-window:hover,
       .log-window:hover,
+      .calendar-window:hover,
       .sticky-note-window:hover {
         border-color: var(--accent);
       }
@@ -791,6 +794,7 @@
       .task-header,
       .clock-header,
       .log-header,
+      .calendar-header,
       .help-header,
       .sticky-note-header {
         background: var(--bg-card-hover);
@@ -808,6 +812,7 @@
       .task-controls,
       .clock-controls,
       .log-controls,
+      .calendar-controls,
       .sticky-note-controls {
         display: flex;
         gap: 5px;
@@ -818,6 +823,7 @@
       .task-title,
       .clock-title,
       .log-title,
+      .calendar-title,
       .help-title,
       .sticky-note-title {
         font-weight: 600;
@@ -852,6 +858,11 @@
       .calculator-input,
       .calculator-display,
       .log-input,
+      .cal-content input[type="text"],
+      .cal-content input[type="date"],
+      .cal-content input[type="time"],
+      .cal-content input[type="number"],
+      .cal-content select,
       #search-replace input {
         background: var(--bg-card);
         border: 1px solid var(--border);
@@ -863,11 +874,11 @@
         background: var(--bg-card-hover);
       }
 
+      /* .today-events / .events-section used to be listed here — dead CSS from
+         the calendar deleted in v3.0. The v4 calendar uses .cal-* classes. */
       .calculator-history,
       .log-list,
-      .task-list,
-      .today-events,
-      .events-section {
+      .task-list {
         background: var(--bg-card);
         border: 1px solid var(--border);
         color: var(--text-dim);
@@ -1479,6 +1490,7 @@
       .task-window:hover,
       .clock-window:hover,
       .log-window:hover,
+      .calendar-window:hover,
       .sticky-note-window:hover,
       .help-window:hover {
         border-color: var(--text-muted);
@@ -1489,6 +1501,7 @@
       .task-window.active,
       .clock-window.active,
       .log-window.active,
+      .calendar-window.active,
       .sticky-note-window.active,
       .help-window.active {
         border-color: var(--accent);
@@ -1500,6 +1513,7 @@
       .active > .task-header,
       .active > .clock-header,
       .active > .log-header,
+      .active > .calendar-header,
       .active > .help-header,
       .active > .sticky-note-header {
         background: var(--accent-dim);
@@ -1510,6 +1524,7 @@
       .active > * > .task-title,
       .active > * > .clock-title,
       .active > * > .log-title,
+      .active > * > .calendar-title,
       .active > * > .help-title,
       .active > * > .sticky-note-title,
       .active > .window-header > .window-title {
@@ -1661,21 +1676,22 @@
         }
       }
 
-      /* --- Timer alert ---
-         The countdown used to end in an OS notification, which is the wrong
-         surface for this app: it needs a permission the app never asks for, it
-         is silently dropped under file:// in some browsers, and on a managed
-         machine it leaks "CB App" into the desktop. This is the in-app
-         replacement — a card that stays put until it is dismissed, so a timer
-         that fires while you are in another tab is still there when you come
-         back (unlike the 3s #status toast). Static by design: no pulse, no
-         flash.
+      /* --- App alert ---
+         One card for every message the app must not lose: the countdown
+         finishing (v3.2.17) and now calendar reminders (v4.0.0). The countdown
+         used to end in an OS notification, which is the wrong surface for this
+         app: it needs a permission the app never asks for, it is silently
+         dropped under file:// in some browsers, and on a managed machine it
+         leaks "CB App" into the desktop. This stays put until it is dismissed,
+         so an alert that fires while you are in another tab is still there when
+         you come back (unlike the 3s #status toast). Static by design: no
+         pulse, no flash.
 
          Dead centre of the viewport, not the top-centre strip the toast and the
-         search panel share: this is the one message in the app you asked for
-         and the one you must not miss, and the eye lands in the middle. It also
-         means no stacking rules against #status or #search-replace. */
-      #timer-alert {
+         search panel share: these are the messages you asked for and must not
+         miss, and the eye lands in the middle. It also means no stacking rules
+         against #status or #search-replace. */
+      #app-alert {
         display: none;
         position: fixed;
         top: 50%;
@@ -1693,43 +1709,55 @@
         font-size: 14px;
       }
 
-      #timer-alert.showing {
+      #app-alert.showing {
         display: flex;
         align-items: center;
         gap: 14px;
       }
 
-      #timer-alert .timer-alert-icon {
+      #app-alert .app-alert-icon {
         font-size: 26px;
         line-height: 1;
       }
 
-      #timer-alert .timer-alert-body {
+      #app-alert .app-alert-body {
         display: flex;
         flex-direction: column;
         gap: 2px;
         min-width: 0;
       }
 
-      #timer-alert .timer-alert-title {
+      #app-alert .app-alert-title {
         font-weight: 600;
         font-size: 16px;
         color: var(--accent);
         letter-spacing: 0.02em;
       }
 
-      #timer-alert .timer-alert-detail {
+      /* pre-line, because the catch-up card lists one reminder per line and the
+         detail is set with textContent — user text never goes through innerHTML. */
+      #app-alert .app-alert-detail {
         color: var(--text-dim);
         font-size: 13px;
+        white-space: pre-line;
+        max-height: 40vh;
+        overflow-y: auto;
       }
 
-      #timer-alert .timer-alert-actions {
+      #app-alert .app-alert-actions {
         display: flex;
         gap: 8px;
         margin-left: auto;
       }
 
-      #timer-alert button {
+      /* The per-alert buttons live in their own span so showAppAlert() can empty
+         it without touching Mute and Dismiss; display:contents keeps them in the
+         same flex row as those two. */
+      #app-alert .app-alert-extra {
+        display: contents;
+      }
+
+      #app-alert button {
         font-family: var(--mono);
         font-size: 12px;
         padding: 7px 12px;
@@ -1741,24 +1769,24 @@
         white-space: nowrap;
       }
 
-      #timer-alert button:hover {
+      #app-alert button:hover {
         border-color: var(--accent);
         color: var(--accent);
       }
 
-      #timer-alert button:focus-visible {
+      #app-alert button:focus-visible {
         outline: 2px solid var(--accent);
         outline-offset: 2px;
       }
 
       /* Narrow screens: the icon/text/buttons row has nowhere to go sideways,
-         so it stacks instead of squeezing the two buttons to nothing. */
+         so it stacks instead of squeezing the buttons to nothing. */
       @media (max-width: 480px) {
-        #timer-alert.showing {
+        #app-alert.showing {
           flex-wrap: wrap;
         }
 
-        #timer-alert .timer-alert-actions {
+        #app-alert .app-alert-actions {
           margin-left: 40px;
           width: 100%;
         }
@@ -1904,6 +1932,7 @@
       .task-header,
       .clock-header,
       .log-header,
+      .calendar-header,
       .calculator-header,
       .help-header,
       .sticky-note-header {
@@ -1916,6 +1945,7 @@
       .dragging > .task-header,
       .dragging > .clock-header,
       .dragging > .log-header,
+      .dragging > .calendar-header,
       .dragging > .calculator-header,
       .dragging > .help-header,
       .dragging > .sticky-note-header {
@@ -1939,6 +1969,7 @@
       .task-window.dragging,
       .clock-window.dragging,
       .log-window.dragging,
+      .calendar-window.dragging,
       .sticky-note-window.dragging,
       .help-window.dragging {
         opacity: 0.8;
@@ -1954,6 +1985,7 @@
       .light-mode .task-window.dragging,
       .light-mode .clock-window.dragging,
       .light-mode .log-window.dragging,
+      .light-mode .calendar-window.dragging,
       .light-mode .sticky-note-window.dragging,
       .light-mode .help-window.dragging {
         box-shadow: 0 0 0 1px var(--accent), 0 30px 60px rgba(15, 23, 42, 0.32);
@@ -1969,6 +2001,7 @@
       [data-locked="true"] > .task-header,
       [data-locked="true"] > .clock-header,
       [data-locked="true"] > .log-header,
+      [data-locked="true"] > .calendar-header,
       [data-locked="true"] > .calculator-header,
       [data-locked="true"] > .help-header,
       [data-locked="true"] > .sticky-note-header {
@@ -1981,6 +2014,7 @@
         .task-window,
         .clock-window,
         .log-window,
+        .calendar-window,
         .calculator,
         .sticky-note-window,
         .help-window,
@@ -2076,6 +2110,246 @@
       .log-window {
         display: flex;
         flex-direction: column;
+      }
+
+      /* --- Calendar (v4.0.0) ---
+         Column layout with exactly one scroller (.cal-lower): the month grid is
+         fixed chrome and must never be the thing that scrolls away, which is the
+         mistake the clock's countdown row made before v3.2.x. */
+      .calendar-window {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .cal-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+      }
+
+      .cal-monthbar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+
+      .cal-monthbar .cal-month-label {
+        flex: 1;
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .cal-grid {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 2px;
+      }
+
+      .cal-dayname {
+        text-align: center;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        color: var(--text-dim);
+        padding: 2px 0;
+      }
+
+      /* Fixed row height rather than square cells: at 480px wide a 1:1 cell is
+         ~62px, so six rows ate the window and left the day's events squeezed
+         into a sliver. The grid is a date picker, not the content. */
+      .cal-day {
+        position: relative;
+        height: 34px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: var(--mono);
+        font-size: 12px;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        background: var(--bg-card-hover);
+        color: var(--text);
+        cursor: pointer;
+        padding: 0;
+      }
+
+      .cal-day:hover {
+        border-color: var(--accent);
+      }
+
+      .cal-day.cal-empty {
+        background: transparent;
+        cursor: default;
+        height: 34px;
+      }
+
+      .cal-day.cal-today {
+        border-color: var(--orange);
+        font-weight: 700;
+      }
+
+      .cal-day.cal-selected {
+        background: var(--accent);
+        color: var(--bg);
+        font-weight: 700;
+      }
+
+      /* The dot says "something is here" without needing room for the title. */
+      .cal-day.cal-has-events::after {
+        content: "";
+        position: absolute;
+        bottom: 3px;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      .cal-day.cal-selected.cal-has-events::after {
+        background: var(--bg);
+      }
+
+      .cal-lower {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .cal-section-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.04em;
+        color: var(--text-dim);
+        text-transform: uppercase;
+      }
+
+      .cal-section-head .cal-spacer {
+        flex: 1;
+      }
+
+      .cal-event {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 6px 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--bg-card-hover);
+      }
+
+      .cal-event-when {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--accent);
+        white-space: nowrap;
+      }
+
+      .cal-event-main {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .cal-event-title {
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+
+      .cal-event-note {
+        font-size: 11px;
+        color: var(--text-dim);
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+      }
+
+      .cal-event-meta {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--text-dim);
+        white-space: nowrap;
+      }
+
+      .cal-empty-note {
+        font-size: 12px;
+        color: var(--text-dim);
+        font-style: italic;
+      }
+
+      .cal-form {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .cal-form-row {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .cal-form label {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--text-dim);
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+
+      .cal-form input[type="text"],
+      .cal-form textarea {
+        flex: 1;
+        min-width: 120px;
+      }
+
+      .cal-form textarea {
+        min-height: 46px;
+        min-width: 0;
+        font-family: var(--font);
+        font-size: 12px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 6px;
+        color: var(--text);
+      }
+
+      .cal-filter {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* The shared input rule above only carries colour and font; the log and
+         calculator inputs are 18px/10px-padded single fields, which is far too
+         big for a form of eight controls. */
+      .cal-content input,
+      .cal-content select,
+      .cal-content button {
+        font-size: 12px;
+        padding: 5px 8px;
+        border-radius: 8px;
+      }
+
+      .cal-content input[type="checkbox"] {
+        padding: 0;
+      }
+
+      .cal-monthbar button,
+      .cal-section-head button {
+        font-family: var(--mono);
       }
 
       .log-content {
@@ -2950,6 +3224,14 @@
             >
               Log
             </button>
+            <button
+              id="calendar-toggle"
+              onclick="toggleCalendar()"
+              data-tooltip="Toggle Calendar"
+              data-tooltip-type="calendar"
+            >
+              Calendar
+            </button>
           </div>
           <div class="nav-group">
             <button onclick="importData()" data-tooltip="Import Session File">
@@ -3024,27 +3306,27 @@
       </div>
       <div id="minimized-bar" aria-label="Minimized windows"></div>
       <p id="status" role="status" aria-live="polite"></p>
-      <!-- In-app countdown alert. Persists until dismissed; replaces the OS
-           notification the timer used to fire. -->
-      <div id="timer-alert" role="alert" aria-live="assertive">
-        <span class="timer-alert-icon" aria-hidden="true">⏰</span>
-        <span class="timer-alert-body">
-          <span class="timer-alert-title">Timer finished</span>
-          <span class="timer-alert-detail" id="timer-alert-detail"></span>
+      <!-- The one in-app alert card: countdowns and calendar reminders both land
+           here. Persists until dismissed; replaces the OS notification the timer
+           used to fire. Icon, title, detail and the extra actions are all filled
+           in by showAppAlert() — Mute and Dismiss are always present. -->
+      <div id="app-alert" role="alert" aria-live="assertive">
+        <span class="app-alert-icon" id="app-alert-icon" aria-hidden="true">⏰</span>
+        <span class="app-alert-body">
+          <span class="app-alert-title" id="app-alert-title"></span>
+          <span class="app-alert-detail" id="app-alert-detail"></span>
         </span>
-        <span class="timer-alert-actions">
-          <button type="button" id="timer-alert-show" onclick="revealTimerAlertWindow()">
-            Show
-          </button>
+        <span class="app-alert-actions">
+          <span class="app-alert-extra" id="app-alert-extra"></span>
           <button
             type="button"
-            id="timer-alert-mute"
-            onclick="toggleTimerSound()"
-            aria-label="Mute the timer sound"
+            id="app-alert-mute"
+            onclick="toggleAlertSound()"
+            aria-label="Mute the alert sound"
           >
             Mute
           </button>
-          <button type="button" onclick="dismissTimerAlert()">Dismiss</button>
+          <button type="button" onclick="dismissAppAlert()">Dismiss</button>
         </span>
       </div>
       <div id="save-warning" role="alert"></div>
@@ -3138,7 +3420,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.19";
+      const CB_APP_VERSION = "4.0.0";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3156,6 +3438,8 @@
       const MAX_TASKS = 500;
       const MAX_LOGS = 500;
       const MAX_HISTORY = 200;
+      const MAX_EVENTS = 500;
+      const MAX_EVENT_NOTE_CHARS = 2000;
       const PBKDF2_ITERATIONS = 210000;
 
       // In-memory only — never written to localStorage or to any file.
@@ -3398,6 +3682,20 @@
             width: String(raw.width ?? "250").slice(0, 20),
           };
         }
+        if (base === "calendar") {
+          /* Which month is showing and which day is selected are per-window view
+             state, not content — the events themselves live in session.events.
+             A bad date here is not worth failing an import over: fall back to
+             "no opinion" and let the window open on today. */
+          const selected = String(raw.selected ?? "");
+          return {
+            ...common,
+            width: String(raw.width ?? "480").slice(0, 20),
+            height: String(raw.height ?? "640").slice(0, 20),
+            name: String(raw.name || "Calendar").slice(0, MAX_NAME_CHARS),
+            selected: DATE_RE.test(selected) && isRealDate(selected) ? selected : null,
+          };
+        }
         if (base === "log") {
           let logs = Array.isArray(raw.logs) ? raw.logs.slice(0, MAX_LOGS) : [];
           logs = logs.map((l, i) => {
@@ -3416,6 +3714,107 @@
           };
         }
         return common; // help — position, lock and minimised state only
+      }
+
+      /* ==========================================================
+         CALENDAR EVENTS (v4.0.0)
+         ----------------------------------------------------------
+         Events are the first piece of content that is NOT window state. Clock,
+         Log and Calculator keep their own data per desk on purpose — a stopwatch
+         belongs to its window. A calendar does not: two desks showing two
+         different sets of appointments would be nonsense. So there is one array,
+         `session.events`, and every open calendar renders from it.
+
+         Named `events` rather than `calendarEvents` to stay clear of the retired
+         v2 calendar's **localStorage** key of that name, which boot still purges.
+
+         Every field is a flat primitive, and dates are local wall-clock strings
+         rather than timestamps: "2026-08-14" and "09:30" mean the same thing on
+         any machine in any zone, and no UTC round-trip means no DST drift.
+         ========================================================== */
+      const EVENT_REPEATS = ["none", "daily", "weekly", "monthly", "yearly"];
+      /* An all-day event has no time of its own, so its occurrence starts here
+         and the lead time counts back from it: 0 = 9am on the day, 540 =
+         midnight, 1440 = 9am the day before. */
+      const ALL_DAY_HOUR = 9;
+      const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+      const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+      // 100000 minutes is ~69 days of lead time. Past that it is a typo, not a
+      // reminder, and an unbounded number here would push fireAt outside any
+      // range the scheduler can reason about.
+      const MAX_ALERT_MINUTES = 100000;
+
+      /* Rejects what is structurally wrong (the house style for record
+         sanitizers — see sanitizeWindowRecord) and clamps what is merely out of
+         range. Returns a fresh plain object; nothing from the file survives by
+         reference. */
+      function sanitizeCalendarEvent(raw, label) {
+        assertPlainObject(raw, label);
+        for (const k of Object.keys(raw)) {
+          if (isDangerousKey(k)) {
+            throw new Error(`Invalid session: dangerous key in ${label}`);
+          }
+        }
+        const date = String(raw.date ?? "");
+        if (!DATE_RE.test(date) || !isRealDate(date)) {
+          throw new Error(`Invalid session: ${label}.date`);
+        }
+        const allDay = !!raw.allDay;
+        let time = null;
+        if (!allDay) {
+          time = String(raw.time ?? "");
+          if (!TIME_RE.test(time)) {
+            throw new Error(`Invalid session: ${label}.time`);
+          }
+        }
+        let alertMinutes = null;
+        if (raw.alertMinutes !== null && raw.alertMinutes !== undefined) {
+          const n = Number(raw.alertMinutes);
+          // A junk lead time means "no alert", not a rejected import: the event
+          // itself is still worth keeping on the calendar.
+          alertMinutes = Number.isFinite(n)
+            ? Math.min(Math.max(0, Math.round(n)), MAX_ALERT_MINUTES)
+            : null;
+        }
+        const lastFired = String(raw.lastFired ?? "");
+        return {
+          id: String(raw.id ?? "").slice(0, 64) || newEventId(),
+          title: String(raw.title ?? "").slice(0, MAX_NAME_CHARS),
+          date,
+          time,
+          allDay,
+          note: String(raw.note ?? "").slice(0, MAX_EVENT_NOTE_CHARS),
+          repeat: EVENT_REPEATS.includes(raw.repeat) ? raw.repeat : "none",
+          alertMinutes,
+          // Free-form would let a bad value silence an event forever, so only a
+          // well-formed stamp is kept; anything else means "never fired".
+          lastFired: /^\d{4}-\d{2}-\d{2}T([01]\d|2[0-3]):[0-5]\d$/.test(lastFired)
+            ? lastFired
+            : null,
+        };
+      }
+
+      /* "2026-02-30" passes the regex. Round-tripping through a Date is what
+         catches it, and it has to be built as local midnight — new Date("...")
+         on a bare date string is parsed as UTC, which shifts the day for anyone
+         west of Greenwich. */
+      function isRealDate(date) {
+        const [y, m, d] = date.split("-").map(Number);
+        if (!y || !m || !d) return false;
+        const probe = new Date(y, m - 1, d);
+        return (
+          probe.getFullYear() === y &&
+          probe.getMonth() === m - 1 &&
+          probe.getDate() === d
+        );
+      }
+
+      let _eventSeq = 0;
+      // Unique within a session without needing crypto or a clock: the counter
+      // is what keeps two events added in the same millisecond apart.
+      function newEventId() {
+        _eventSeq += 1;
+        return `ev${Date.now().toString(36)}${_eventSeq.toString(36)}`;
       }
 
       function isDangerousKey(key) {
@@ -3592,6 +3991,7 @@
           "canvas",
           "zIndexCounter",
           "timerSound",
+          "events",
           ...Object.keys(SINGLETON_KEY_KIND),
         ]);
         for (const key of Object.keys(raw)) {
@@ -3610,6 +4010,11 @@
           if (key === "theme") {
             out.theme =
               raw.theme === "light-mode" ? "light-mode" : "dark-mode";
+          } else if (key === "events") {
+            if (!Array.isArray(raw.events)) continue;
+            out.events = raw.events
+              .slice(0, MAX_EVENTS)
+              .map((e, i) => sanitizeCalendarEvent(e, `events[${i}]`));
           } else if (key === "timerSound") {
             // Absent stays absent: a session written before this key existed
             // must not read as "muted". The restore path only applies a real
@@ -3670,6 +4075,11 @@
         } else if (base === "calculator") {
           record.width = el.dataset.width || "250";
           record.history = stateFor(el.id).history;
+        } else if (base === "calendar") {
+          record.width = el.dataset.width || "480";
+          record.height = el.dataset.height || "640";
+          record.name = el.querySelector(".calendar-title").textContent;
+          record.selected = el.dataset.selected || null;
         } else if (base === "log") {
           record.width = el.dataset.width || "300";
           record.height = el.dataset.height || "300";
@@ -4438,7 +4848,7 @@
       // three things buried them in one pile. Windows now cascade, stay clear of
       // the toolbar, and wrap back to the start when they run out of room.
       const WINDOW_SELECTOR =
-        ".window, .task-window, .clock-window, .log-window, .calculator, .sticky-note-window, .help-window";
+        ".window, .task-window, .clock-window, .log-window, .calendar-window, .calculator, .sticky-note-window, .help-window";
       const CASCADE_STEP = 32;
       let cascadeIndex = 0;
 
@@ -4605,6 +5015,7 @@
         { base: "calculator", key: "calculator" },
         { base: "clock", key: "clock" },
         { base: "log", key: "log" },
+        { base: "calendar", key: "calendar" },
         { base: "help-window", key: "help" },
       ];
 
@@ -4666,7 +5077,7 @@
         s.tick = null;
         // A timer alert pointing at a clock that is going away would leave a
         // Show button with nothing to show.
-        if (_timerAlertWindow === windowId) dismissTimerAlert();
+        if (_timerAlertWindow === windowId) dismissAppAlert();
       }
 
       // Reset and Import, where the data itself is meant to go.
@@ -5324,6 +5735,7 @@
         ["calculator-toggle", "calculator"],
         ["clock-toggle", "clock"],
         ["log-toggle", "log"],
+        ["calendar-toggle", "calendar"],
       ];
 
       function refreshChrome() {
@@ -5361,7 +5773,7 @@
         minimized.forEach((el) => {
           const label =
             el.querySelector(
-              ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calculator-title, .help-title"
+              ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calendar-title, .calculator-title, .help-title"
             )?.textContent || el.id;
           const chip = document.createElement("button");
           chip.className = "minimized-chip";
@@ -5717,7 +6129,11 @@
           });
         session.zIndexCounter = zIndexCounter;
         // Mute is a preference, not window state — one flag for the whole app.
-        session.timerSound = timerSoundOn;
+        session.timerSound = alertSoundOn;
+        /* Events are content, and shared by every calendar window rather than
+           owned by one, so they are written from the store and not read back off
+           the DOM the way log rows are. The store IS the truth here. */
+        session.events = calendarEvents.slice(0, MAX_EVENTS);
         return session;
       }
 
@@ -6073,8 +6489,8 @@
         const helpText = `CB APP
 
 Windows
-- Note, Tasks, T2 and Sticky Note each open a window; Calc, Clock and Log
-  toggle a single one.
+- Note, Tasks, T2 and Sticky Note each open a window; Calc, Clock, Log and
+  Calendar toggle a single one.
 - Drag by the title bar. Drag the bottom-right corner to resize.
 - The window with the teal outline is the active one. Copy, Paste and
   Search all act on it.
@@ -6105,10 +6521,34 @@ Big canvas
 - The first time you turn the canvas on it is empty, because nothing has
   been created there yet. Your other windows are not gone - switch back
   and they are exactly as you left them.
-- Clock, Calc, Log and Help are one window per workspace, so you can have
-  one of each on both. The two are independent: separate log entries,
-  separate calculator history, separate stopwatch and countdown. Their
-  toolbar buttons light up only for the workspace you are looking at.
+- Clock, Calc, Log, Calendar and Help are one window per workspace, so you
+  can have one of each on both. The two are independent: separate log
+  entries, separate calculator history, separate stopwatch and countdown.
+  Their toolbar buttons light up only for the workspace you are looking at.
+  Calendar events are the exception - there is one set of events and both
+  calendars show it, because appointments are not window state.
+
+Calendar
+- Calendar in the toolbar opens a month grid. Click a day to see what is
+  on it; a dot under a date means it holds something.
+- Add event asks for a title, a date and a time. Tick All day for
+  something with no particular hour.
+- Repeats can be daily, weekly, monthly or yearly. A monthly event on the
+  31st falls on the last day of shorter months rather than sliding into
+  the next one, and a yearly one on 29 February lands on the 28th in
+  common years.
+- Remind me sets how many minutes before the event you want the alert.
+  0 means at the event itself. For an all-day event the reminder counts
+  back from 9am on the day, so 540 minutes is midnight.
+- The search box above the list matches titles and notes across every
+  event, whatever month is showing.
+- Reminders appear as a card in the middle of the screen with the same
+  soft chime the countdown uses; Mute on that card silences both.
+- Alerts do not need the calendar window open, but they do need CB App
+  open - it is a single file with no background service, so nothing can
+  run while the tab is closed. Anything that came due while it was shut
+  is listed once, together, the next time you open it (up to a week
+  back).
 
 Keyboard
 - Ctrl+Shift+N    new note
@@ -6838,6 +7278,7 @@ Enterprise browser
         if (kind.base === "clock") addClock(mode);
         else if (kind.base === "calculator") addCalculator(mode);
         else if (kind.base === "log") addLog(mode);
+        else if (kind.base === "calendar") addCalendar(mode);
         else toggleHelpWindow(mode);
 
         const el = document.getElementById(id);
@@ -6851,6 +7292,16 @@ Enterprise browser
           const format = instancePart(id, "clock-format");
           if (format) format.value = record.clockFormat;
           updateClock(id);
+        } else if (kind.base === "calendar") {
+          // addCalendar() opened it on today; a saved selection moves it back to
+          // the month the user was looking at.
+          if (record.selected) {
+            const day = parseDateKey(record.selected);
+            el.dataset.selected = record.selected;
+            el.dataset.viewYear = day.getFullYear();
+            el.dataset.viewMonth = day.getMonth();
+          }
+          renderCalendar(id);
         } else if (kind.base === "calculator") {
           stateFor(id).history = record.history || [];
           updateCalculatorHistory(id);
@@ -7122,7 +7573,7 @@ Enterprise browser
       }
 
       const HEADER_SELECTOR =
-        ".window-header, .task-header, .clock-header, .log-header, .calculator-header, .help-header, .sticky-note-header";
+        ".window-header, .task-header, .clock-header, .log-header, .calendar-header, .calculator-header, .help-header, .sticky-note-header";
 
       // What "frozen" freezes inside a window. This is NOT encryption or access
       // control — anyone can unfreeze with one click. Text fields go readOnly
@@ -7188,7 +7639,7 @@ Enterprise browser
       function windowLabel(windowElement) {
         return (
           windowElement.querySelector(
-            ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calculator-title, .help-title"
+            ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calendar-title, .calculator-title, .help-title"
           )?.textContent || "Window"
         ).trim();
       }
@@ -8002,8 +8453,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           dropAllInstanceState();
           // A preference is data too: Reset means the defaults are back, not
           // that a mute from the deleted session outlives it.
-          timerSoundOn = true;
-          syncTimerSoundButton();
+          alertSoundOn = true;
+          syncAlertSoundButton();
+          // Events are the most emphatically "data" thing in the app, and Reset
+          // says it clears all CB App browser data.
+          calendarEvents = [];
 
           cascadeIndex = 0;
           cascadeAnchor = null;
@@ -8031,9 +8485,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         // Only a real boolean speaks here; anything else means a session from
         // before the jingle existed, which keeps the default (on).
         if (typeof session.timerSound === "boolean") {
-          timerSoundOn = session.timerSound;
+          alertSoundOn = session.timerSound;
         }
-        syncTimerSoundButton();
+        syncAlertSoundButton();
+
+        /* Events before windows: restoreSingleton() builds the calendar windows
+           further down and each one renders from this store on the way in. */
+        calendarEvents = Array.isArray(session.events) ? session.events : [];
 
         // Restore windows
         Object.keys(session).forEach((key) => {
@@ -8389,6 +8847,12 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
         refreshChrome();
         updateProtectButton();
+        /* Last, and outside every branch above: reminders have to run whether a
+           session was restored, was refused, or never existed. The first sweep is
+           the catch-up pass for everything that came due while the app was shut —
+           see sweepDueEvents. */
+        startAlertScheduler();
+        sweepDueEvents();
       };
 
       // Save session automatically when the tab or browser closes
@@ -8532,12 +8996,17 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // to the export — .showing would otherwise ship a card the copy has
           // no timer for, with a Show button pointing at a window id that
           // never existed there.
-          clone.querySelector("#timer-alert")?.classList.remove("showing");
-          clone.querySelector("#timer-alert-detail") &&
-            (clone.querySelector("#timer-alert-detail").textContent = "");
-          clone.querySelector("#timer-alert-show")?.removeAttribute("style");
+          clone.querySelector("#app-alert")?.classList.remove("showing");
+          ["#app-alert-title", "#app-alert-detail", "#app-alert-extra"].forEach(
+            (sel) => {
+              const el = clone.querySelector(sel);
+              // textContent, so the per-alert buttons in #app-alert-extra go
+              // with it — they are built from this tab's live events.
+              if (el) el.textContent = "";
+            }
+          );
           // The mute button's label is live state; the copy starts unmuted.
-          const cloneMute = clone.querySelector("#timer-alert-mute");
+          const cloneMute = clone.querySelector("#app-alert-mute");
           if (cloneMute) cloneMute.textContent = "Mute";
           // Same reasoning for the lock banner: this tab's state, not the
           // export's — the copy has its own session and its own lock, if any.
@@ -8669,9 +9138,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const cd = stateFor(windowId).countdown;
         // Starting a fresh run answers the last one; leaving the old card up
         // would have it announce a timer that is already running again.
-        if (_timerAlertWindow === windowId) dismissTimerAlert();
-        // This click is the gesture the jingle needs — see primeTimerAudio.
-        if (timerSoundOn) primeTimerAudio();
+        if (_timerAlertWindow === windowId) dismissAppAlert();
+        // This click is the gesture the chime needs — see primeAlertAudio.
+        if (alertSoundOn) primeAlertAudio();
         cd.endTime = Date.now() + totalMs;
         cd.active = true;
         updateCountdownDisplay(windowId);
@@ -8682,7 +9151,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
       function resetCountdown(windowId) {
         const cd = stateFor(windowId).countdown;
-        if (_timerAlertWindow === windowId) dismissTimerAlert();
+        if (_timerAlertWindow === windowId) dismissAppAlert();
         cd.active = false;
         cd.endTime = null;
         clearInterval(cd.interval);
@@ -8770,11 +9239,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
         // No OS notification. It needed a permission this app never asks for,
         // browsers drop it under file:// without a service worker, and on a
-        // managed machine it puts "CB App" on the desktop. #timer-alert is the
+        // managed machine it puts "CB App" on the desktop. #app-alert is the
         // announcement now — see showTimerAlert.
       }
 
-      /* --- Timer jingle ---
+      /* --- Alert chime ---
          Synthesised with the Web Audio API, deliberately not a base64 audio
          file. A base64 <audio> would cost three things this app does not want
          to pay: ~40KB of data: URI in a single file people download, a
@@ -8785,23 +9254,28 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
          D5 - A5 - D6: an open fifth and octave, ~1.3s, one pass. It reads as a
          soft chime rather than a ringtone, and it does not repeat. To swap in a
-         recorded jingle later: base64 an .mp3 into an <audio src="data:audio/
+         recorded chime later: base64 an .mp3 into an <audio src="data:audio/
          mpeg;base64,..."> and add `media-src data:` to BOTH the meta CSP at the
          top of this file and the cbapp headers in vercel.json. */
-      const TIMER_JINGLE = [
+      const ALERT_CHIME = [
         { hz: 587.33, at: 0 }, // D5
         { hz: 880.0, at: 0.16 }, // A5
         { hz: 1174.66, at: 0.32 }, // D6
       ];
 
-      let timerSoundOn = true;
+      /* One flag for every alert sound in the app. It is persisted under the
+         session key `timerSound`, which is what v3.2.17 wrote and what sessions
+         on disk already carry — the name stayed put when the meaning widened
+         from "the countdown" to "any alert". */
+      let alertSoundOn = true;
       let _audioCtx = null;
 
       /* Autoplay policy: a context created outside a gesture starts suspended
          and stays silent. Start is a click, so the context is built and
          unlocked there — by the time the timer ends there is no gesture left to
-         borrow. */
-      function primeTimerAudio() {
+         borrow. Calendar reminders have no gesture at all near the firing, which
+         is why every save of an event primes it too. */
+      function primeAlertAudio() {
         const Ctx = window.AudioContext || window.webkitAudioContext;
         if (!Ctx) return null;
         try {
@@ -8813,9 +9287,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
       }
 
-      function playTimerJingle() {
-        if (!timerSoundOn) return;
-        const ctx = primeTimerAudio();
+      function playAlertChime() {
+        if (!alertSoundOn) return;
+        const ctx = primeAlertAudio();
         if (!ctx) return;
         try {
           const out = ctx.createGain();
@@ -8827,7 +9301,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           out.connect(soften);
           soften.connect(ctx.destination);
           const t0 = ctx.currentTime + 0.02;
-          TIMER_JINGLE.forEach(({ hz, at }) => {
+          ALERT_CHIME.forEach(({ hz, at }) => {
             // Fundamental plus a quiet octave — what makes it read as a chime
             // and not a test tone.
             [
@@ -8858,61 +9332,68 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       /* The mute button lives on the alert card because the moment you hear a
          sound you did not want is the moment you want the switch. The choice is
          saved with the session. */
-      function toggleTimerSound() {
-        timerSoundOn = !timerSoundOn;
-        syncTimerSoundButton();
-        showStatus(timerSoundOn ? "Timer sound on." : "Timer sound muted.");
+      function toggleAlertSound() {
+        alertSoundOn = !alertSoundOn;
+        syncAlertSoundButton();
+        showStatus(alertSoundOn ? "Alert sound on." : "Alert sound muted.");
         saveSession();
       }
 
-      function syncTimerSoundButton() {
-        const btn = document.getElementById("timer-alert-mute");
+      function syncAlertSoundButton() {
+        const btn = document.getElementById("app-alert-mute");
         if (!btn) return;
-        btn.textContent = timerSoundOn ? "Mute" : "Unmute";
+        btn.textContent = alertSoundOn ? "Mute" : "Unmute";
         btn.setAttribute(
           "aria-label",
-          timerSoundOn ? "Mute the timer sound" : "Unmute the timer sound"
+          alertSoundOn ? "Mute the alert sound" : "Unmute the alert sound"
         );
       }
 
-      /* --- In-app timer alert ---
-         The card that replaces the OS notification. It stays up until it is
-         dismissed, and remembers which clock rang so Show can go back to it. */
-      let _timerAlertWindow = null;
+      /* --- The app alert card ---
+         One card, two producers: the countdown (v3.2.17) and calendar reminders
+         (v4.0.0). It stays up until it is dismissed, which is the whole point —
+         an alert you asked for must survive being in another tab.
 
-      function showTimerAlert(windowId) {
-        const alertEl = document.getElementById("timer-alert");
+         Every caller goes through here. `detail` and every button label are set
+         with textContent, never innerHTML: an event title is user text, and the
+         catch-up card renders several of them at once. */
+      function showAppAlert({ icon, title, detail, actions, chime = true }) {
+        const alertEl = document.getElementById("app-alert");
         if (!alertEl) return;
-        _timerAlertWindow = windowId || null;
-        playTimerJingle();
-        syncTimerSoundButton();
-        const detail = document.getElementById("timer-alert-detail");
-        if (detail) detail.textContent = timerAlertDetail(windowId);
-        const showBtn = document.getElementById("timer-alert-show");
-        // Nothing to go back to if the clock was closed while the timer ran.
-        if (showBtn) {
-          const target = windowId && document.getElementById(windowId);
-          showBtn.style.display = target ? "" : "none";
+        const iconEl = document.getElementById("app-alert-icon");
+        const titleEl = document.getElementById("app-alert-title");
+        const detailEl = document.getElementById("app-alert-detail");
+        const extra = document.getElementById("app-alert-extra");
+        if (iconEl) iconEl.textContent = icon || "⏰";
+        if (titleEl) titleEl.textContent = title || "";
+        if (detailEl) detailEl.textContent = detail || "";
+        if (extra) {
+          extra.textContent = ""; // clears the previous alert's own buttons
+          (actions || []).forEach((action) => {
+            if (!action || !action.label) return;
+            const btn = document.createElement("button");
+            btn.type = "button";
+            btn.textContent = action.label;
+            // addEventListener, not an onclick string: the handler closes over
+            // the event this card is about, and nothing is serialised into HTML.
+            btn.addEventListener("click", () => {
+              dismissAppAlert();
+              try {
+                action.onClick();
+              } catch (e) {
+                console.warn("Alert action failed:", e);
+              }
+            });
+            extra.appendChild(btn);
+          });
         }
+        if (chime) playAlertChime();
+        syncAlertSoundButton();
         alertEl.classList.add("showing");
       }
 
-      // "Countdown on Clock 2 reached zero." — which clock matters once more
-      // than one is open, and each desk can hold its own.
-      function timerAlertDetail(windowId) {
-        const el = windowId && document.getElementById(windowId);
-        if (!el) return "The countdown reached zero.";
-        const label = el.querySelector(".clock-title")?.textContent?.trim();
-        const elsewhere = !inCurrentMode(el)
-          ? ` (on the ${
-              windowMode(el) === CANVAS ? "canvas" : "windowed"
-            } desk)`
-          : "";
-        return `${label || "Countdown"} reached zero.${elsewhere}`;
-      }
-
-      function dismissTimerAlert() {
-        const alertEl = document.getElementById("timer-alert");
+      function dismissAppAlert() {
+        const alertEl = document.getElementById("app-alert");
         if (alertEl) alertEl.classList.remove("showing");
         _timerAlertWindow = null;
         // Dismissing is the acknowledgement, so the other two attention-getters
@@ -8925,15 +9406,43 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         restoreFavicon();
       }
 
-      // Go back to the clock that rang: swap desks if it lives on the other
-      // one, un-minimize it, raise it, and centre the canvas on it.
-      function revealTimerAlertWindow() {
-        const windowId = _timerAlertWindow;
+      /* --- The countdown's use of it --- */
+      let _timerAlertWindow = null;
+
+      function showTimerAlert(windowId) {
+        _timerAlertWindow = windowId || null;
+        const target = windowId && document.getElementById(windowId);
+        showAppAlert({
+          icon: "⏰",
+          title: "Timer finished",
+          detail: timerAlertDetail(windowId),
+          // Nothing to go back to if the clock was closed while the timer ran.
+          actions: target
+            ? [{ label: "Show", onClick: () => revealWindow(windowId) }]
+            : [],
+        });
+      }
+
+      // "Clock 2 reached zero." — which clock matters once more than one is
+      // open, and each desk can hold its own.
+      function timerAlertDetail(windowId) {
         const el = windowId && document.getElementById(windowId);
-        if (!el) {
-          dismissTimerAlert();
-          return;
-        }
+        if (!el) return "The countdown reached zero.";
+        const label = el.querySelector(".clock-title")?.textContent?.trim();
+        const elsewhere = !inCurrentMode(el)
+          ? ` (on the ${
+              windowMode(el) === CANVAS ? "canvas" : "windowed"
+            } desk)`
+          : "";
+        return `${label || "Countdown"} reached zero.${elsewhere}`;
+      }
+
+      /* Go back to a window an alert is about: swap desks if it lives on the
+         other one, un-minimize it, raise it, and centre the canvas on it. Shared
+         by the timer's Show and the calendar's. */
+      function revealWindow(windowId) {
+        const el = windowId && document.getElementById(windowId);
+        if (!el) return;
         if (!inCurrentMode(el)) toggleCanvasMode(windowMode(el) === CANVAS);
         if (el.style.display === "none") restoreWindow(windowId);
         else setActiveWindow(windowId);
@@ -8946,7 +9455,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           view.y = window.innerHeight / 2 - cy * view.zoom;
           scheduleView();
         }
-        dismissTimerAlert();
       }
 
       function setCountdownFavicon() {
@@ -8975,6 +9483,862 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           let link = document.querySelector("link[rel~='icon']");
           if (link) link.href = originalFavicon;
         }
+      }
+
+      /* ==========================================================
+         CALENDAR ENGINE (v4.0.0)
+         ----------------------------------------------------------
+         The store, the occurrence maths and the scheduler. No DOM below this
+         comment until the window itself — the alerts deliberately do not depend
+         on a calendar window being open. You set a reminder; you should not have
+         to keep a window open to be told.
+         ========================================================== */
+      let calendarEvents = [];
+
+      function eventById(id) {
+        return calendarEvents.find((e) => e.id === id) || null;
+      }
+
+      /* A copy of the store, for anything outside this script scope. `let` at the
+         top level of a classic script does not become a window property the way a
+         function declaration does, so the tests can call every helper here but
+         cannot see the array they operate on without this. A copy, not the array:
+         commitEvents is the only way in. */
+      function calendarEventsSnapshot() {
+        return calendarEvents.slice();
+      }
+
+      /* Every mutation goes through here: it keeps the cap honest, keeps both
+         desks' calendars in step, and saves. Sorting on the way in means every
+         reader — grid, day list, agenda, scheduler — gets chronological order
+         without sorting again. */
+      function commitEvents(nextEvents, { save = true } = {}) {
+        calendarEvents = nextEvents
+          .slice(0, MAX_EVENTS)
+          .sort((a, b) =>
+            `${a.date}T${a.time || "00:00"}`.localeCompare(
+              `${b.date}T${b.time || "00:00"}`
+            )
+          );
+        renderAllCalendars();
+        if (save) saveSession();
+      }
+
+      // --- Local wall-clock helpers ------------------------------------------
+      // Everything here builds Dates with the (y, m, d) constructor, never by
+      // parsing a string: new Date("2026-08-14") is UTC midnight, which is the
+      // previous day for anyone west of Greenwich.
+
+      function dateKey(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+          d.getDate()
+        ).padStart(2, "0")}`;
+      }
+
+      function timeKey(d) {
+        return `${String(d.getHours()).padStart(2, "0")}:${String(
+          d.getMinutes()
+        ).padStart(2, "0")}`;
+      }
+
+      function parseDateKey(key) {
+        const [y, m, d] = String(key).split("-").map(Number);
+        return new Date(y, (m || 1) - 1, d || 1);
+      }
+
+      /* When an occurrence on `dateStr` actually begins. An all-day event has no
+         time of its own, so it begins at ALL_DAY_HOUR — that is what gives its
+         lead time something to count back from. */
+      function occurrenceStart(event, dateStr) {
+        const base = parseDateKey(dateStr);
+        if (event.allDay || !event.time) {
+          base.setHours(ALL_DAY_HOUR, 0, 0, 0);
+          return base;
+        }
+        const [h, m] = event.time.split(":").map(Number);
+        base.setHours(h, m, 0, 0);
+        return base;
+      }
+
+      /* The moment the alert should fire for a given occurrence — the one number
+         the whole scheduler runs on. Null means this event never fires. */
+      function eventFireAt(event, dateStr) {
+        if (event.alertMinutes === null || event.alertMinutes === undefined) {
+          return null;
+        }
+        const start = occurrenceStart(event, dateStr || event.date);
+        return new Date(start.getTime() - event.alertMinutes * 60000);
+      }
+
+      /* Clamping, so a monthly event on the 31st does not silently skip
+         February. JS rolls an overflowing day into the next month (Feb 31 ->
+         Mar 3), which would move the appointment; the last day of the shorter
+         month is the answer that keeps it in the month the user picked. Yearly
+         Feb 29 lands on Feb 28 in a common year for the same reason. */
+      function daysInMonth(year, monthIndex) {
+        return new Date(year, monthIndex + 1, 0).getDate();
+      }
+
+      function clampedDate(year, monthIndex, day) {
+        return new Date(
+          year,
+          monthIndex,
+          Math.min(day, daysInMonth(year, monthIndex))
+        );
+      }
+
+      /* The first occurrence of `event` on or after `from` (a Date). Returns a
+         "YYYY-MM-DD" string, or null for a one-off that is already past.
+         Deliberately arithmetic rather than iterative: a daily event first set
+         two years ago must not cost 700 loop turns to answer. */
+      function nextOccurrence(event, from) {
+        const fromDay = new Date(
+          from.getFullYear(),
+          from.getMonth(),
+          from.getDate()
+        );
+        const first = parseDateKey(event.date);
+        if (first >= fromDay) return event.date;
+        if (event.repeat === "none") return null;
+
+        const DAY = 86400000;
+        if (event.repeat === "daily") {
+          const steps = Math.ceil((fromDay - first) / DAY);
+          return dateKey(new Date(first.getTime() + steps * DAY));
+        }
+        if (event.repeat === "weekly") {
+          const steps = Math.ceil((fromDay - first) / (7 * DAY));
+          return dateKey(new Date(first.getTime() + steps * 7 * DAY));
+        }
+        if (event.repeat === "monthly") {
+          const day = first.getDate();
+          let months =
+            (fromDay.getFullYear() - first.getFullYear()) * 12 +
+            (fromDay.getMonth() - first.getMonth());
+          if (months < 0) months = 0;
+          for (let i = 0; i < 3; i++) {
+            // At most three tries: this month, then the next two. Clamping can
+            // pull a date backwards (the 31st becoming the 28th), so the first
+            // candidate is not always on or after `from`.
+            const candidate = clampedDate(
+              first.getFullYear(),
+              first.getMonth() + months + i,
+              day
+            );
+            if (candidate >= fromDay) return dateKey(candidate);
+          }
+          return null;
+        }
+        if (event.repeat === "yearly") {
+          let years = fromDay.getFullYear() - first.getFullYear();
+          if (years < 0) years = 0;
+          for (let i = 0; i < 3; i++) {
+            const candidate = clampedDate(
+              first.getFullYear() + years + i,
+              first.getMonth(),
+              first.getDate()
+            );
+            if (candidate >= fromDay) return dateKey(candidate);
+          }
+          return null;
+        }
+        return null;
+      }
+
+      /* Does `event` land on `dateStr`? Used by the month grid and the day list.
+         Asking nextOccurrence from that day and comparing is exact and cheap —
+         no separate recurrence walk to keep in step with the one above. */
+      function eventOccursOn(event, dateStr) {
+        if (event.date === dateStr) return true;
+        if (event.repeat === "none") return false;
+        if (dateStr < event.date) return false;
+        return nextOccurrence(event, parseDateKey(dateStr)) === dateStr;
+      }
+
+      function eventsOn(dateStr) {
+        return calendarEvents.filter((e) => eventOccursOn(e, dateStr));
+      }
+
+      // --- The scheduler -----------------------------------------------------
+      /* 20s, because a reminder that lands 20 seconds late is still a reminder
+         and a tighter loop buys nothing. Background tabs are throttled to about
+         one tick a minute by every current browser, so an alert can be up to a
+         minute late while the tab is hidden — hence the immediate sweep when the
+         tab is looked at again, and the catch-up pass for time spent closed. */
+      const ALERT_TICK_MS = 20000;
+      /* How far back the catch-up pass looks. A daily event untouched for a year
+         has 365 missed occurrences and none of them is news; a week is the
+         window where "you missed this" is still worth saying. */
+      const CATCHUP_DAYS = 7;
+      let _alertTick = null;
+
+      function startAlertScheduler() {
+        if (_alertTick) clearInterval(_alertTick);
+        _alertTick = setInterval(sweepDueEvents, ALERT_TICK_MS);
+        // A hidden tab's timers are throttled, so anything that came due while
+        // it was in the background is delivered the moment it is looked at.
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) sweepDueEvents();
+        });
+        window.addEventListener("focus", sweepDueEvents);
+      }
+
+      /* Events whose alert is due at `now` and has not been fired yet.
+         Exported for the tests, which is also why it takes `now` rather than
+         reading the clock itself. */
+      function dueEvents(now) {
+        return calendarEvents.filter((event) => {
+          if (event.alertMinutes === null || event.alertMinutes === undefined) {
+            return false;
+          }
+          const occurrence = dueOccurrence(event, now);
+          return occurrence !== null;
+        });
+      }
+
+      /* The occurrence of `event` whose alert time has passed but which has not
+         been announced yet, or null. This is the one place `lastFired` is
+         interpreted: it holds the occurrence stamp that was announced, so a
+         one-off never repeats and a recurring event is free to fire again next
+         time round. */
+      function dueOccurrence(event, now) {
+        if (event.alertMinutes === null || event.alertMinutes === undefined) {
+          return null;
+        }
+        /* Walk back from now to find the most recent occurrence whose alert has
+           passed. Starting the search a lead-time before now is what lets an
+           alert set 60 minutes ahead of a future event be found at all. */
+        const lookFrom = new Date(
+          now.getTime() - Math.max(event.alertMinutes, 0) * 60000
+        );
+        let candidate = nextOccurrence(event, lookFrom);
+        // A one-off whose day has passed still has an alert to answer for, so
+        // fall back to its own date rather than giving up here.
+        if (!candidate && event.repeat === "none") candidate = event.date;
+        if (!candidate) return null;
+        const fireAt = eventFireAt(event, candidate);
+        if (!fireAt || fireAt > now) return null;
+        const stamp = occurrenceStamp(event, candidate);
+        if (event.lastFired && event.lastFired >= stamp) return null;
+        return candidate;
+      }
+
+      // The identity of one occurrence: its date plus the time it starts. Two
+      // occurrences of a repeating event never share it, which is exactly what
+      // lastFired needs to compare against.
+      function occurrenceStamp(event, dateStr) {
+        const start = occurrenceStart(event, dateStr);
+        return `${dateKey(start)}T${timeKey(start)}`;
+      }
+
+      /* The tick. Anything due is announced now; anything due but older than the
+         catch-up window is stamped as fired without being announced, so a
+         calendar left alone for a month does not open into a wall of alerts. */
+      function sweepDueEvents() {
+        if (sessionLocked) return; // no events are loaded; nothing to announce
+        const now = new Date();
+        const cutoff = new Date(now.getTime() - CATCHUP_DAYS * 86400000);
+        const fresh = [];
+        let stale = 0;
+        let changed = false;
+        calendarEvents.forEach((event) => {
+          const occurrence = dueOccurrence(event, now);
+          if (!occurrence) return;
+          event.lastFired = occurrenceStamp(event, occurrence);
+          changed = true;
+          if (eventFireAt(event, occurrence) >= cutoff) {
+            fresh.push({ event, occurrence });
+          } else {
+            stale += 1;
+          }
+        });
+        if (!changed) return;
+        if (fresh.length) announceEvents(fresh, stale);
+        // The stamps are part of the session: without this, the same reminder
+        // fires again on the next reload.
+        saveSession();
+      }
+
+      /* One card however many fired. Firing five chimes for five reminders is
+         how a notification system teaches people to mute it. */
+      function announceEvents(fired, staleCount) {
+        const lines = fired.map(({ event, occurrence }) => {
+          const when = event.allDay
+            ? "all day"
+            : occurrenceStart(event, occurrence).toLocaleTimeString(undefined, {
+                hour: "numeric",
+                minute: "2-digit",
+              });
+          const dayLabel =
+            occurrence === dateKey(new Date())
+              ? ""
+              : ` · ${parseDateKey(occurrence).toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                })}`;
+          return `${when}${dayLabel} — ${event.title || "(untitled)"}`;
+        });
+        if (staleCount) {
+          // Never truncate in silence: say that older ones were passed over.
+          lines.push(
+            `(${staleCount} older reminder${staleCount === 1 ? "" : "s"} passed over — more than ${CATCHUP_DAYS} days ago)`
+          );
+        }
+        const first = fired[0];
+        showAppAlert({
+          icon: "📅",
+          title:
+            fired.length === 1
+              ? "Reminder"
+              : `${fired.length} reminders`,
+          detail: lines.join("\n"),
+          actions: [
+            {
+              label: "Open calendar",
+              onClick: () => openCalendarOn(first.occurrence),
+            },
+          ],
+        });
+      }
+
+      /* Show the day an alert was about: reuse this desk's calendar if it is
+         open, otherwise open one. */
+      function openCalendarOn(dateStr) {
+        let id = deskInstanceId("calendar");
+        if (!document.getElementById(id)) {
+          addCalendar();
+          id = deskInstanceId("calendar");
+        }
+        const el = document.getElementById(id);
+        if (!el) return;
+        const day = parseDateKey(dateStr);
+        el.dataset.viewYear = day.getFullYear();
+        el.dataset.viewMonth = day.getMonth();
+        el.dataset.selected = dateStr;
+        renderCalendar(id);
+        revealWindow(id);
+      }
+
+      /* ==========================================================
+         THE CALENDAR WINDOW (v4.0.0)
+         ----------------------------------------------------------
+         One per desk, like Calc/Clock/Log/Help, with every inner id suffixed by
+         its owner's — see the ONE PER DESK comment. What it does NOT own is the
+         events: those live in `calendarEvents` and both windows render the same
+         store, so an event added on the canvas desk is on the plain desk too.
+
+         View state (which month is showing, which day is selected) IS per
+         window, and rides in dataset so it persists with the window record.
+
+         Every row is built with createElement and textContent. Event titles and
+         notes are user text and never go near innerHTML.
+         ========================================================== */
+      const CAL_DAY_NAMES = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+      function toggleCalendar(targetMode) {
+        const id = deskInstanceId("calendar", targetMode);
+        const existing = document.getElementById(id);
+        if (existing && existing.style.display === "none") {
+          restoreWindow(id);
+          return;
+        }
+        if (existing) {
+          closeWindow(id);
+          return;
+        }
+        addCalendar(targetMode);
+      }
+
+      function addCalendar(targetMode) {
+        if (document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS) {
+          showStatus(
+            `Maximum of ${MAX_WINDOWS} windows reached — close one first.`
+          );
+          return;
+        }
+        const calid = deskInstanceId("calendar", targetMode);
+        if (document.getElementById(calid)) {
+          setActiveWindow(calid);
+          return document.getElementById(calid);
+        }
+        const windowsContainer = document.getElementById("windows");
+        const newWindow = document.createElement("div");
+        newWindow.className = "calendar-window";
+        newWindow.id = calid;
+        if (targetMode) newWindow.dataset.mode = targetMode;
+        newWindow.style.zIndex = nextWindowZ();
+        const defaultWidth = 480;
+        const defaultHeight = 640;
+        newWindow.dataset.width = defaultWidth;
+        newWindow.dataset.height = defaultHeight;
+        newWindow.style.width = `${defaultWidth}px`;
+        newWindow.style.height = `${defaultHeight}px`;
+        placeWindow(newWindow, defaultWidth, defaultHeight);
+
+        const today = new Date();
+        newWindow.dataset.viewYear = today.getFullYear();
+        newWindow.dataset.viewMonth = today.getMonth();
+        newWindow.dataset.selected = dateKey(today);
+
+        newWindow.innerHTML = `
+        <div class="calendar-header">
+          <span class="calendar-title">Calendar</span>
+          <div class="calendar-controls">
+            <span class="edit-window" onclick="startRename('${calid}')" title="Rename" role="button" tabindex="0">✏️</span>
+            <span class="minimize-window" onclick="minimizeWindow('${calid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+            <span class="lock-window" onclick="toggleWindowLock('${calid}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
+            <span class="close-calendar" onclick="closeWindow('${calid}')" title="Close" role="button" tabindex="0">×</span>
+          </div>
+        </div>
+        <div class="cal-content">
+          <div class="cal-monthbar">
+            <button type="button" onclick="calShiftMonth('${calid}', -1)" title="Previous month" aria-label="Previous month">‹</button>
+            <span class="cal-month-label" id="cal-month-${calid}" aria-live="polite"></span>
+            <button type="button" onclick="calGoToday('${calid}')">Today</button>
+            <button type="button" onclick="calShiftMonth('${calid}', 1)" title="Next month" aria-label="Next month">›</button>
+          </div>
+          <div class="cal-grid" id="cal-grid-${calid}" role="grid" aria-label="Month"></div>
+          <div class="cal-section-head">
+            <input type="text" class="cal-filter" id="cal-filter-${calid}" placeholder="Search events..." aria-label="Search events by title or note">
+            <button type="button" id="cal-add-${calid}" onclick="calOpenForm('${calid}')">Add event</button>
+          </div>
+          <div class="cal-lower" id="cal-lower-${calid}"></div>
+        </div>
+      `;
+        windowsContainer.appendChild(newWindow);
+        makeDraggable(newWindow);
+        wireWindowFocus(newWindow);
+        setActiveWindow(calid);
+        refreshChrome();
+        const filter = instancePart(calid, "cal-filter");
+        // input, not change: the agenda should follow the typing.
+        if (filter) filter.addEventListener("input", () => renderCalendar(calid));
+        renderCalendar(calid);
+        saveSession();
+        return newWindow;
+      }
+
+      function calendarWindows() {
+        return Array.from(document.querySelectorAll(".calendar-window"));
+      }
+
+      // One store, so every open calendar redraws together.
+      function renderAllCalendars() {
+        calendarWindows().forEach((el) => renderCalendar(el.id));
+      }
+
+      function renderCalendar(windowId) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        renderCalendarGrid(windowId, el);
+        // The form owns the lower pane while it is open; redrawing over it would
+        // throw away half-typed input on every autosave-triggered render.
+        if (el.dataset.formOpen === "true") return;
+        renderCalendarLower(windowId, el);
+      }
+
+      function renderCalendarGrid(windowId, el) {
+        const grid = instancePart(windowId, "cal-grid");
+        const monthLabel = instancePart(windowId, "cal-month");
+        if (!grid) return;
+        const year = parseInt(el.dataset.viewYear, 10);
+        const month = parseInt(el.dataset.viewMonth, 10);
+        const selected = el.dataset.selected;
+        const todayKey = dateKey(new Date());
+        if (monthLabel) {
+          monthLabel.textContent = new Date(year, month, 1).toLocaleDateString(
+            undefined,
+            { month: "long", year: "numeric" }
+          );
+        }
+        grid.textContent = "";
+        CAL_DAY_NAMES.forEach((name) => {
+          const cell = document.createElement("div");
+          cell.className = "cal-dayname";
+          cell.textContent = name;
+          grid.appendChild(cell);
+        });
+        const firstWeekday = new Date(year, month, 1).getDay();
+        for (let i = 0; i < firstWeekday; i++) {
+          const blank = document.createElement("div");
+          blank.className = "cal-day cal-empty";
+          grid.appendChild(blank);
+        }
+        const total = daysInMonth(year, month);
+        for (let day = 1; day <= total; day++) {
+          const key = dateKey(new Date(year, month, day));
+          const cell = document.createElement("button");
+          cell.type = "button";
+          cell.className = "cal-day";
+          cell.textContent = String(day);
+          if (key === todayKey) cell.classList.add("cal-today");
+          if (key === selected) cell.classList.add("cal-selected");
+          if (eventsOn(key).length) cell.classList.add("cal-has-events");
+          cell.setAttribute(
+            "aria-label",
+            `${parseDateKey(key).toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })}${eventsOn(key).length ? " — has events" : ""}`
+          );
+          cell.addEventListener("click", () => calSelectDay(windowId, key));
+          grid.appendChild(cell);
+        }
+      }
+
+      /* The lower pane is either the selected day's events or, when the filter
+         box has text, every match across the whole store — which is what makes
+         titles and notes searchable without touching the textarea-based
+         Search/Replace panel. */
+      function renderCalendarLower(windowId, el) {
+        const lower = instancePart(windowId, "cal-lower");
+        if (!lower) return;
+        const filterEl = instancePart(windowId, "cal-filter");
+        const query = (filterEl?.value || "").trim().toLowerCase();
+        lower.textContent = "";
+
+        if (query) {
+          const matches = calendarEvents.filter(
+            (e) =>
+              e.title.toLowerCase().includes(query) ||
+              e.note.toLowerCase().includes(query)
+          );
+          lower.appendChild(
+            calSectionHeading(
+              matches.length
+                ? `${matches.length} match${matches.length === 1 ? "" : "es"}`
+                : "No matches"
+            )
+          );
+          matches.forEach((event) =>
+            lower.appendChild(calEventRow(windowId, event, event.date, true))
+          );
+          return;
+        }
+
+        const selected = el.dataset.selected;
+        lower.appendChild(
+          calSectionHeading(
+            parseDateKey(selected).toLocaleDateString(undefined, {
+              weekday: "long",
+              month: "long",
+              day: "numeric",
+            })
+          )
+        );
+        const onDay = eventsOn(selected);
+        if (!onDay.length) {
+          const empty = document.createElement("div");
+          empty.className = "cal-empty-note";
+          empty.textContent = "Nothing on this day.";
+          lower.appendChild(empty);
+        }
+        onDay.forEach((event) =>
+          lower.appendChild(calEventRow(windowId, event, selected, false))
+        );
+      }
+
+      function calSectionHeading(text) {
+        const head = document.createElement("div");
+        head.className = "cal-section-head";
+        const span = document.createElement("span");
+        span.textContent = text;
+        head.appendChild(span);
+        return head;
+      }
+
+      function calEventRow(windowId, event, dateStr, showDate) {
+        const row = document.createElement("div");
+        row.className = "cal-event";
+
+        const when = document.createElement("span");
+        when.className = "cal-event-when";
+        when.textContent = event.allDay
+          ? "All day"
+          : occurrenceStart(event, dateStr).toLocaleTimeString(undefined, {
+              hour: "numeric",
+              minute: "2-digit",
+            });
+        row.appendChild(when);
+
+        const main = document.createElement("span");
+        main.className = "cal-event-main";
+        const title = document.createElement("span");
+        title.className = "cal-event-title";
+        title.textContent = event.title || "(untitled)";
+        main.appendChild(title);
+        if (showDate) {
+          const on = document.createElement("span");
+          on.className = "cal-event-note";
+          on.textContent = parseDateKey(event.date).toLocaleDateString(
+            undefined,
+            { weekday: "short", month: "short", day: "numeric", year: "numeric" }
+          );
+          main.appendChild(document.createElement("br"));
+          main.appendChild(on);
+        }
+        if (event.note) {
+          const note = document.createElement("span");
+          note.className = "cal-event-note";
+          note.textContent = event.note;
+          main.appendChild(document.createElement("br"));
+          main.appendChild(note);
+        }
+        row.appendChild(main);
+
+        const meta = document.createElement("span");
+        meta.className = "cal-event-meta";
+        const bits = [];
+        if (event.repeat !== "none") bits.push(`⟳ ${event.repeat}`);
+        if (event.alertMinutes !== null) {
+          bits.push(event.alertMinutes === 0 ? "⏰" : `⏰ -${event.alertMinutes}m`);
+        }
+        meta.textContent = bits.join("  ");
+        row.appendChild(meta);
+
+        const edit = document.createElement("button");
+        edit.type = "button";
+        edit.textContent = "✏️";
+        edit.title = "Edit this event";
+        edit.setAttribute("aria-label", `Edit ${event.title || "event"}`);
+        edit.addEventListener("click", () => calOpenForm(windowId, event.id));
+        row.appendChild(edit);
+
+        const del = document.createElement("button");
+        del.type = "button";
+        del.textContent = "🗑";
+        del.title = "Delete this event";
+        del.setAttribute("aria-label", `Delete ${event.title || "event"}`);
+        del.addEventListener("click", () => calDeleteEvent(event.id));
+        row.appendChild(del);
+
+        return row;
+      }
+
+      function calSelectDay(windowId, dateStr) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        el.dataset.selected = dateStr;
+        // Selecting a day while the form is open retargets the form's date
+        // rather than throwing the form away mid-edit.
+        const dateInput = instancePart(windowId, "cal-f-date");
+        if (el.dataset.formOpen === "true" && dateInput) {
+          dateInput.value = dateStr;
+          renderCalendarGrid(windowId, el);
+          return;
+        }
+        renderCalendar(windowId);
+        saveSession();
+      }
+
+      function calShiftMonth(windowId, delta) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        const year = parseInt(el.dataset.viewYear, 10);
+        const month = parseInt(el.dataset.viewMonth, 10);
+        const shifted = new Date(year, month + delta, 1);
+        el.dataset.viewYear = shifted.getFullYear();
+        el.dataset.viewMonth = shifted.getMonth();
+        renderCalendar(windowId);
+        saveSession();
+      }
+
+      function calGoToday(windowId) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        const today = new Date();
+        el.dataset.viewYear = today.getFullYear();
+        el.dataset.viewMonth = today.getMonth();
+        el.dataset.selected = dateKey(today);
+        const filterEl = instancePart(windowId, "cal-filter");
+        if (filterEl) filterEl.value = ""; // a filtered pane hides "today"
+        renderCalendar(windowId);
+        saveSession();
+      }
+
+      /* The add/edit form replaces the lower pane rather than opening a modal:
+         a modal would cover the month grid, and picking a different day mid-edit
+         is a normal thing to want. */
+      function calOpenForm(windowId, eventId) {
+        const el = document.getElementById(windowId);
+        const lower = instancePart(windowId, "cal-lower");
+        if (!el || !lower) return;
+        if (el.dataset.locked === "true") return; // frozen; wireFrozenFeedback explains
+        const editing = eventId ? eventById(eventId) : null;
+        el.dataset.formOpen = "true";
+        el.dataset.editingId = editing ? editing.id : "";
+        lower.textContent = "";
+
+        const form = document.createElement("div");
+        form.className = "cal-form";
+        form.innerHTML = `
+          <div class="cal-section-head"><span>${editing ? "Edit event" : "New event"}</span></div>
+          <div class="cal-form-row">
+            <input type="text" id="cal-f-title-${windowId}" placeholder="What is it?" maxlength="${MAX_NAME_CHARS}" aria-label="Event title">
+          </div>
+          <div class="cal-form-row">
+            <label>Date <input type="date" id="cal-f-date-${windowId}" aria-label="Event date"></label>
+            <label>Time <input type="time" id="cal-f-time-${windowId}" aria-label="Event time"></label>
+            <label><input type="checkbox" id="cal-f-allday-${windowId}"> All day</label>
+          </div>
+          <div class="cal-form-row">
+            <label>Repeats
+              <select id="cal-f-repeat-${windowId}" aria-label="Repeat">
+                <option value="none">Never</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
+            <label><input type="checkbox" id="cal-f-alert-on-${windowId}"> Remind me</label>
+            <label><input type="number" id="cal-f-alert-${windowId}" min="0" max="${MAX_ALERT_MINUTES}" step="1" value="0" style="width:80px" aria-label="Minutes before the event"> min before</label>
+          </div>
+          <div class="cal-form-row">
+            <textarea id="cal-f-note-${windowId}" placeholder="Notes (optional)" maxlength="${MAX_EVENT_NOTE_CHARS}" aria-label="Event note"></textarea>
+          </div>
+          <div class="cal-form-row">
+            <button type="button" id="cal-f-save-${windowId}">${editing ? "Save" : "Add"}</button>
+            <button type="button" id="cal-f-cancel-${windowId}">Cancel</button>
+          </div>
+        `;
+        lower.appendChild(form);
+
+        const part = (name) => instancePart(windowId, name);
+        // Values are assigned, never interpolated into the markup above.
+        part("cal-f-title").value = editing ? editing.title : "";
+        part("cal-f-date").value = editing ? editing.date : el.dataset.selected;
+        part("cal-f-time").value = editing && editing.time ? editing.time : "09:00";
+        part("cal-f-allday").checked = editing ? editing.allDay : false;
+        part("cal-f-repeat").value = editing ? editing.repeat : "none";
+        const hasAlert = editing ? editing.alertMinutes !== null : true;
+        part("cal-f-alert-on").checked = hasAlert;
+        part("cal-f-alert").value =
+          editing && editing.alertMinutes !== null ? editing.alertMinutes : 0;
+        part("cal-f-note").value = editing ? editing.note : "";
+
+        const syncEnabled = () => {
+          part("cal-f-time").disabled = part("cal-f-allday").checked;
+          part("cal-f-alert").disabled = !part("cal-f-alert-on").checked;
+        };
+        part("cal-f-allday").addEventListener("change", syncEnabled);
+        part("cal-f-alert-on").addEventListener("change", syncEnabled);
+        syncEnabled();
+        part("cal-f-save").addEventListener("click", () => calSaveForm(windowId));
+        part("cal-f-cancel").addEventListener("click", () =>
+          calCloseForm(windowId)
+        );
+        part("cal-f-title").focus();
+      }
+
+      function calCloseForm(windowId) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        el.dataset.formOpen = "false";
+        el.dataset.editingId = "";
+        renderCalendar(windowId);
+      }
+
+      function calSaveForm(windowId) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        const part = (name) => instancePart(windowId, name);
+        const title = part("cal-f-title").value.trim();
+        const date = part("cal-f-date").value;
+        const allDay = part("cal-f-allday").checked;
+        const time = allDay ? null : part("cal-f-time").value;
+        if (!title) {
+          showStatus("Give the event a title.");
+          part("cal-f-title").focus();
+          return;
+        }
+        if (!DATE_RE.test(date) || !isRealDate(date)) {
+          showStatus("Pick a date for the event.");
+          return;
+        }
+        if (!allDay && !TIME_RE.test(time || "")) {
+          showStatus("Pick a time, or mark it all day.");
+          return;
+        }
+        const alertOn = part("cal-f-alert-on").checked;
+        const raw = parseInt(part("cal-f-alert").value, 10);
+        const alertMinutes = alertOn
+          ? Math.min(Math.max(0, Number.isFinite(raw) ? raw : 0), MAX_ALERT_MINUTES)
+          : null;
+
+        const editingId = el.dataset.editingId;
+        const existing = editingId ? eventById(editingId) : null;
+        const record = {
+          id: existing ? existing.id : newEventId(),
+          title: title.slice(0, MAX_NAME_CHARS),
+          date,
+          time,
+          allDay,
+          note: part("cal-f-note").value.slice(0, MAX_EVENT_NOTE_CHARS),
+          repeat: part("cal-f-repeat").value,
+          alertMinutes,
+          /* A fresh alert must be allowed to fire, so editing clears the stamp
+             unless nothing about the timing changed — otherwise moving an event
+             an hour later would find it "already announced" and stay silent. */
+          lastFired:
+            existing &&
+            existing.date === date &&
+            existing.time === time &&
+            existing.allDay === allDay &&
+            existing.repeat === part("cal-f-repeat").value &&
+            existing.alertMinutes === alertMinutes
+              ? existing.lastFired
+              : null,
+        };
+        if (!existing && calendarEvents.length >= MAX_EVENTS) {
+          showStatus(`Maximum of ${MAX_EVENTS} events reached — delete one first.`);
+          return;
+        }
+        const next = existing
+          ? calendarEvents.map((e) => (e.id === existing.id ? record : e))
+          : calendarEvents.concat([record]);
+
+        /* Saving is a click, and a click is the gesture the chime needs: an
+           AudioContext built without one starts suspended, and a reminder due in
+           five minutes has no gesture of its own to borrow. */
+        if (alertMinutes !== null && alertSoundOn) primeAlertAudio();
+
+        /* You cannot be reminded of something you are typing in right now.
+           Adding "dentist at 2:30" at nine in the evening used to fire the alert
+           the instant it was saved, because the occurrence was genuinely overdue
+           and the catch-up pass is meant to notice exactly that. Stamp it as
+           announced instead; a repeating event still fires next time round.
+
+           The test is the EVENT's start, not the alert's. An event twenty
+           seconds away with a one-minute lead has a fire time in the past and is
+           still worth announcing the moment it is saved — you asked to be told
+           before it, and "before" is now. Only an event whose own time has been
+           and gone is history. */
+        const now = new Date();
+        const alreadyPast = dueOccurrence(record, now);
+        if (alreadyPast && occurrenceStart(record, alreadyPast) <= now) {
+          record.lastFired = occurrenceStamp(record, alreadyPast);
+        }
+
+        el.dataset.formOpen = "false";
+        el.dataset.editingId = "";
+        // Show the day the event landed on, which may not be the day that was
+        // selected when the form opened.
+        el.dataset.selected = date;
+        const viewDay = parseDateKey(date);
+        el.dataset.viewYear = viewDay.getFullYear();
+        el.dataset.viewMonth = viewDay.getMonth();
+        commitEvents(next);
+        showStatus(existing ? "Event updated." : "Event added.");
+      }
+
+      function calDeleteEvent(eventId) {
+        const event = eventById(eventId);
+        if (!event) return;
+        commitEvents(calendarEvents.filter((e) => e.id !== eventId));
+        showStatus(`Deleted "${event.title || "untitled"}".`);
       }
 
       // --- Nav Tooltips ---
@@ -9023,6 +10387,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           } else if (type === "clock") {
             selector = "#clock";
             titleSelector = ".clock-title";
+          } else if (type === "calendar") {
+            selector = ".calendar-window";
+            titleSelector = ".calendar-title";
           } else if (type === "help") {
             selector = ".help-window";
             titleSelector = ".help-title";

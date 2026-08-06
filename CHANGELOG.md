@@ -7,6 +7,91 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.0.0] — 2026-08-06
+
+The first feature release since 3.0: a **Calendar** with events and reminders.
+Everything from the 3.2.x line is unchanged — nothing was removed and no session
+written by an older build needs converting.
+
+### Added
+
+- **Calendar window** — `Calendar` in the toolbar, one per desk like Clock, Calc,
+  Log and Help. A month grid with a dot on any day that holds something, today
+  outlined and the selected day filled; below it the selected day's events, and a
+  form that swaps in over the list rather than opening a modal (a modal would
+  cover the grid, and picking a different day mid-edit is a normal thing to want).
+- **Events** carry a title, date, time (or **All day**), an optional note, a
+  repeat and a reminder. Stored as local wall-clock strings — `2026-08-14` and
+  `09:30` mean the same thing in any timezone, and with no UTC round-trip there is
+  no DST drift.
+- **Repeats**: daily, weekly, monthly, yearly. A monthly event on the 31st falls
+  on the **last day** of shorter months instead of sliding into the next one —
+  JavaScript rolls Feb 31 into March 3, which would move the appointment out of
+  the month the user picked. A yearly event on 29 February lands on the 28th in
+  common years.
+- **Reminders** are a free-form lead time in minutes, so `0` is at the event and
+  `1440` is a day ahead. For an all-day event the lead counts back from a
+  documented `ALL_DAY_HOUR` of 9am, which is what gives "all day" something to
+  measure from.
+- **Search across every event**, by title *and* note, from the box above the
+  list — whatever month is showing. The global Search/Replace panel is
+  textarea-based and deliberately stays out of it.
+- **One set of events for both desks.** A deliberate departure from the
+  one-per-desk rule: Clock, Log and Calculator keep independent state per desk
+  because a stopwatch is window state, but two desks showing two different sets
+  of appointments would be nonsense. Which month is showing and which day is
+  selected *are* per window.
+- Events live at `session.events`, so they ride **Protect** (AES-GCM) and
+  **Backup** like everything else. The calendar deleted in v3.0 kept its events in
+  a separate `calendarEvents` localStorage key — outside the session, never
+  encrypted, never in a backup. That is the main reason this was rebuilt rather
+  than recovered.
+- A Calendar section in Help, and `sanitizeCalendarEvent()` in the import
+  allowlist: strict date/time formats, `repeat` coerced to the known set, lead
+  times clamped, junk `lastFired` treated as "never fired", and dangerous keys
+  refused as everywhere else.
+
+### Changed
+
+- **`#timer-alert` is now `#app-alert`**, driven by one `showAppAlert({icon,
+  title, detail, actions})`. The countdown and the calendar are two producers of
+  the same card, with one dismiss path and one chime, and per-alert buttons are
+  built with `createElement` + `textContent` — an event title never goes near
+  `innerHTML`. `playTimerJingle()` → `playAlertChime()`.
+- The mute preference keeps its stored key `timerSound` so existing sessions are
+  unaffected; its meaning widened from "the countdown" to "any alert".
+- The security check's version assertion was pinned to `v3.2.x`. A pin that tight
+  turns a major release into a test failure, so it now asserts **3.2 or later** —
+  still a floor, no longer a ceiling.
+- Dead CSS for the v3.0 calendar (`.today-events`, `.events-section`) removed.
+
+### Notes
+
+- **Reminders need CB App open, not the calendar window.** The scheduler is
+  app-level: a 20s tick plus an immediate sweep whenever the tab is looked at
+  again, because background tabs are throttled to about one timer a minute. It is
+  a single file with no service worker, so nothing can run while the tab is
+  closed — which is what the catch-up pass is for.
+- **Catch-up**: anything that came due while the app was shut is announced once,
+  together, in one card with one chime. Bounded to the most recent missed
+  occurrence per event within **7 days**; older ones are counted in the card
+  rather than dropped in silence.
+- An event typed in *after* its own time does not fire on the spot. Adding
+  "dentist at 2:30" at nine in the evening is overdue by the scheduler's
+  reckoning, and firing there would be reminding someone of what they are
+  currently typing.
+- Editing an event clears its fired stamp unless nothing about the timing
+  changed, so moving an event an hour later is not treated as already announced.
+- Deliberately out of scope: `.ics` import/export, timezones beyond local
+  wall-clock, OS notifications (`media-src 'none'`, no service worker), snooze,
+  and multi-day or timed-duration events.
+- 243 tests pass across Chromium, Firefox and WebKit — 13 new, including the
+  recurrence and clamping maths called directly, one-shot firing, both sides of
+  the "do not remind me of what I am typing" guard, the catch-up bound, the
+  validator, and a frozen calendar.
+
+---
+
 ## [3.2.19] — 2026-08-06
 
 ### Fixed
