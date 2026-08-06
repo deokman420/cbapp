@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.0.0 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.0.1 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -818,6 +818,26 @@
         gap: 5px;
       }
 
+      /* WCAG 2.5.8 (AA): 24x24 minimum for a pointer target. These were glyph-
+         sized boxes — the lock 22x22 and the close "×" only 9px wide, because a
+         thin text glyph is as wide as the character — so every window's title bar
+         asked for pixel-accurate aim. The glyphs are unchanged; only the box they
+         sit in grows, and it grows sideways and into the header's existing
+         padding rather than making the bar taller. */
+      .window-controls > *,
+      .calculator-controls > *,
+      .task-controls > *,
+      .clock-controls > *,
+      .log-controls > *,
+      .calendar-controls > *,
+      .sticky-note-controls > * {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        min-height: 24px;
+      }
+
       .window-title,
       .calculator-title,
       .task-title,
@@ -1397,7 +1417,8 @@
       .close-calculator:hover,
       .close-task:hover,
       .close-clock:hover,
-      .close-log:hover {
+      .close-log:hover,
+      .close-calendar:hover {
         color: var(--accent);
       }
 
@@ -1407,7 +1428,8 @@
       .close-calculator,
       .close-task,
       .close-clock,
-      .close-log {
+      .close-log,
+      .close-calendar {
         color: var(--text-muted);
       }
 
@@ -1418,7 +1440,8 @@
       .close-calculator,
       .close-task,
       .close-clock,
-      .close-log {
+      .close-log,
+      .close-calendar {
         font-size: 19px;
         line-height: 1;
       }
@@ -1432,7 +1455,8 @@
       .close-calculator,
       .close-task,
       .close-clock,
-      .close-log {
+      .close-log,
+      .close-calendar {
         cursor: default;
       }
 
@@ -1549,6 +1573,7 @@
       .close-task,
       .close-clock,
       .close-log,
+      .close-calendar,
       .lock-window,
       .sticky-lock-window {
         color: var(--text-dim);
@@ -1569,7 +1594,8 @@
       .close-calculator:hover,
       .close-task:hover,
       .close-clock:hover,
-      .close-log:hover {
+      .close-log:hover,
+      .close-calendar:hover {
         color: var(--accent);
         background: var(--accent-dim);
       }
@@ -1579,7 +1605,8 @@
       .close-calculator:hover,
       .close-task:hover,
       .close-clock:hover,
-      .close-log:hover {
+      .close-log:hover,
+      .close-calendar:hover {
         color: var(--danger);
         background: color-mix(in srgb, var(--danger) 16%, transparent);
       }
@@ -2216,6 +2243,12 @@
         background: var(--bg);
       }
 
+      /* 4px of inner padding is not decoration: `overflow-y: auto` forces
+         `overflow-x` to auto as well (visible is not a legal pairing), so this
+         box clips sideways too — and the global focus ring is 2px drawn at a 2px
+         offset, i.e. exactly 4px outside the control. Without the padding a
+         focused full-width field looks sliced off at both edges, which is what
+         the New event title box did. */
       .cal-lower {
         flex: 1 1 auto;
         min-height: 0;
@@ -2223,6 +2256,7 @@
         display: flex;
         flex-direction: column;
         gap: 6px;
+        padding: 4px;
       }
 
       .cal-section-head {
@@ -2300,13 +2334,24 @@
         flex-wrap: wrap;
       }
 
+      /* gap 10px, not 4px: the same 4px focus ring sat straight on top of the
+         text after each field, which is what made "min before" read as squashed
+         against the number box. */
       .cal-form label {
         font-family: var(--mono);
         font-size: 11px;
         color: var(--text-dim);
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 10px;
+        white-space: nowrap;
+      }
+
+      /* Wide enough for three digits AND the spinner, which is ~17px of the
+         field on its own. At 80px the arrows pushed the value into the left
+         padding. */
+      .cal-form .cal-lead-input {
+        width: 96px;
       }
 
       .cal-form input[type="text"],
@@ -2316,7 +2361,7 @@
       }
 
       .cal-form textarea {
-        min-height: 46px;
+        min-height: 62px;
         min-width: 0;
         font-family: var(--font);
         font-size: 12px;
@@ -2334,13 +2379,23 @@
 
       /* The shared input rule above only carries colour and font; the log and
          calculator inputs are 18px/10px-padded single fields, which is far too
-         big for a form of eight controls. */
+         big for a form of eight controls.
+
+         The height is pinned because the native date and time widgets carry
+         their own internal padding — left alone they came out 28px and 31px
+         against 26px for a text field, so a row of them stepped up and down. */
       .cal-content input,
       .cal-content select,
       .cal-content button {
         font-size: 12px;
         padding: 5px 8px;
         border-radius: 8px;
+      }
+
+      .cal-form input:not([type="checkbox"]),
+      .cal-form select,
+      .cal-form button {
+        height: 28px;
       }
 
       .cal-content input[type="checkbox"] {
@@ -2485,10 +2540,15 @@
       /* Small print, and it stays small print on hover — the chip already turns
          red to say it writes a file, and a version stamp brightening along with
          it would read as part of the warning rather than as a label. */
+      /* Was 9px at opacity 0.65, which computed to #5d6777 on --bg-card — 3.1:1,
+         under AA for small text, and this is the one label that tells you which
+         build you are looking at. A dimmer token at full opacity gets the same
+         "secondary" reading at 5.7:1, and 10px is a build stamp people squint at
+         on purpose. */
       .download-app-version {
-        font-size: 9px;
+        font-size: 10px;
         letter-spacing: 0.06em;
-        opacity: 0.65;
+        color: var(--text-dim);
         font-variant-numeric: tabular-nums;
       }
 
@@ -3420,7 +3480,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.0.0";
+      const CB_APP_VERSION = "4.0.1";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -4566,46 +4626,44 @@
         return validateSessionObject(parsed);
       }
 
+      /* This is the one toolbar button whose label changes at runtime, so the
+         boot-time pass that folds the visible word into the accessible name
+         cannot help it — it runs before there is any text to read. Each branch
+         leads with its own visible word for the same reason: "click Protect" has
+         to find the button called Protect (WCAG 2.5.3). */
       function updateProtectButton() {
         const btn = document.getElementById("protect-toggle");
         if (!btn) return;
+        const label = (text, tip, aria) => {
+          btn.textContent = text;
+          btn.setAttribute("data-tooltip", tip);
+          btn.setAttribute("aria-label", `${text} — ${aria || tip}`);
+        };
         if (sessionLocked) {
           // Protecting on top of a locked session makes no sense — the way
           // forward is to open the one that is already there.
-          btn.textContent = "Unlock";
+          label(
+            "Unlock",
+            "Your saved session is encrypted and was not opened — unlock it to resume saving",
+            "unlock the encrypted session to resume saving"
+          );
           btn.classList.add("active");
-          btn.setAttribute(
-            "data-tooltip",
-            "Your saved session is encrypted and was not opened — unlock it to resume saving"
-          );
-          btn.setAttribute(
-            "aria-label",
-            "Unlock the encrypted session to resume saving"
-          );
           return;
         }
         if (sessionPassphrase) {
-          btn.textContent = "Unprotect";
+          label(
+            "Unprotect",
+            "Remove passphrase protection (saves notes in plaintext again)",
+            "remove passphrase protection (saves notes in plaintext again)"
+          );
           btn.classList.add("active");
-          btn.setAttribute(
-            "data-tooltip",
-            "Remove passphrase protection (saves notes in plaintext again)"
-          );
-          btn.setAttribute(
-            "aria-label",
-            "Remove passphrase protection (saves notes in plaintext again)"
-          );
         } else {
-          btn.textContent = "Protect";
+          label(
+            "Protect",
+            "Encrypt this browser's session with a passphrase",
+            "encrypt this browser's session with a passphrase"
+          );
           btn.classList.remove("active");
-          btn.setAttribute(
-            "data-tooltip",
-            "Encrypt this browser's session with a passphrase"
-          );
-          btn.setAttribute(
-            "aria-label",
-            "Encrypt this browser's session with a passphrase"
-          );
         }
       }
 
@@ -6905,15 +6963,18 @@ Enterprise browser
            countdown sat outside the flex:1 scroller, the surplus opened as a
            band of dead space above it rather than below everything. The
            countdown is inside the scroller now, so the surplus is just window;
-           502 is the measured height of all four sections (452 of content, 39
+           506 is the measured height of all four sections (452 of content, 41
            of header, 2 of border) plus the 8px WebKit needs on top of that —
            it lays the same markup out taller, and coming up short there means
-           a scrollbar rather than a few px of slack. 390 was the
+           a scrollbar rather than a few px of slack. The header grew from 39 to
+           41 in v4.0.1, when the title-bar controls went to a 24px minimum
+           pointer target; WebKit reported the missing pixel as a scrollbar while
+           Chromium absorbed it. 390 was the
            width that kept the countdown controls on one row as a sibling of
            the scroller; inside it they also clear the scroller's own 10px side
            margins, so the window needs those 20px back. */
         const defaultWidth = 410;
-        const defaultHeight = 502;
+        const defaultHeight = 506;
         newWindow.style.zIndex = nextWindowZ();
         newWindow.dataset.width = defaultWidth;
         newWindow.dataset.height = defaultHeight;
@@ -9898,7 +9959,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             <button type="button" onclick="calGoToday('${calid}')">Today</button>
             <button type="button" onclick="calShiftMonth('${calid}', 1)" title="Next month" aria-label="Next month">›</button>
           </div>
-          <div class="cal-grid" id="cal-grid-${calid}" role="grid" aria-label="Month"></div>
+          <!-- role="group", not "grid": an ARIA grid requires row/gridcell
+               descendants and this is a flat CSS grid of buttons, so the role was
+               a promise the markup does not keep (Lighthouse: aria-required-
+               children). Each day button carries its own full date label. -->
+          <div class="cal-grid" id="cal-grid-${calid}" role="group" aria-label="Days of the month"></div>
           <div class="cal-section-head">
             <input type="text" class="cal-filter" id="cal-filter-${calid}" placeholder="Search events..." aria-label="Search events by title or note">
             <button type="button" id="cal-add-${calid}" onclick="calOpenForm('${calid}')">Add event</button>
@@ -10194,7 +10259,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               </select>
             </label>
             <label><input type="checkbox" id="cal-f-alert-on-${windowId}"> Remind me</label>
-            <label><input type="number" id="cal-f-alert-${windowId}" min="0" max="${MAX_ALERT_MINUTES}" step="1" value="0" style="width:80px" aria-label="Minutes before the event"> min before</label>
+            <label><input type="number" class="cal-lead-input" id="cal-f-alert-${windowId}" min="0" max="${MAX_ALERT_MINUTES}" step="1" value="0" aria-label="Minutes before the event"> min before</label>
           </div>
           <div class="cal-form-row">
             <textarea id="cal-f-note-${windowId}" placeholder="Notes (optional)" maxlength="${MAX_EVENT_NOTE_CHARS}" aria-label="Event note"></textarea>
@@ -10479,12 +10544,26 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         navTooltip.classList.remove("visible");
       }
 
-      // Every toolbar button already carries a full description in
-      // data-tooltip, but that is a custom div a screen reader never sees, and
-      // the visible labels ("T2", "Calc") don't stand on their own. Derive the
-      // accessible name from the tooltip instead of hand-writing 16 of them.
+      /* Every toolbar button already carries a full description in data-tooltip,
+         but that is a custom div a screen reader never sees, and the visible
+         labels ("T2", "Calc") don't stand on their own. Derive the accessible
+         name from the tooltip instead of hand-writing 16 of them.
+
+         The visible text has to survive into that name. Using the tooltip alone
+         gave "Tasks" the accessible name "New Task List", "Theme" the name
+         "Toggle Dark/Light Mode" and so on — which reads fine but breaks
+         speech control: "click Theme" finds nothing, because the name a user
+         can see is not in the name the browser exposes. (WCAG 2.5.3 Label in
+         Name; Lighthouse flags it as label-content-name-mismatch.) So the
+         visible word leads, and the description follows it. Buttons whose
+         tooltip already contains their label — "Calendar" in "Toggle
+         Calendar" — are left alone rather than made to stutter. */
       document.querySelectorAll(".nav-menu [data-tooltip]").forEach((el) => {
-        el.setAttribute("aria-label", el.getAttribute("data-tooltip"));
+        const tip = el.getAttribute("data-tooltip") || "";
+        const visible = (el.textContent || "").trim();
+        const covered =
+          !visible || tip.toLowerCase().includes(visible.toLowerCase());
+        el.setAttribute("aria-label", covered ? tip : `${visible} — ${tip}`);
         if (el.tagName === "BUTTON") el.setAttribute("type", "button");
       });
 

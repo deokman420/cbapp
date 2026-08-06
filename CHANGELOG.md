@@ -7,6 +7,70 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.0.1] — 2026-08-06
+
+Reported: the New event title box looked cut off and "min before" was squashed.
+Both fixed, and a Lighthouse pass over the new UI turned up four more things
+worth fixing — two of which had been in the app since long before the calendar.
+
+### Fixed
+
+- **The New event title box is no longer clipped.** `.cal-lower` scrolls
+  vertically, and `overflow-y: auto` forces `overflow-x` to `auto` as well
+  (`visible` is not a legal pairing), so the pane clipped sideways too. The global
+  focus ring is 2px drawn at a 2px offset — exactly 4px outside the control — so a
+  focused full-width field was sliced at both edges. The pane now carries 4px of
+  inner padding, which is the ring's width and nothing more.
+- **"min before" is not squashed.** Same 4px ring, this time landing on the text
+  after the field: the label's flex gap was 4px, so the ring sat straight on top
+  of the words. Gap is 10px now, and the number box went from 80px to 96px —
+  the spinner arrows are ~17px of the field on their own, which was pushing the
+  value into the left padding.
+- Every control in the form is now a uniform 28px tall. The native date and time
+  widgets carry their own internal padding and came out at 28px and 31px against
+  26px for a text field, so a row of them stepped up and down.
+- The notes box grew from 46px to 62px, and `.close-calendar` inherits the colour,
+  size and cursor rules its siblings in every other title bar already had.
+
+### Fixed — found by Lighthouse (all pre-existing)
+
+- **Title-bar controls are now 24×24**, the WCAG 2.5.8 minimum for a pointer
+  target, in *every* window type. They were glyph-sized boxes — the lock 22×22 and
+  the close `×` just 9px wide, because a thin text glyph is only as wide as the
+  character — so closing a window asked for pixel-accurate aim. The glyphs are
+  unchanged; only the box around them grew, sideways and into the header's
+  existing padding.
+- **The clock's default height is 506px, was 502.** Those 24px controls make a
+  header 41px instead of 39px, and the clock is a fixed-size window whose content
+  fitted its old height exactly. WebKit reported the missing pixel as a scrollbar
+  while Chromium absorbed it silently.
+- **Toolbar buttons now keep their visible word in their accessible name.**
+  Deriving the name from `data-tooltip` alone gave the button reading "Theme" the
+  name "Toggle Dark/Light Mode" — fine for a screen reader, broken for speech
+  control, because "click Theme" matches nothing (WCAG 2.5.3 Label in Name). The
+  visible word now leads and the description follows it; buttons whose tooltip
+  already contains their label are left alone rather than made to stutter.
+  `updateProtectButton()` does the same for the one button whose label changes at
+  runtime.
+- **The build-version chip cleared AA.** 9px at `opacity: 0.65` computed to
+  `#5d6777` on `--bg-card` — 3.1:1, under the 4.5:1 minimum, on the one label that
+  tells you which build you are looking at. Now `--text-dim` at full opacity
+  (5.7:1) and 10px.
+- **`role="grid"` removed from the month grid.** An ARIA grid requires
+  `row`/`gridcell` descendants and this is a flat CSS grid of buttons, so the role
+  was a promise the markup does not keep. It is `role="group"` now; each day button
+  already carries its own full date label.
+
+### Notes
+
+- Lighthouse (desktop and mobile, and a snapshot with the calendar and its form
+  open): **accessibility 100, best practices 100**. The two remaining failures are
+  `robots-txt` and `llms-txt`, which are properties of the host and not of this
+  file — they are reported against the local static server used for the audit.
+- 243 tests still pass across Chromium, Firefox and WebKit.
+
+---
+
 ## [4.0.0] — 2026-08-06
 
 The first feature release since 3.0: a **Calendar** with events and reminders.
