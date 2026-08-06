@@ -7,6 +7,137 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.0.3] — 2026-08-06
+
+Two adversarial review passes over everything the calendar shipped in 4.0.0 — one
+for security, one for quality. The security pass found **nothing exploitable**: no
+XSS through an event title or note, no prototype pollution, no plaintext event
+leakage past Protect, no CSP loosening, and no way to make the recurrence maths
+loop. The quality pass found two genuine correctness bugs in the occurrence maths,
+both mine, both shipped in 4.0.0.
+
+### Fixed — recurrence was wrong across a DST boundary
+
+- **A weekly event landed on the wrong weekday for half the year.** `daily` and
+  `weekly` did millisecond arithmetic: `Math.ceil((fromDay - first) / (7 * DAY))`.
+  Elapsed milliseconds between two local midnights is **not** a whole number of
+  days across a DST change — it is off by an hour — so the division stopped being
+  exact, `Math.ceil` rounded a partial week up to a whole extra one, and the
+  result landed a day early. A weekly event dated Wednesday 1 July reported
+  **Tuesdays** from November onward: 4,592 wrong answers in a year-long sweep, in
+  the month-grid dots, the day list *and* the scheduler, because everything asks
+  that one function. `daily` failed once a year too, on the spring-forward day —
+  the event vanished from the grid and skipped its reminder. `monthly` and
+  `yearly` were always safe; they go through the `(y, m, d)` constructor.
+- Fixed by counting whole local days (`Math.round`, exact by construction) and
+  adding them through the date constructor instead of timestamps. A 97,820-case
+  sweep across a year of anchors and queries now has **zero** wrong answers, and
+  the changelog claim in 4.0.0 that "no UTC round-trip means no DST drift" is true
+  of the storage format but was not true of this arithmetic. It is now.
+
+### Fixed — the scheduler announced the wrong occurrence
+
+- **A reminder with a lead time named an occurrence that had already happened.**
+  `dueOccurrence` asked `nextOccurrence` from `now - leadTime`, which returns the
+  *first* occurrence in that window — the oldest pending one, the exact opposite
+  of what a reminder means. With a one-day lead, a daily event announced
+  *yesterday's* occurrence and stamped `lastFired` against it, so today's real
+  reminder never fired and the event stayed permanently one lead behind.
+- **A lead time over 7 days was silent forever.** The occurrence it picked was
+  always older than the `CATCHUP_DAYS` cutoff, so every sweep counted it stale,
+  stamped it, and said nothing. The form allows up to 69 days and the code
+  documents `1440` (a day) as ordinary, so this was the happy path, not a fuzz
+  case. A two-week warning never once appeared.
+- It could also skip a genuinely missed reminder, because looking forward from
+  `now - lead` steps straight over anything earlier.
+- Fixed with a new `previousOccurrence(event, limit)` — the mirror of
+  `nextOccurrence`, and the right question to ask, since `fireAt` rises
+  monotonically with the occurrence: the reminder that is due is simply the last
+  occurrence to have started by `now + leadTime`. One call, no walking, and it
+  accounts for the time of day (the 09:00 occurrence has not started at 00:30).
+
+### Fixed — a frozen calendar could still delete an event
+
+- **Freeze did not survive a re-render.** A freeze is applied to nodes, and
+  `renderCalendar` replaces every node — including each row's ✏️ and 🗑. Freeze a
+  calendar, let anything re-render (a reminder firing, or an edit on the other
+  desk's calendar, since both share one store), and the buttons were live again:
+  one click silently and permanently deleted an event on a window the user had
+  frozen precisely to stop that.
+- The lock is re-applied after every render now, and `calDeleteEvent` and
+  `calSaveForm` check the frozen state themselves — an attribute is not a
+  guarantee once nodes get rebuilt.
+- **What freeze means on a calendar is now stated deliberately.** Paging the
+  month, picking a day and searching are *reading*, so they are exempt (a new
+  `data-lock-exempt`), for the same reason a frozen note's textarea goes readOnly
+  rather than disabled. Add, edit and delete are refused. Before this a frozen
+  calendar could only ever show the day it was frozen on.
+
+### Fixed — accessibility
+
+- **Clicking a day no longer throws keyboard focus to `<body>`.** Rebuilding the
+  grid discarded the focused cell, so a keyboard user pressing Enter on a date had
+  to tab from the top of the document to reach the next one. Focus returns to the
+  same day, or to the selected day when paging a month.
+
+### Fixed — smaller, all found in review
+
+- The **viewed month is persisted**. It was re-derived from the selected day, so
+  paging to November and reloading came back to this month — and
+  `calShiftMonth`'s `saveSession()` was a full serialise-and-encrypt per arrow
+  click that changed nothing on disk. The block comment claiming it persisted is
+  now true.
+- **A renamed calendar keeps its name.** The header offers ✏️ Rename and the name
+  was written into the session record, but restore never read it back.
+- **An imported file cannot make two events share an id.** An id is an identity —
+  edit and delete both resolve by it — so repeated ids made one click delete
+  several rows and one edit replace them all with the same object reference.
+- **Events dropped at the 500 cap are reported**, not swallowed: the import now
+  says how many were left out, as the window path already did. `commitEvents`
+  also sorts *before* slicing, so the cap drops the latest events rather than
+  whichever the caller happened to pass last.
+- **Boot survives a browser that refuses `localStorage`.** The retired-calendar
+  purge and the session read both sat outside the guarding `try`, and merely
+  touching storage throws where site data is blocked by policy — which since
+  4.0.0 also meant `startAlertScheduler()` never ran, so reminders silently never
+  fired. Both are guarded, and a storage-denied profile now says "not saving"
+  instead of looking fine.
+- **A day click or a save with text in the search box shows that day** instead of
+  leaving the old whole-store matches on screen, which read as a dead click.
+- **An unrecognised `repeat` cannot be saved.** The `<select>` can only emit legal
+  values so this is defence in depth, but the failure it prevents is silent and
+  total: an unknown repeat makes the event show once and never fire.
+- **Editing an event the other desk just deleted says so** instead of resurrecting
+  it under a new id.
+- The blank pad cells before the 1st no longer take a hover border while their own
+  cursor says "not clickable"; `eventsOn` runs once per grid cell instead of twice
+  (it was 31 extra whole-store scans per render); a long unbroken event title
+  wraps in the alert card; and a `hasAlert()` helper replaces four copies of the
+  same test, one of which tested only half of it and rendered `⏰ -undefinedm`.
+- Dead code removed: `dueEvents()` (nothing called it, and its comment claimed a
+  test depended on it), `showAppAlert`'s unused `chime` parameter, `eventFireAt`'s
+  unreachable date fallback, the `.cal-spacer` selector, a duplicate `height`, and
+  two unreachable negative-period clamps. `startAlertScheduler` no longer
+  registers its listeners on every call while claiming to be re-entrant.
+
+### Changed
+
+- The security check's "boot loads only this browser's own session" assertion
+  pinned the exact declaration (`const rawToLoad = …`), so wrapping that read in a
+  `try` failed a check about a property the change does not touch. It matches the
+  read itself now.
+
+### Notes
+
+- 288 tests pass across Chromium, Firefox and WebKit — 15 new. The DST and
+  `previousOccurrence` tests pin `timezoneId: 'America/New_York'`, because these
+  assertions are meaningless in UTC and a runner there would pass them without
+  testing anything. That is exactly why the original suite missed both bugs: every
+  date it picked sat inside one DST regime, and every UI test created its events
+  "today".
+
+---
+
 ## [4.0.2] — 2026-08-06
 
 ### Fixed

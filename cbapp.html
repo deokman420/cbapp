@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.0.2 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.0.3 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -1767,6 +1767,10 @@
         color: var(--text-dim);
         font-size: 13px;
         white-space: pre-line;
+        /* An event title can be 200 characters with no spaces. .cal-event-title
+           and .cal-event-note already break anywhere; this was the one place a
+           title lands without it, and overflow-y:auto means it clips sideways. */
+        overflow-wrap: anywhere;
         max-height: 40vh;
         overflow-y: auto;
       }
@@ -2207,14 +2211,15 @@
         padding: 0;
       }
 
-      .cal-day:hover {
+      /* :not(.cal-empty) — the leading pad cells carry .cal-day too, so they lit
+         up on hover while their own cursor said "not clickable". */
+      .cal-day:not(.cal-empty):hover {
         border-color: var(--accent);
       }
 
       .cal-day.cal-empty {
         background: transparent;
         cursor: default;
-        height: 34px;
       }
 
       .cal-day.cal-today {
@@ -2268,10 +2273,6 @@
         letter-spacing: 0.04em;
         color: var(--text-dim);
         text-transform: uppercase;
-      }
-
-      .cal-section-head .cal-spacer {
-        flex: 1;
       }
 
       .cal-event {
@@ -3484,7 +3485,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.0.2";
+      const CB_APP_VERSION = "4.0.3";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3503,6 +3504,8 @@
       const MAX_LOGS = 500;
       const MAX_HISTORY = 200;
       const MAX_EVENTS = 500;
+      // Set by validateSessionObject, read by the import and restore messages.
+      let eventsDroppedOnValidate = 0;
       const MAX_EVENT_NOTE_CHARS = 2000;
       const PBKDF2_ITERATIONS = 210000;
 
@@ -3758,6 +3761,19 @@
             height: String(raw.height ?? "640").slice(0, 20),
             name: String(raw.name || "Calendar").slice(0, MAX_NAME_CHARS),
             selected: DATE_RE.test(selected) && isRealDate(selected) ? selected : null,
+            // Clamped, not trusted: these index a month grid directly.
+            viewYear:
+              Number.isFinite(Number(raw.viewYear)) &&
+              Number(raw.viewYear) >= 1 &&
+              Number(raw.viewYear) <= 9999
+                ? Math.floor(Number(raw.viewYear))
+                : null,
+            viewMonth:
+              Number.isFinite(Number(raw.viewMonth)) &&
+              Number(raw.viewMonth) >= 0 &&
+              Number(raw.viewMonth) <= 11
+                ? Math.floor(Number(raw.viewMonth))
+                : null,
           };
         }
         if (base === "log") {
@@ -4038,6 +4054,7 @@
        * Throws on anything unexpected. Returns a cleaned plain object.
        */
       function validateSessionObject(raw) {
+        eventsDroppedOnValidate = 0; // per-payload, so a later import is honest
         assertPlainObject(raw, "session");
         for (const k of Object.keys(raw)) {
           if (isDangerousKey(k)) {
@@ -4076,9 +4093,26 @@
               raw.theme === "light-mode" ? "light-mode" : "dark-mode";
           } else if (key === "events") {
             if (!Array.isArray(raw.events)) continue;
+            /* An id is an identity here: both edit and delete resolve by it, so
+               a file that repeats one makes deleting a single visible row remove
+               every event sharing it, and editing replace them all with the same
+               object. A crafted .json can say anything, so uniqueness is
+               enforced on the way in rather than trusted. */
+            const seenIds = new Set();
             out.events = raw.events
               .slice(0, MAX_EVENTS)
-              .map((e, i) => sanitizeCalendarEvent(e, `events[${i}]`));
+              .map((e, i) => sanitizeCalendarEvent(e, `events[${i}]`))
+              .map((e) => {
+                if (seenIds.has(e.id)) e.id = newEventId();
+                seenIds.add(e.id);
+                return e;
+              });
+            // Never truncate in silence — the window path counts what it skips
+            // and says so, and a dropped appointment is worth the same courtesy.
+            eventsDroppedOnValidate = Math.max(
+              0,
+              raw.events.length - out.events.length
+            );
           } else if (key === "timerSound") {
             // Absent stays absent: a session written before this key existed
             // must not read as "muted". The restore path only applies a real
@@ -4144,6 +4178,13 @@
           record.height = el.dataset.height || "640";
           record.name = el.querySelector(".calendar-title").textContent;
           record.selected = el.dataset.selected || null;
+          /* The month was NOT saved before v4.0.3 — restore re-derived it from
+             `selected`, so paging to November and reloading came back to whatever
+             month held the selected day. Which also made calShiftMonth's
+             saveSession() a full serialise-and-encrypt per arrow click that
+             changed nothing on disk. */
+          record.viewYear = el.dataset.viewYear || null;
+          record.viewMonth = el.dataset.viewMonth || null;
         } else if (base === "log") {
           record.width = el.dataset.width || "300";
           record.height = el.dataset.height || "300";
@@ -7359,13 +7400,25 @@ Enterprise browser
           updateClock(id);
         } else if (kind.base === "calendar") {
           // addCalendar() opened it on today; a saved selection moves it back to
-          // the month the user was looking at.
+          // the day the user was looking at...
           if (record.selected) {
             const day = parseDateKey(record.selected);
             el.dataset.selected = record.selected;
             el.dataset.viewYear = day.getFullYear();
             el.dataset.viewMonth = day.getMonth();
           }
+          /* ...and the saved month wins over the day's own, because they are
+             genuinely independent: paging to next March while today stays
+             selected is a normal thing to leave a calendar sitting on. Sessions
+             written before v4.0.3 carry no month and keep the old behaviour. */
+          if (record.viewYear !== null && record.viewMonth !== null) {
+            el.dataset.viewYear = record.viewYear;
+            el.dataset.viewMonth = record.viewMonth;
+          }
+          // The header offers ✏️ Rename, so a saved name has to come back —
+          // clock and log write one too and this is where it gets applied.
+          const title = el.querySelector(".calendar-title");
+          if (title && record.name) title.textContent = record.name;
           renderCalendar(id);
         } else if (kind.base === "calculator") {
           stateFor(id).history = record.history || [];
@@ -7646,10 +7699,21 @@ Enterprise browser
       // copied; everything else (buttons, checkboxes, selects, colour swatches)
       // is disabled. Title-bar controls are excluded — you must always be able
       // to unfreeze, minimize or close.
+      /* `data-lock-exempt` is for controls that NAVIGATE rather than edit. A
+         frozen note stays readable and scrollable on purpose — text fields go
+         readOnly rather than disabled precisely so it can be read — and the
+         calendar's month arrows, day cells and search box are the same kind of
+         thing: looking at another day is not an edit. Without the exemption a
+         frozen calendar could only ever show the one day it was frozen on, which
+         is not what "freeze editing, dragging and resizing" promises. */
       function lockableControls(windowElement) {
         return Array.from(
           windowElement.querySelectorAll("textarea, input, select, button")
-        ).filter((el) => !el.closest(HEADER_SELECTOR));
+        ).filter(
+          (el) =>
+            !el.closest(HEADER_SELECTOR) &&
+            el.dataset.lockExempt !== "true"
+        );
       }
 
       function applyWindowLock(windowElement, isLocked) {
@@ -8822,18 +8886,47 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const versionEl = document.getElementById("download-app-version");
         if (versionEl) versionEl.textContent = `v${CB_APP_VERSION}`;
 
-        // One-time purge of the retired calendar feature's stale storage key.
-        localStorage.removeItem("calendarEvents");
+        /* One-time purge of the retired calendar feature's stale storage key —
+           v4.0.0's `session.events` is a different thing entirely and lives
+           inside the session, not under this key.
+
+           try/catch because merely touching localStorage throws SecurityError
+           where site data is blocked by policy, and this line runs OUTSIDE the
+           try that guards the session load below. Unguarded it took the whole of
+           window.onload down with it, which since v4.0.0 also means
+           startAlertScheduler() never runs — a calendar that silently never fires
+           a reminder. Every other purge in this file already wraps its
+           removeItem; this one did not. */
+        try {
+          localStorage.removeItem("calendarEvents");
+        } catch (e) {
+          /* storage denied — the purge is best-effort and boot must continue */
+        }
         // Same, for the retired embedded-export mechanism (<= v3.2.6). Left in
         // place these are inert, but they are also the wreckage of the bug —
         // a displaced session under .prev that nothing will ever offer back.
         purgeRetiredExportKeys();
         updateProtectButton();
 
-        // The file on disk is just the program now; an exported copy carries
-        // no session, and a pre-3.2.7 export's payload is ignored outright.
-        // The only thing that decides what opens is this browser's storage.
-        const rawToLoad = localStorage.getItem(SESSION_KEY);
+        /* The file on disk is just the program now; an exported copy carries
+           no session, and a pre-3.2.7 export's payload is ignored outright.
+           The only thing that decides what opens is this browser's storage.
+
+           Guarded for the same reason as the purge above: a policy that blocks
+           site data makes the mere act of reading throw, and an exception here
+           aborted the rest of boot — including the alert scheduler at the end, so
+           reminders never fired and nothing said why. A browser that will not let
+           us read will not let us write either, so this is also the honest moment
+           to say that nothing is being saved. */
+        let rawToLoad = null;
+        try {
+          rawToLoad = localStorage.getItem(SESSION_KEY);
+        } catch (e) {
+          console.warn("Storage is not available:", e);
+          reportSaveFailure(
+            "This browser is not allowing CB App to store data — nothing will be saved this session."
+          );
+        }
 
         if (rawToLoad) {
           try {
@@ -9165,11 +9258,16 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               // An encrypted import adopts its passphrase for this browser. Say
               // so, or the next reload asks for a passphrase the user thought
               // belonged only to a file.
+              const dropped = eventsDroppedOnValidate
+                ? ` ${eventsDroppedOnValidate} event${
+                    eventsDroppedOnValidate === 1 ? "" : "s"
+                  } past the ${MAX_EVENTS} limit were not imported.`
+                : "";
               showStatus(
                 ok
                   ? keepPass
-                    ? "Session imported — this browser is now protected with that passphrase."
-                    : "Session imported (validated)."
+                    ? `Session imported — this browser is now protected with that passphrase.${dropped}`
+                    : `Session imported (validated).${dropped}`
                   : "Session imported but failed to re-save."
               );
             } catch (err) {
@@ -9422,7 +9520,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
          Every caller goes through here. `detail` and every button label are set
          with textContent, never innerHTML: an event title is user text, and the
          catch-up card renders several of them at once. */
-      function showAppAlert({ icon, title, detail, actions, chime = true }) {
+      function showAppAlert({ icon, title, detail, actions }) {
         const alertEl = document.getElementById("app-alert");
         if (!alertEl) return;
         const iconEl = document.getElementById("app-alert-icon");
@@ -9452,7 +9550,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             extra.appendChild(btn);
           });
         }
-        if (chime) playAlertChime();
+        playAlertChime();
         syncAlertSoundButton();
         alertEl.classList.add("showing");
       }
@@ -9578,13 +9676,17 @@ Tip: Use the Download button inside the app to preserve your open windows and no
          reader — grid, day list, agenda, scheduler — gets chronological order
          without sorting again. */
       function commitEvents(nextEvents, { save = true } = {}) {
+        /* Sort THEN slice. The other way round dropped whichever entries the
+           caller happened to put last rather than the latest events — order in,
+           order out, with no relation to the calendar. */
         calendarEvents = nextEvents
-          .slice(0, MAX_EVENTS)
+          .slice()
           .sort((a, b) =>
             `${a.date}T${a.time || "00:00"}`.localeCompare(
               `${b.date}T${b.time || "00:00"}`
             )
-          );
+          )
+          .slice(0, MAX_EVENTS);
         renderAllCalendars();
         if (save) saveSession();
       }
@@ -9628,10 +9730,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       /* The moment the alert should fire for a given occurrence — the one number
          the whole scheduler runs on. Null means this event never fires. */
       function eventFireAt(event, dateStr) {
-        if (event.alertMinutes === null || event.alertMinutes === undefined) {
-          return null;
-        }
-        const start = occurrenceStart(event, dateStr || event.date);
+        if (!hasAlert(event)) return null;
+        const start = occurrenceStart(event, dateStr);
         return new Date(start.getTime() - event.alertMinutes * 60000);
       }
 
@@ -9652,35 +9752,62 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         );
       }
 
+      /* Whole local days between two local midnights, and days added the only
+         way that is safe.
+
+         v4.0.3: `daily` and `weekly` used to do millisecond arithmetic —
+         `Math.ceil((fromDay - first) / (7 * DAY))` and
+         `first.getTime() + steps * 7 * DAY`. Elapsed ms between two local
+         midnights is NOT a whole number of days across a DST boundary: it is off
+         by an hour. So the division stopped being exact, `Math.ceil` rounded a
+         partial week up to a whole extra one, and the timestamp landed on the
+         wrong local weekday. A weekly event dated Wednesday 2026-07-01 reported
+         TUESDAYS from November onwards — 4,592 wrong answers in a year-long
+         sweep, in the grid dots, the day list and the scheduler alike, because
+         everything asks this one function. `daily` failed too, once a year, on
+         the spring-forward day: the event vanished from the grid and skipped its
+         reminder.
+
+         Math.round, not ceil, because after rounding to whole days the gap is
+         exact by construction. Adding through the (y, m, d) constructor lets the
+         platform handle the offset instead of pretending there isn't one. */
+      function dayDiff(fromMidnight, toMidnight) {
+        return Math.round((toMidnight - fromMidnight) / 86400000);
+      }
+
+      function addDays(midnight, n) {
+        return new Date(
+          midnight.getFullYear(),
+          midnight.getMonth(),
+          midnight.getDate() + n
+        );
+      }
+
+      function midnightOf(date) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      }
+
       /* The first occurrence of `event` on or after `from` (a Date). Returns a
          "YYYY-MM-DD" string, or null for a one-off that is already past.
          Deliberately arithmetic rather than iterative: a daily event first set
          two years ago must not cost 700 loop turns to answer. */
       function nextOccurrence(event, from) {
-        const fromDay = new Date(
-          from.getFullYear(),
-          from.getMonth(),
-          from.getDate()
-        );
+        const fromDay = midnightOf(from);
         const first = parseDateKey(event.date);
         if (first >= fromDay) return event.date;
         if (event.repeat === "none") return null;
 
-        const DAY = 86400000;
+        const gap = dayDiff(first, fromDay); // > 0 here
         if (event.repeat === "daily") {
-          const steps = Math.ceil((fromDay - first) / DAY);
-          return dateKey(new Date(first.getTime() + steps * DAY));
+          return dateKey(addDays(first, gap));
         }
         if (event.repeat === "weekly") {
-          const steps = Math.ceil((fromDay - first) / (7 * DAY));
-          return dateKey(new Date(first.getTime() + steps * 7 * DAY));
+          return dateKey(addDays(first, Math.ceil(gap / 7) * 7));
         }
         if (event.repeat === "monthly") {
-          const day = first.getDate();
-          let months =
+          const months =
             (fromDay.getFullYear() - first.getFullYear()) * 12 +
             (fromDay.getMonth() - first.getMonth());
-          if (months < 0) months = 0;
           for (let i = 0; i < 3; i++) {
             // At most three tries: this month, then the next two. Clamping can
             // pull a date backwards (the 31st becoming the 28th), so the first
@@ -9688,15 +9815,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             const candidate = clampedDate(
               first.getFullYear(),
               first.getMonth() + months + i,
-              day
+              first.getDate()
             );
             if (candidate >= fromDay) return dateKey(candidate);
           }
           return null;
         }
         if (event.repeat === "yearly") {
-          let years = fromDay.getFullYear() - first.getFullYear();
-          if (years < 0) years = 0;
+          const years = fromDay.getFullYear() - first.getFullYear();
           for (let i = 0; i < 3; i++) {
             const candidate = clampedDate(
               first.getFullYear() + years + i,
@@ -9708,6 +9834,90 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           return null;
         }
         return null;
+      }
+
+      /* The LAST occurrence that has already started at `limit` (a Date), or null
+         if the event has not begun. The mirror of nextOccurrence, and the reason
+         the scheduler needs it: "which reminder is due?" is a question about the
+         most recent occurrence, and asking nextOccurrence gave the oldest one in
+         the window instead — see dueOccurrence. */
+      function previousOccurrence(event, limit) {
+        const limitDay = midnightOf(limit);
+        const first = parseDateKey(event.date);
+        if (limitDay < first) return null;
+
+        let candidate;
+        if (event.repeat === "daily") {
+          candidate = dateKey(addDays(first, dayDiff(first, limitDay)));
+        } else if (event.repeat === "weekly") {
+          candidate = dateKey(
+            addDays(first, Math.floor(dayDiff(first, limitDay) / 7) * 7)
+          );
+        } else if (event.repeat === "monthly") {
+          const months =
+            (limitDay.getFullYear() - first.getFullYear()) * 12 +
+            (limitDay.getMonth() - first.getMonth());
+          // Down from this month rather than up: clamping can push a candidate
+          // past the limit (the 31st landing on the 28th cannot, but the reverse
+          // walk still needs the guard for the month it overshoots).
+          candidate = null;
+          for (let i = 0; i <= months; i++) {
+            const probe = clampedDate(
+              first.getFullYear(),
+              first.getMonth() + months - i,
+              first.getDate()
+            );
+            if (probe <= limitDay) {
+              candidate = dateKey(probe);
+              break;
+            }
+          }
+          if (!candidate) return null;
+        } else if (event.repeat === "yearly") {
+          const years = limitDay.getFullYear() - first.getFullYear();
+          candidate = null;
+          for (let i = 0; i <= years; i++) {
+            const probe = clampedDate(
+              first.getFullYear() + years - i,
+              first.getMonth(),
+              first.getDate()
+            );
+            if (probe <= limitDay) {
+              candidate = dateKey(probe);
+              break;
+            }
+          }
+          if (!candidate) return null;
+        } else {
+          // "none", and anything unrecognised, behaves as a single occurrence.
+          candidate = event.date;
+        }
+
+        /* Everything above answers in whole days, but an occurrence starts at a
+           time of day: the 09:00 one on the limit's own date has not started at
+           00:30. Step back one period when that happens. */
+        if (occurrenceStart(event, candidate) > limit) {
+          const day = parseDateKey(candidate);
+          let back = null;
+          if (event.repeat === "daily") back = addDays(day, -1);
+          else if (event.repeat === "weekly") back = addDays(day, -7);
+          else if (event.repeat === "monthly") {
+            back = clampedDate(
+              first.getFullYear(),
+              day.getMonth() - 1 + (day.getFullYear() - first.getFullYear()) * 12,
+              first.getDate()
+            );
+          } else if (event.repeat === "yearly") {
+            back = clampedDate(
+              day.getFullYear() - 1,
+              first.getMonth(),
+              first.getDate()
+            );
+          }
+          if (!back || back < first) return null;
+          candidate = dateKey(back);
+        }
+        return candidate;
       }
 
       /* Does `event` land on `dateStr`? Used by the month grid and the day list.
@@ -9737,51 +9947,61 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       const CATCHUP_DAYS = 7;
       let _alertTick = null;
 
+      /* The interval guard used to sit above two unconditional addEventListener
+         calls, so the function advertised a re-entrancy the listeners did not
+         honour — a second call would have double-swept forever. Registered once,
+         outside, so calling this twice is genuinely harmless. A hidden tab's
+         timers are throttled, so anything that came due in the background is
+         delivered the moment the tab is looked at again. */
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) sweepDueEvents();
+      });
+      window.addEventListener("focus", () => sweepDueEvents());
+
       function startAlertScheduler() {
         if (_alertTick) clearInterval(_alertTick);
         _alertTick = setInterval(sweepDueEvents, ALERT_TICK_MS);
-        // A hidden tab's timers are throttled, so anything that came due while
-        // it was in the background is delivered the moment it is looked at.
-        document.addEventListener("visibilitychange", () => {
-          if (!document.hidden) sweepDueEvents();
-        });
-        window.addEventListener("focus", sweepDueEvents);
       }
 
-      /* Events whose alert is due at `now` and has not been fired yet.
-         Exported for the tests, which is also why it takes `now` rather than
-         reading the clock itself. */
-      function dueEvents(now) {
-        return calendarEvents.filter((event) => {
-          if (event.alertMinutes === null || event.alertMinutes === undefined) {
-            return false;
-          }
-          const occurrence = dueOccurrence(event, now);
-          return occurrence !== null;
-        });
+      /* Does this event ask to be reminded at all? Four sites tested this and one
+         of them tested only half of it, which is how an `alertMinutes: undefined`
+         record came to render "⏰ -undefinedm" in a row while the scheduler
+         correctly treated it as silent. */
+      function hasAlert(event) {
+        return event.alertMinutes !== null && event.alertMinutes !== undefined;
       }
 
       /* The occurrence of `event` whose alert time has passed but which has not
          been announced yet, or null. This is the one place `lastFired` is
          interpreted: it holds the occurrence stamp that was announced, so a
          one-off never repeats and a recurring event is free to fire again next
-         time round. */
+         time round.
+
+         v4.0.3 rewrote the search. It used to ask nextOccurrence from
+         `now - leadTime`, which returns the FIRST occurrence in that window —
+         the oldest pending one, the exact opposite of what a reminder means.
+         With a one-day lead a daily event announced YESTERDAY's occurrence and
+         stamped it, so today's genuine reminder never fired and the event stayed
+         permanently one lead behind. With a lead over CATCHUP_DAYS (the form
+         allows up to 69 days) the occurrence it picked was always older than the
+         catch-up cutoff, so sweepDueEvents counted it stale and said nothing at
+         all: a two-week reminder was silent forever. It could also skip a genuine
+         missed occurrence outright, because looking forward from `now - lead`
+         steps straight over anything earlier.
+
+         fireAt rises monotonically with the occurrence, so "the latest one whose
+         alert has passed" is simply the last occurrence to have started by
+         `now + leadTime` — one previousOccurrence call, no walking. */
       function dueOccurrence(event, now) {
-        if (event.alertMinutes === null || event.alertMinutes === undefined) {
-          return null;
-        }
-        /* Walk back from now to find the most recent occurrence whose alert has
-           passed. Starting the search a lead-time before now is what lets an
-           alert set 60 minutes ahead of a future event be found at all. */
-        const lookFrom = new Date(
-          now.getTime() - Math.max(event.alertMinutes, 0) * 60000
+        if (!hasAlert(event)) return null;
+        const limit = new Date(
+          now.getTime() + Math.max(event.alertMinutes, 0) * 60000
         );
-        let candidate = nextOccurrence(event, lookFrom);
-        // A one-off whose day has passed still has an alert to answer for, so
-        // fall back to its own date rather than giving up here.
-        if (!candidate && event.repeat === "none") candidate = event.date;
+        const candidate = previousOccurrence(event, limit);
         if (!candidate) return null;
         const fireAt = eventFireAt(event, candidate);
+        // previousOccurrence guarantees this, but the guard costs nothing and the
+        // arithmetic above is the kind that gets edited.
         if (!fireAt || fireAt > now) return null;
         const stamp = occurrenceStamp(event, candidate);
         if (event.lastFired && event.lastFired >= stamp) return null;
@@ -9807,6 +10027,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         let stale = 0;
         let changed = false;
         calendarEvents.forEach((event) => {
+          if (!hasAlert(event)) return;
           const occurrence = dueOccurrence(event, now);
           if (!occurrence) return;
           event.lastFired = occurrenceStamp(event, occurrence);
@@ -9880,8 +10101,10 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const day = parseDateKey(dateStr);
         el.dataset.viewYear = day.getFullYear();
         el.dataset.viewMonth = day.getMonth();
-        el.dataset.selected = dateStr;
-        renderCalendar(id);
+        /* calSelectDay rather than three dataset writes and a render: it also
+           retargets an open form's date field, which this used to skip — leaving
+           a form for one day above a grid showing another. */
+        calSelectDay(id, dateStr);
         revealWindow(id);
       }
 
@@ -9894,7 +10117,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
          store, so an event added on the canvas desk is on the plain desk too.
 
          View state (which month is showing, which day is selected) IS per
-         window, and rides in dataset so it persists with the window record.
+         window: it rides in dataset and is written into the window record, so
+         both survive a reload. Before v4.0.3 only the selected day was saved and
+         the month was re-derived from it, which this comment claimed otherwise.
 
          Every row is built with createElement and textContent. Event titles and
          notes are user text and never go near innerHTML.
@@ -9957,11 +10182,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           </div>
         </div>
         <div class="cal-content">
+          <!-- data-lock-exempt: paging the month and searching are reading, not
+               editing, so they survive a freeze. Add event does not. -->
           <div class="cal-monthbar">
-            <button type="button" onclick="calShiftMonth('${calid}', -1)" title="Previous month" aria-label="Previous month">‹</button>
+            <button type="button" data-lock-exempt="true" onclick="calShiftMonth('${calid}', -1)" title="Previous month" aria-label="Previous month">‹</button>
             <span class="cal-month-label" id="cal-month-${calid}" aria-live="polite"></span>
-            <button type="button" onclick="calGoToday('${calid}')">Today</button>
-            <button type="button" onclick="calShiftMonth('${calid}', 1)" title="Next month" aria-label="Next month">›</button>
+            <button type="button" data-lock-exempt="true" onclick="calGoToday('${calid}')">Today</button>
+            <button type="button" data-lock-exempt="true" onclick="calShiftMonth('${calid}', 1)" title="Next month" aria-label="Next month">›</button>
           </div>
           <!-- role="group", not "grid": an ARIA grid requires row/gridcell
                descendants and this is a flat CSS grid of buttons, so the role was
@@ -9969,7 +10196,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
                children). Each day button carries its own full date label. -->
           <div class="cal-grid" id="cal-grid-${calid}" role="group" aria-label="Days of the month"></div>
           <div class="cal-section-head">
-            <input type="text" class="cal-filter" id="cal-filter-${calid}" placeholder="Search events..." aria-label="Search events by title or note">
+            <input type="text" class="cal-filter" data-lock-exempt="true" id="cal-filter-${calid}" placeholder="Search events..." aria-label="Search events by title or note">
             <button type="button" id="cal-add-${calid}" onclick="calOpenForm('${calid}')">Add event</button>
           </div>
           <div class="cal-lower" id="cal-lower-${calid}"></div>
@@ -10003,14 +10230,30 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         renderCalendarGrid(windowId, el);
         // The form owns the lower pane while it is open; redrawing over it would
         // throw away half-typed input on every autosave-triggered render.
-        if (el.dataset.formOpen === "true") return;
-        renderCalendarLower(windowId, el);
+        if (el.dataset.formOpen !== "true") renderCalendarLower(windowId, el);
+        /* A freeze is applied to nodes, and this function just replaced every
+           one of them — including each row's ✏️ and 🗑. Re-arming them is how a
+           frozen calendar came to delete an event on one click: freeze it, let
+           anything re-render (a reminder firing, or an edit on the other desk's
+           calendar, since both share one store), and the buttons were live again.
+           Re-applying is safe repeatedly: applyWindowLock only stamps
+           prevLockState when it is undefined, and these nodes are new. */
+        if (el.dataset.locked === "true") applyWindowLock(el, true);
       }
 
       function renderCalendarGrid(windowId, el) {
         const grid = instancePart(windowId, "cal-grid");
         const monthLabel = instancePart(windowId, "cal-month");
         if (!grid) return;
+        /* Every cell is rebuilt below, which throws the focused one away — so a
+           keyboard user pressing Enter on a day landed on <body> and had to tab
+           from the top of the document to reach the next one. Remember which day
+           had focus and give it back afterwards. */
+        const refocusKey =
+          grid.contains(document.activeElement) &&
+          document.activeElement instanceof HTMLElement
+            ? document.activeElement.dataset.dayKey || null
+            : null;
         const year = parseInt(el.dataset.viewYear, 10);
         const month = parseInt(el.dataset.viewMonth, 10);
         const selected = el.dataset.selected;
@@ -10040,20 +10283,35 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           const cell = document.createElement("button");
           cell.type = "button";
           cell.className = "cal-day";
+          cell.dataset.lockExempt = "true"; // picking a day to look at is reading
+          cell.dataset.dayKey = key; // so focus can be restored to this same day
           cell.textContent = String(day);
           if (key === todayKey) cell.classList.add("cal-today");
           if (key === selected) cell.classList.add("cal-selected");
-          if (eventsOn(key).length) cell.classList.add("cal-has-events");
+          /* Once, not twice. eventsOn filters the whole store and eventOccursOn
+             runs the recurrence maths per event, so asking again for the label was
+             31 extra whole-store scans per render — doubled with a calendar open
+             on both desks, and every save re-renders both. */
+          const hasEvents = eventsOn(key).length > 0;
+          if (hasEvents) cell.classList.add("cal-has-events");
           cell.setAttribute(
             "aria-label",
             `${parseDateKey(key).toLocaleDateString(undefined, {
               weekday: "long",
               month: "long",
               day: "numeric",
-            })}${eventsOn(key).length ? " — has events" : ""}`
+            })}${hasEvents ? " — has events" : ""}`
           );
           cell.addEventListener("click", () => calSelectDay(windowId, key));
           grid.appendChild(cell);
+        }
+        if (refocusKey) {
+          // The same day if it is still on screen, otherwise the one now selected
+          // — paging a month with the keyboard should not drop focus either.
+          const back =
+            grid.querySelector(`.cal-day[data-day-key="${refocusKey}"]`) ||
+            grid.querySelector(".cal-day.cal-selected");
+          if (back) back.focus();
         }
       }
 
@@ -10161,7 +10419,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         meta.className = "cal-event-meta";
         const bits = [];
         if (event.repeat !== "none") bits.push(`⟳ ${event.repeat}`);
-        if (event.alertMinutes !== null) {
+        if (hasAlert(event)) {
           bits.push(event.alertMinutes === 0 ? "⏰" : `⏰ -${event.alertMinutes}m`);
         }
         meta.textContent = bits.join("  ");
@@ -10180,7 +10438,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         del.textContent = "🗑";
         del.title = "Delete this event";
         del.setAttribute("aria-label", `Delete ${event.title || "event"}`);
-        del.addEventListener("click", () => calDeleteEvent(event.id));
+        del.addEventListener("click", () => calDeleteEvent(windowId, event.id));
         row.appendChild(del);
 
         return row;
@@ -10198,6 +10456,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           renderCalendarGrid(windowId, el);
           return;
         }
+        calClearFilter(windowId);
         renderCalendar(windowId);
         saveSession();
       }
@@ -10214,6 +10473,16 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         saveSession();
       }
 
+      /* The lower pane shows search results whenever the box has text, so any
+         action whose result belongs to a DAY has to clear it first — otherwise
+         clicking a day moved the highlight and changed nothing below it, and
+         saving an event said "Event added." while the pane kept showing the old
+         matches. calGoToday had this one line inline; all three callers need it. */
+      function calClearFilter(windowId) {
+        const filterEl = instancePart(windowId, "cal-filter");
+        if (filterEl && filterEl.value) filterEl.value = "";
+      }
+
       function calGoToday(windowId) {
         const el = document.getElementById(windowId);
         if (!el) return;
@@ -10221,8 +10490,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         el.dataset.viewYear = today.getFullYear();
         el.dataset.viewMonth = today.getMonth();
         el.dataset.selected = dateKey(today);
-        const filterEl = instancePart(windowId, "cal-filter");
-        if (filterEl) filterEl.value = ""; // a filtered pane hides "today"
+        calClearFilter(windowId); // a filtered pane hides "today"
         renderCalendar(windowId);
         saveSession();
       }
@@ -10313,6 +10581,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       function calSaveForm(windowId) {
         const el = document.getElementById(windowId);
         if (!el) return;
+        // Freezing while the form is open must not leave a live Save behind.
+        if (el.dataset.locked === "true") return;
         const part = (name) => instancePart(windowId, name);
         const title = part("cal-f-title").value.trim();
         const date = part("cal-f-date").value;
@@ -10331,6 +10601,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           showStatus("Pick a time, or mark it all day.");
           return;
         }
+        /* The <select> can only emit legal values today, so this is
+           defence-in-depth — but the failure it prevents is silent and total: an
+           unrecognised repeat makes nextOccurrence return null, so the event shows
+           on its start date only and never fires an alert, with no error anywhere.
+           EVENT_REPEATS is the same allowlist the import path uses. */
+        const repeatValue = EVENT_REPEATS.includes(part("cal-f-repeat").value)
+          ? part("cal-f-repeat").value
+          : "none";
         const alertOn = part("cal-f-alert-on").checked;
         const raw = parseInt(part("cal-f-alert").value, 10);
         const alertMinutes = alertOn
@@ -10339,6 +10617,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
         const editingId = el.dataset.editingId;
         const existing = editingId ? eventById(editingId) : null;
+        if (editingId && !existing) {
+          /* Saving would mint a new id and quietly resurrect it. Reachable with a
+             calendar open on both desks: one deletes while the other has the form
+             up on that event. */
+          showStatus("That event was deleted — nothing to save.");
+          calCloseForm(windowId);
+          return;
+        }
         const record = {
           id: existing ? existing.id : newEventId(),
           title: title.slice(0, MAX_NAME_CHARS),
@@ -10346,7 +10632,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           time,
           allDay,
           note: part("cal-f-note").value.slice(0, MAX_EVENT_NOTE_CHARS),
-          repeat: part("cal-f-repeat").value,
+          repeat: repeatValue,
           alertMinutes,
           /* A fresh alert must be allowed to fire, so editing clears the stamp
              unless nothing about the timing changed — otherwise moving an event
@@ -10356,7 +10642,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             existing.date === date &&
             existing.time === time &&
             existing.allDay === allDay &&
-            existing.repeat === part("cal-f-repeat").value &&
+            existing.repeat === repeatValue &&
             existing.alertMinutes === alertMinutes
               ? existing.lastFired
               : null,
@@ -10399,11 +10685,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const viewDay = parseDateKey(date);
         el.dataset.viewYear = viewDay.getFullYear();
         el.dataset.viewMonth = viewDay.getMonth();
+        calClearFilter(windowId);
         commitEvents(next);
         showStatus(existing ? "Event updated." : "Event added.");
       }
 
-      function calDeleteEvent(eventId) {
+      /* Takes the window as well as the event: deleting is the one permanently
+         destructive thing in here, so it checks the freeze itself rather than
+         relying on the button being disabled. The disabled attribute is the first
+         line and this is the second — nodes get rebuilt, an attribute is not a
+         guarantee. */
+      function calDeleteEvent(windowId, eventId) {
+        const el = windowId && document.getElementById(windowId);
+        if (el && el.dataset.locked === "true") return; // wireFrozenFeedback says so
         const event = eventById(eventId);
         if (!event) return;
         commitEvents(calendarEvents.filter((e) => e.id !== eventId));
