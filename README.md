@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v3.2.16`  
+**Version:** `v3.2.17`  
 **Released:** August 5, 2026  
 **Size:** ~253 KB (single file)  
 **License:** Provided as-is
@@ -25,7 +25,9 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 - **Task Lists** with checkboxes, per-task deletion, and completion tracking
 - **Sticky Notes** with customizable colors
 - **Built-in Calculator** with history, correct operator precedence, and square root
-- **Clock** with multiple timezones, stopwatch, and countdown timer
+- **Clock** with multiple timezones, stopwatch, and a countdown timer that ends
+  in an in-app alert card and a soft synthesised chime (mutable) — no OS
+  notifications, no permission prompts
 - **Log** with timestamped entries and per-entry deletion
 - **Session persistence** — Everything is automatically saved to localStorage
 - **Optional passphrase protection** — AES-GCM encrypts your session in the browser; the passphrase is entered masked, with a Show toggle, and is never stored
@@ -41,7 +43,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.2.16)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v3.2.17)
 
 Simply save the file and open it in your browser.
 
@@ -166,7 +168,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v3.2.16)
+├── cbapp.html          # The complete application (v3.2.17)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -179,4 +181,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v3.2.16** — A self-contained productivity workspace that just works.
+**CB App v3.2.17** — A self-contained productivity workspace that just works.

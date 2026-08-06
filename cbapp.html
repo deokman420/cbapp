@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.16 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.17 — 2026-08-05. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -1664,6 +1664,109 @@
         }
       }
 
+      /* --- Timer alert ---
+         The countdown used to end in an OS notification, which is the wrong
+         surface for this app: it needs a permission the app never asks for, it
+         is silently dropped under file:// in some browsers, and on a managed
+         machine it leaks "CB App" into the desktop. This is the in-app
+         replacement — a card that stays put until it is dismissed, so a timer
+         that fires while you are in another tab is still there when you come
+         back (unlike the 3s #status toast). Static by design: no pulse, no
+         flash.
+
+         Dead centre of the viewport, not the top-centre strip the toast and the
+         search panel share: this is the one message in the app you asked for
+         and the one you must not miss, and the eye lands in the middle. It also
+         means no stacking rules against #status or #search-replace. */
+      #timer-alert {
+        display: none;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 2600;
+        max-width: calc(100vw - 32px);
+        padding: 18px 20px;
+        border-radius: 14px;
+        border: 1px solid var(--accent);
+        background: var(--bg-card);
+        color: var(--text);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5);
+        font-family: var(--font);
+        font-size: 14px;
+      }
+
+      #timer-alert.showing {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+      }
+
+      #timer-alert .timer-alert-icon {
+        font-size: 26px;
+        line-height: 1;
+      }
+
+      #timer-alert .timer-alert-body {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      #timer-alert .timer-alert-title {
+        font-weight: 600;
+        font-size: 16px;
+        color: var(--accent);
+        letter-spacing: 0.02em;
+      }
+
+      #timer-alert .timer-alert-detail {
+        color: var(--text-dim);
+        font-size: 13px;
+      }
+
+      #timer-alert .timer-alert-actions {
+        display: flex;
+        gap: 8px;
+        margin-left: auto;
+      }
+
+      #timer-alert button {
+        font-family: var(--mono);
+        font-size: 12px;
+        padding: 7px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--bg-card-hover);
+        color: var(--text);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      #timer-alert button:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
+      #timer-alert button:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+
+      /* Narrow screens: the icon/text/buttons row has nowhere to go sideways,
+         so it stacks instead of squeezing the two buttons to nothing. */
+      @media (max-width: 480px) {
+        #timer-alert.showing {
+          flex-wrap: wrap;
+        }
+
+        #timer-alert .timer-alert-actions {
+          margin-left: 40px;
+          width: 100%;
+        }
+      }
+
       /* --- Notes ---
          .window-content reserved 32px for a .clear-note-container that no
          longer lives there (Clear moved into .format-buttons), leaving a dead
@@ -2895,6 +2998,29 @@
       </div>
       <div id="minimized-bar" aria-label="Minimized windows"></div>
       <p id="status" role="status" aria-live="polite"></p>
+      <!-- In-app countdown alert. Persists until dismissed; replaces the OS
+           notification the timer used to fire. -->
+      <div id="timer-alert" role="alert" aria-live="assertive">
+        <span class="timer-alert-icon" aria-hidden="true">⏰</span>
+        <span class="timer-alert-body">
+          <span class="timer-alert-title">Timer finished</span>
+          <span class="timer-alert-detail" id="timer-alert-detail"></span>
+        </span>
+        <span class="timer-alert-actions">
+          <button type="button" id="timer-alert-show" onclick="revealTimerAlertWindow()">
+            Show
+          </button>
+          <button
+            type="button"
+            id="timer-alert-mute"
+            onclick="toggleTimerSound()"
+            aria-label="Mute the timer sound"
+          >
+            Mute
+          </button>
+          <button type="button" onclick="dismissTimerAlert()">Dismiss</button>
+        </span>
+      </div>
       <div id="save-warning" role="alert"></div>
       <button
         type="button"
@@ -2986,7 +3112,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.16";
+      const CB_APP_VERSION = "3.2.17";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3439,6 +3565,7 @@
           "theme",
           "canvas",
           "zIndexCounter",
+          "timerSound",
           ...Object.keys(SINGLETON_KEY_KIND),
         ]);
         for (const key of Object.keys(raw)) {
@@ -3457,6 +3584,12 @@
           if (key === "theme") {
             out.theme =
               raw.theme === "light-mode" ? "light-mode" : "dark-mode";
+          } else if (key === "timerSound") {
+            // Absent stays absent: a session written before this key existed
+            // must not read as "muted". The restore path only applies a real
+            // boolean, so dropping a junk value here means "keep the default".
+            if (typeof raw.timerSound !== "boolean") continue;
+            out.timerSound = raw.timerSound;
           } else if (key === "zIndexCounter") {
             const z = Number(raw.zIndexCounter) || 0;
             assertFiniteNumber(z, "zIndexCounter");
@@ -4505,6 +4638,9 @@
         s.stopwatch.interval = null;
         s.countdown.interval = null;
         s.tick = null;
+        // A timer alert pointing at a clock that is going away would leave a
+        // Show button with nothing to show.
+        if (_timerAlertWindow === windowId) dismissTimerAlert();
       }
 
       // Reset and Import, where the data itself is meant to go.
@@ -5551,6 +5687,8 @@
             };
           });
         session.zIndexCounter = zIndexCounter;
+        // Mute is a preference, not window state — one flag for the whole app.
+        session.timerSound = timerSoundOn;
         return session;
       }
 
@@ -6393,6 +6531,19 @@ Enterprise browser
         saveSession();
       }
 
+      /* One options object for all five readouts, and the reason it exists:
+         hour: "2-digit" was used for both formats, so 12-hour time read
+         "07:44:17 PM" — a leading zero no clock face or phone shows on a
+         12-hour dial. 24-hour keeps it, where 07:44 is the correct form. */
+      function clockTimeFormat(is24Hour) {
+        return {
+          hour12: !is24Hour,
+          hour: is24Hour ? "2-digit" : "numeric",
+          minute: "2-digit",
+          second: "2-digit",
+        };
+      }
+
       function updateClock(windowId) {
         if (!windowId) return;
         const timeDiv = instancePart(windowId, "clock-time");
@@ -6420,12 +6571,8 @@ Enterprise browser
           };
           dateDiv.textContent = now.toLocaleDateString(undefined, options);
           const is24Hour = formatSelect.value === "24";
-          timeDiv.textContent = now.toLocaleTimeString(undefined, {
-            hour12: !is24Hour,
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          });
+          const timeFormat = clockTimeFormat(is24Hour);
+          timeDiv.textContent = now.toLocaleTimeString(undefined, timeFormat);
           const easternTime = new Date(
             now.toLocaleString("en-US", { timeZone: "America/New_York" })
           );
@@ -6438,30 +6585,22 @@ Enterprise browser
           const pacificTime = new Date(
             now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" })
           );
-          easternDiv.textContent = easternTime.toLocaleTimeString(undefined, {
-            hour12: !is24Hour,
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          });
-          centralDiv.textContent = centralTime.toLocaleTimeString(undefined, {
-            hour12: !is24Hour,
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          });
-          mountainDiv.textContent = mountainTime.toLocaleTimeString(undefined, {
-            hour12: !is24Hour,
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          });
-          pacificDiv.textContent = pacificTime.toLocaleTimeString(undefined, {
-            hour12: !is24Hour,
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
-          });
+          easternDiv.textContent = easternTime.toLocaleTimeString(
+            undefined,
+            timeFormat
+          );
+          centralDiv.textContent = centralTime.toLocaleTimeString(
+            undefined,
+            timeFormat
+          );
+          mountainDiv.textContent = mountainTime.toLocaleTimeString(
+            undefined,
+            timeFormat
+          );
+          pacificDiv.textContent = pacificTime.toLocaleTimeString(
+            undefined,
+            timeFormat
+          );
         }
       }
       function updateStopwatchDisplay(windowId) {
@@ -7779,6 +7918,10 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           activeWindow = null;
           zIndexCounter = 1;
           dropAllInstanceState();
+          // A preference is data too: Reset means the defaults are back, not
+          // that a mute from the deleted session outlives it.
+          timerSoundOn = true;
+          syncTimerSoundButton();
 
           cascadeIndex = 0;
           cascadeAnchor = null;
@@ -7802,6 +7945,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         document.body.classList.add(
           session.theme === "dark-mode" ? "dark-mode" : "light-mode"
         );
+
+        // Only a real boolean speaks here; anything else means a session from
+        // before the jingle existed, which keeps the default (on).
+        if (typeof session.timerSound === "boolean") {
+          timerSoundOn = session.timerSound;
+        }
+        syncTimerSoundButton();
 
         // Restore windows
         Object.keys(session).forEach((key) => {
@@ -8296,6 +8446,17 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // bordered pill pinned top-centre and no timer to clear it.
           clone.querySelector("#status")?.removeAttribute("style");
           clone.querySelector("#save-warning")?.removeAttribute("style");
+          // A timer alert that is up right now belongs to this tab's clock, not
+          // to the export — .showing would otherwise ship a card the copy has
+          // no timer for, with a Show button pointing at a window id that
+          // never existed there.
+          clone.querySelector("#timer-alert")?.classList.remove("showing");
+          clone.querySelector("#timer-alert-detail") &&
+            (clone.querySelector("#timer-alert-detail").textContent = "");
+          clone.querySelector("#timer-alert-show")?.removeAttribute("style");
+          // The mute button's label is live state; the copy starts unmuted.
+          const cloneMute = clone.querySelector("#timer-alert-mute");
+          if (cloneMute) cloneMute.textContent = "Mute";
           // Same reasoning for the lock banner: this tab's state, not the
           // export's — the copy has its own session and its own lock, if any.
           clone.querySelector("#locked-banner")?.removeAttribute("style");
@@ -8424,6 +8585,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           return;
         }
         const cd = stateFor(windowId).countdown;
+        // Starting a fresh run answers the last one; leaving the old card up
+        // would have it announce a timer that is already running again.
+        if (_timerAlertWindow === windowId) dismissTimerAlert();
+        // This click is the gesture the jingle needs — see primeTimerAudio.
+        if (timerSoundOn) primeTimerAudio();
         cd.endTime = Date.now() + totalMs;
         cd.active = true;
         updateCountdownDisplay(windowId);
@@ -8434,6 +8600,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
       function resetCountdown(windowId) {
         const cd = stateFor(windowId).countdown;
+        if (_timerAlertWindow === windowId) dismissTimerAlert();
         cd.active = false;
         cd.endTime = null;
         clearInterval(cd.interval);
@@ -8462,7 +8629,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           cd.active = false;
           clearInterval(cd.interval);
           cd.interval = null;
-          upliftingNotification();
+          upliftingNotification(windowId);
           setCountdownFavicon();
           return;
         }
@@ -8476,16 +8643,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       }
 
       let _titleFlash = null;
-      function upliftingNotification() {
-        showStatus("🎉 Timer finished 🎉");
+      function upliftingNotification(windowId) {
+        // The in-app card, not the 3s toast: a timer you set is worth an
+        // announcement that survives being away from the tab, and #status
+        // erases itself after three seconds.
+        showTimerAlert(windowId);
         // Flash the tab title, because the most likely reason you set a timer
         // is that you're looking at something else.
         if (_titleFlash) clearInterval(_titleFlash);
         const originalTitle = "CB App";
         // The CSS reduced-motion block can't reach document.title, so this
         // 14-second flash was the one piece of motion that ignored the
-        // preference outright. The toast and the OS notification already carry
-        // the message; a settled title is enough.
+        // preference outright. The alert card already carries the message; a
+        // settled title is enough.
         if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
           document.title = "⏰ Timer finished";
           const restore = () => {
@@ -8516,16 +8686,185 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         window.addEventListener("focus", stopFlash);
         }
 
-        // Only use the OS notification if permission was already granted.
-        // Firing requestPermission() here threw a browser permission dialog at
-        // the user at a moment they never asked for one.
-        if (window.Notification && Notification.permission === "granted") {
-          try {
-            new Notification("CB App", { body: "Timer finished." });
-          } catch (e) {
-            /* some browsers require a service worker; the toast already fired */
-          }
+        // No OS notification. It needed a permission this app never asks for,
+        // browsers drop it under file:// without a service worker, and on a
+        // managed machine it puts "CB App" on the desktop. #timer-alert is the
+        // announcement now — see showTimerAlert.
+      }
+
+      /* --- Timer jingle ---
+         Synthesised with the Web Audio API, deliberately not a base64 audio
+         file. A base64 <audio> would cost three things this app does not want
+         to pay: ~40KB of data: URI in a single file people download, a
+         `media-src data:` hole in a CSP that is otherwise `media-src 'none'`,
+         and a binary blob nobody can review in a diff. Three sine tones with a
+         bell partial and a long decay cost about forty lines and no bytes, and
+         `media-src` stays shut — an AudioContext is not a media fetch.
+
+         D5 - A5 - D6: an open fifth and octave, ~1.3s, one pass. It reads as a
+         soft chime rather than a ringtone, and it does not repeat. To swap in a
+         recorded jingle later: base64 an .mp3 into an <audio src="data:audio/
+         mpeg;base64,..."> and add `media-src data:` to BOTH the meta CSP at the
+         top of this file and the cbapp headers in vercel.json. */
+      const TIMER_JINGLE = [
+        { hz: 587.33, at: 0 }, // D5
+        { hz: 880.0, at: 0.16 }, // A5
+        { hz: 1174.66, at: 0.32 }, // D6
+      ];
+
+      let timerSoundOn = true;
+      let _audioCtx = null;
+
+      /* Autoplay policy: a context created outside a gesture starts suspended
+         and stays silent. Start is a click, so the context is built and
+         unlocked there — by the time the timer ends there is no gesture left to
+         borrow. */
+      function primeTimerAudio() {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        try {
+          if (!_audioCtx) _audioCtx = new Ctx();
+          if (_audioCtx.state === "suspended") _audioCtx.resume();
+          return _audioCtx;
+        } catch (e) {
+          return null; // no audio is not a reason to lose the alert card
         }
+      }
+
+      function playTimerJingle() {
+        if (!timerSoundOn) return;
+        const ctx = primeTimerAudio();
+        if (!ctx) return;
+        try {
+          const out = ctx.createGain();
+          out.gain.value = 0.9;
+          // Takes the glassy edge off the partials; this is meant to be soft.
+          const soften = ctx.createBiquadFilter();
+          soften.type = "lowpass";
+          soften.frequency.value = 3200;
+          out.connect(soften);
+          soften.connect(ctx.destination);
+          const t0 = ctx.currentTime + 0.02;
+          TIMER_JINGLE.forEach(({ hz, at }) => {
+            // Fundamental plus a quiet octave — what makes it read as a chime
+            // and not a test tone.
+            [
+              [hz, 0.16],
+              [hz * 2, 0.04],
+            ].forEach(([freq, peak]) => {
+              const osc = ctx.createOscillator();
+              const env = ctx.createGain();
+              osc.type = "sine";
+              osc.frequency.value = freq;
+              /* Exponential ramps, and never to or from a true zero: 0 is
+                 illegal for exponentialRampToValueAtTime and a linear fade
+                 clicks at the tail. */
+              env.gain.setValueAtTime(0.0001, t0 + at);
+              env.gain.exponentialRampToValueAtTime(peak, t0 + at + 0.02);
+              env.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 1.1);
+              osc.connect(env);
+              env.connect(out);
+              osc.start(t0 + at);
+              osc.stop(t0 + at + 1.2);
+            });
+          });
+        } catch (e) {
+          /* the card carries the message on its own */
+        }
+      }
+
+      /* The mute button lives on the alert card because the moment you hear a
+         sound you did not want is the moment you want the switch. The choice is
+         saved with the session. */
+      function toggleTimerSound() {
+        timerSoundOn = !timerSoundOn;
+        syncTimerSoundButton();
+        showStatus(timerSoundOn ? "Timer sound on." : "Timer sound muted.");
+        saveSession();
+      }
+
+      function syncTimerSoundButton() {
+        const btn = document.getElementById("timer-alert-mute");
+        if (!btn) return;
+        btn.textContent = timerSoundOn ? "Mute" : "Unmute";
+        btn.setAttribute(
+          "aria-label",
+          timerSoundOn ? "Mute the timer sound" : "Unmute the timer sound"
+        );
+      }
+
+      /* --- In-app timer alert ---
+         The card that replaces the OS notification. It stays up until it is
+         dismissed, and remembers which clock rang so Show can go back to it. */
+      let _timerAlertWindow = null;
+
+      function showTimerAlert(windowId) {
+        const alertEl = document.getElementById("timer-alert");
+        if (!alertEl) return;
+        _timerAlertWindow = windowId || null;
+        playTimerJingle();
+        syncTimerSoundButton();
+        const detail = document.getElementById("timer-alert-detail");
+        if (detail) detail.textContent = timerAlertDetail(windowId);
+        const showBtn = document.getElementById("timer-alert-show");
+        // Nothing to go back to if the clock was closed while the timer ran.
+        if (showBtn) {
+          const target = windowId && document.getElementById(windowId);
+          showBtn.style.display = target ? "" : "none";
+        }
+        alertEl.classList.add("showing");
+      }
+
+      // "Countdown on Clock 2 reached zero." — which clock matters once more
+      // than one is open, and each desk can hold its own.
+      function timerAlertDetail(windowId) {
+        const el = windowId && document.getElementById(windowId);
+        if (!el) return "The countdown reached zero.";
+        const label = el.querySelector(".clock-title")?.textContent?.trim();
+        const elsewhere = !inCurrentMode(el)
+          ? ` (on the ${
+              windowMode(el) === CANVAS ? "canvas" : "windowed"
+            } desk)`
+          : "";
+        return `${label || "Countdown"} reached zero.${elsewhere}`;
+      }
+
+      function dismissTimerAlert() {
+        const alertEl = document.getElementById("timer-alert");
+        if (alertEl) alertEl.classList.remove("showing");
+        _timerAlertWindow = null;
+        // Dismissing is the acknowledgement, so the other two attention-getters
+        // stand down with it instead of outliving the card.
+        if (_titleFlash) {
+          clearInterval(_titleFlash);
+          _titleFlash = null;
+        }
+        document.title = "CB App";
+        restoreFavicon();
+      }
+
+      // Go back to the clock that rang: swap desks if it lives on the other
+      // one, un-minimize it, raise it, and centre the canvas on it.
+      function revealTimerAlertWindow() {
+        const windowId = _timerAlertWindow;
+        const el = windowId && document.getElementById(windowId);
+        if (!el) {
+          dismissTimerAlert();
+          return;
+        }
+        if (!inCurrentMode(el)) toggleCanvasMode(windowMode(el) === CANVAS);
+        if (el.style.display === "none") restoreWindow(windowId);
+        else setActiveWindow(windowId);
+        if (view.on) {
+          const w = el.offsetWidth || parseFloat(el.dataset.width) || 0;
+          const h = el.offsetHeight || parseFloat(el.dataset.height) || 0;
+          const cx = (parseFloat(el.dataset.x) || 0) + w / 2;
+          const cy = (parseFloat(el.dataset.y) || 0) + h / 2;
+          view.x = window.innerWidth / 2 - cx * view.zoom;
+          view.y = window.innerHeight / 2 - cy * view.zoom;
+          scheduleView();
+        }
+        dismissTimerAlert();
       }
 
       function setCountdownFavicon() {

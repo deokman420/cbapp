@@ -7,6 +7,66 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.17] — 2026-08-05
+
+### Changed
+
+- **The countdown announces itself inside the app, not on the desktop.** The
+  OS `Notification` the timer fired is gone. It only ever worked if the
+  browser had already been granted permission (the app deliberately never
+  asks), several browsers drop it under `file://` without a service worker,
+  and on a managed machine it put "CB App" on the desktop.
+
+### Added
+
+- `#timer-alert` — an in-app card, **dead centre of the viewport**, that stays
+  up until it is dismissed. The 3s `#status` toast was the wrong surface for a
+  timer, which by definition fires while you are looking at something else;
+  the centre is where the eye lands, so the one message you actually asked for
+  is the one you cannot miss. Under 480px the row stacks rather than squeezing
+  the buttons.
+- The card names the clock that rang (`Clock 2 reached zero.`) and says so when
+  that clock is on the other desk.
+- **Show** goes back to it: swaps desks if needed, un-minimizes, raises, and
+  centres the canvas on the window. It hides itself if the clock was closed
+  while the timer ran.
+- **Dismiss** is the acknowledgement, so the title flash and the countdown
+  favicon stand down with the card instead of outliving it.
+- **A soft jingle when the timer ends** — three sine tones with a bell partial
+  and a long decay (D5–A5–D6, ~1.3s, one pass, peak 0.24 with no clipping),
+  synthesised with the Web Audio API. Deliberately *not* a base64 audio file: a
+  data: URI would add ~40KB to a file people download, force `media-src data:`
+  into a CSP that is otherwise `media-src 'none'`, and put an unreviewable blob
+  in the repo. An AudioContext is not a media fetch, so the CSP is untouched.
+  `TIMER_JINGLE` documents how to swap in a recorded jingle if that is ever
+  wanted, CSP edits included.
+- The AudioContext is created and unlocked on the **Start** click, not at zero —
+  autoplay policy silences a context built without a gesture, and by the time
+  the timer ends there is no gesture left to borrow.
+- **Mute** on the card, because the moment you hear a sound you did not want is
+  the moment you want the switch. It persists as `session.timerSound` and comes
+  back on Reset. Where Web Audio does not exist the card appears silently.
+
+### Fixed
+
+- **12-hour time no longer pads the hour.** The clock face and all four
+  timezone rows read `7:49:35 PM`, not `07:49:35 PM` — `hour: "2-digit"` was
+  used for both formats, and no clock face or phone pads a 12-hour dial.
+  24-hour keeps two digits, where `07:49` is the correct form. All five
+  readouts now come from one `clockTimeFormat()` instead of five copies of the
+  same options object.
+
+### Notes
+
+- Log entry timestamps are unchanged: those are padded records in a log line,
+  where the fixed width is the point.
+- Starting or resetting a countdown clears that clock's alert; so does closing
+  the clock.
+- `downloadCbApp()` scrubs the card from the export — it belongs to this tab's
+  clock, not to the copy.
+
+---
+
 ## [3.2.16] — 2026-08-05
 
 ### Changed
