@@ -7,6 +7,70 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.0.4] — 2026-08-06
+
+A third pass, this one aimed at 4.0.3's own fixes — new code nobody had reviewed.
+The two rewrites held up under 95,040 measured cases (`previousOccurrence` and
+`nextOccurrence` against an independently generated occurrence set, in three
+timezones, zero mismatches), the freeze bookkeeping leaves no residue after
+repeated re-application, and the session round-trip is byte-identical. Eight
+smaller things did not hold up.
+
+### Fixed
+
+- **A frozen calendar said "frozen" while doing the thing perfectly well.** 4.0.3
+  taught `lockableControls` about `data-lock-exempt` and forgot to teach the
+  frozen-window message, so paging the month or typing in the search box worked
+  *and* drew "Calendar is frozen — click 🔒…" — on every keystroke, evicting
+  whatever the status line was legitimately showing. Two notions of "what a freeze
+  covers" have to agree. Mine, from an hour earlier, and the exact class of
+  contradiction v3.2.19 existed to end.
+- **Recurrence held across a 1-hour DST shift but not a whole missing day.**
+  Samoa deleted 30 December 2011 outright, so in `Pacific/Apia` the elapsed 24h
+  periods between two local midnights are one *fewer* than the calendar dates
+  between them — rounding the millisecond gap cannot recover that. Measured there,
+  a daily event anchored before the jump landed on **0 of 31** days in a month.
+  `dayDiff` now differences UTC calendar dates, which is exact for any zone and
+  any gap: 31 of 31, and the "exact by construction" comment is true rather than
+  nearly true.
+- **A sweep where everything due was too old now says so.** Reminders older than
+  the 7-day catch-up window were stamped in complete silence — the truncation the
+  code's own comment claims not to do. They get a status line (no card, no chime:
+  it is not actionable, so it should not interrupt). The comment now also states
+  plainly that only the *latest* due occurrence per event is examined, so the four
+  days a daily event went unseen are counted, never enumerated.
+- **The saved month must be an integer.** `Number(["2027"])` is 2027 and
+  `Number(null)` is 0, so an array passed the year check and a null month
+  validated as January rather than "no opinion" — and `new Date(5, 0, 1)` is 1905,
+  so a two-digit year rendered a century away. `Number.isInteger` with a floor of
+  100, and the writer emits numbers rather than dataset strings (which would have
+  validated to null and quietly lost the month again).
+- **The id de-duplication cannot be out-guessed.** `newEventId()` is
+  `ev<base36 now><counter>`, so a file that guessed the import millisecond could be
+  handed back the very duplicate the guard exists to prevent. The set is now seeded
+  with every id in the payload, and it retries rather than minting once.
+- **The month label no longer re-announces itself.** It is `aria-live`, and every
+  render wrote it unconditionally, so typing seven characters into the search box
+  had a screen reader say "August 2026" seven times (measured: 3 identical renders
+  → 3 mutations, now 0). A real month change still speaks.
+- The focus-restore chain can no longer end in `null` and drop focus to `<body>` —
+  unreachable through the UI today, but it was the exact failure that block exists
+  to prevent.
+- Grammar: "1 event **was** past the 500 limit", not "1 event were".
+
+### Notes
+
+- 306 tests across Chromium, Firefox and WebKit. The Samoa test runs in a
+  `Pacific/Apia` context, for the same reason the DST tests pin
+  `America/New_York`: the assertion is meaningless anywhere else.
+- One thing worth recording about 4.0.3: it deleted `showAppAlert`'s unused
+  `chime` parameter as dead code, and within the hour this release wanted exactly
+  that parameter for the stale-reminder case. The status line turned out to be the
+  better answer, so the parameter stayed dead — but "nothing calls it" is a weaker
+  argument for deletion than it looks.
+
+---
+
 ## [4.0.3] — 2026-08-06
 
 Two adversarial review passes over everything the calendar shipped in 4.0.0 — one

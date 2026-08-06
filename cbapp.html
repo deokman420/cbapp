@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.0.3 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.0.4 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -3485,7 +3485,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.0.3";
+      const CB_APP_VERSION = "4.0.4";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -3761,18 +3761,22 @@
             height: String(raw.height ?? "640").slice(0, 20),
             name: String(raw.name || "Calendar").slice(0, MAX_NAME_CHARS),
             selected: DATE_RE.test(selected) && isRealDate(selected) ? selected : null,
-            // Clamped, not trusted: these index a month grid directly.
+            /* Integers, not "whatever Number() will coerce": Number(["2027"]) is
+               2027 and Number(null) is 0, so an array passed the old year test and
+               a null month validated to January rather than "no opinion". The floor
+               is 100 because new Date(5, 0, 1) is 1905, not year 5 — a two-digit
+               year silently renders a century away. */
             viewYear:
-              Number.isFinite(Number(raw.viewYear)) &&
-              Number(raw.viewYear) >= 1 &&
-              Number(raw.viewYear) <= 9999
-                ? Math.floor(Number(raw.viewYear))
+              Number.isInteger(raw.viewYear) &&
+              raw.viewYear >= 100 &&
+              raw.viewYear <= 9999
+                ? raw.viewYear
                 : null,
             viewMonth:
-              Number.isFinite(Number(raw.viewMonth)) &&
-              Number(raw.viewMonth) >= 0 &&
-              Number(raw.viewMonth) <= 11
-                ? Math.floor(Number(raw.viewMonth))
+              Number.isInteger(raw.viewMonth) &&
+              raw.viewMonth >= 0 &&
+              raw.viewMonth <= 11
+                ? raw.viewMonth
                 : null,
           };
         }
@@ -4098,15 +4102,23 @@
                every event sharing it, and editing replace them all with the same
                object. A crafted .json can say anything, so uniqueness is
                enforced on the way in rather than trusted. */
-            const seenIds = new Set();
-            out.events = raw.events
+            const sanitized = raw.events
               .slice(0, MAX_EVENTS)
-              .map((e, i) => sanitizeCalendarEvent(e, `events[${i}]`))
-              .map((e) => {
-                if (seenIds.has(e.id)) e.id = newEventId();
-                seenIds.add(e.id);
-                return e;
-              });
+              .map((e, i) => sanitizeCalendarEvent(e, `events[${i}]`));
+            /* Seeded with every id in the payload, and `while` rather than `if`:
+               newEventId() is `ev<base36 now><counter>`, so a file that guessed the
+               import millisecond could otherwise be handed back the very duplicate
+               this exists to prevent. */
+            const claimedIds = new Set(sanitized.map((e) => e.id));
+            const usedIds = new Set();
+            out.events = sanitized.map((e) => {
+              while (usedIds.has(e.id)) {
+                const minted = newEventId();
+                if (!claimedIds.has(minted)) e.id = minted;
+              }
+              usedIds.add(e.id);
+              return e;
+            });
             // Never truncate in silence — the window path counts what it skips
             // and says so, and a dropped appointment is worth the same courtesy.
             eventsDroppedOnValidate = Math.max(
@@ -4183,8 +4195,12 @@
              month held the selected day. Which also made calShiftMonth's
              saveSession() a full serialise-and-encrypt per arrow click that
              changed nothing on disk. */
-          record.viewYear = el.dataset.viewYear || null;
-          record.viewMonth = el.dataset.viewMonth || null;
+          // Numbers, because the validator demands integers — dataset values are
+          // strings and would validate to null, silently losing the month again.
+          const viewY = parseInt(el.dataset.viewYear, 10);
+          const viewM = parseInt(el.dataset.viewMonth, 10);
+          record.viewYear = Number.isFinite(viewY) ? viewY : null;
+          record.viewMonth = Number.isFinite(viewM) ? viewM : null;
         } else if (base === "log") {
           record.width = el.dataset.width || "300";
           record.height = el.dataset.height || "300";
@@ -7815,6 +7831,18 @@ Enterprise browser
           if (e.target instanceof Element && e.target.closest(HEADER_SELECTOR)) {
             return;
           }
+          /* Nor for a control the freeze deliberately spared. v4.0.3 taught
+             lockableControls about data-lock-exempt and forgot to teach this, so a
+             frozen calendar paged its month perfectly well while insisting it was
+             frozen — and evicted whatever the status line was showing, on every
+             keystroke in the search box. Two notions of "what a freeze covers"
+             have to agree. */
+          if (
+            e.target instanceof Element &&
+            e.target.closest('[data-lock-exempt="true"]')
+          ) {
+            return;
+          }
           if (e.type === "keydown") {
             // Reading a frozen window is allowed: navigation keys and the
             // copy/select-all shortcuts are not attempts to edit.
@@ -9260,8 +9288,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               // belonged only to a file.
               const dropped = eventsDroppedOnValidate
                 ? ` ${eventsDroppedOnValidate} event${
-                    eventsDroppedOnValidate === 1 ? "" : "s"
-                  } past the ${MAX_EVENTS} limit were not imported.`
+                    eventsDroppedOnValidate === 1 ? " was" : "s were"
+                  } past the ${MAX_EVENTS} limit and not imported.`
                 : "";
               showStatus(
                 ok
@@ -9772,7 +9800,27 @@ Tip: Use the Download button inside the app to preserve your open windows and no
          exact by construction. Adding through the (y, m, d) constructor lets the
          platform handle the offset instead of pretending there isn't one. */
       function dayDiff(fromMidnight, toMidnight) {
-        return Math.round((toMidnight - fromMidnight) / 86400000);
+        /* Differenced as UTC calendar dates, not as elapsed local time. Rounding
+           the elapsed ms recovers a plus-or-minus 1h DST shift, which was the
+           v4.0.3 fix, but it cannot recover a whole missing day: Samoa deleted 30
+           December 2011 outright, so in Pacific/Apia the elapsed 24h periods
+           between two local midnights are one fewer than the calendar dates
+           between them. Measured there, a daily event anchored before the jump
+           disappeared from the grid for every day of the month. Date.UTC counts
+           dates, so this is exact for any zone and any gap. */
+        return Math.round(
+          (Date.UTC(
+            toMidnight.getFullYear(),
+            toMidnight.getMonth(),
+            toMidnight.getDate()
+          ) -
+            Date.UTC(
+              fromMidnight.getFullYear(),
+              fromMidnight.getMonth(),
+              fromMidnight.getDate()
+            )) /
+            86400000
+        );
       }
 
       function addDays(midnight, n) {
@@ -10017,8 +10065,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       }
 
       /* The tick. Anything due is announced now; anything due but older than the
-         catch-up window is stamped as fired without being announced, so a
-         calendar left alone for a month does not open into a wall of alerts. */
+         catch-up window is counted rather than announced, so a calendar left alone
+         for a month does not open into a wall of alerts.
+
+         "Counted" is the honest word. Only the LATEST due occurrence per event is
+         ever examined, because that is what a reminder means — the four days a
+         daily event went unseen are not enumerated, and nothing pretends they
+         were. */
       function sweepDueEvents() {
         if (sessionLocked) return; // no events are loaded; nothing to announce
         const now = new Date();
@@ -10040,6 +10093,15 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         });
         if (!changed) return;
         if (fresh.length) announceEvents(fresh, stale);
+        else if (stale) {
+          /* Everything due was older than the catch-up window. A card with a chime
+             would be noise for something nobody can act on, but stamping them and
+             saying nothing at all is the silent truncation the comment above claims
+             not to do — so it goes to the status line instead. */
+          showStatus(
+            `${stale} reminder${stale === 1 ? "" : "s"} passed while CB App was closed (more than ${CATCHUP_DAYS} days ago).`
+          );
+        }
         // The stamps are part of the session: without this, the same reminder
         // fires again on the next reload.
         saveSession();
@@ -10259,10 +10321,15 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const selected = el.dataset.selected;
         const todayKey = dateKey(new Date());
         if (monthLabel) {
-          monthLabel.textContent = new Date(year, month, 1).toLocaleDateString(
-            undefined,
-            { month: "long", year: "numeric" }
-          );
+          /* Written only on a real change: the label is aria-live, and every render
+             wrote it unconditionally — so typing seven characters into the search
+             box, each of which re-renders, had a screen reader say "August 2026"
+             seven times. */
+          const label = new Date(year, month, 1).toLocaleDateString(undefined, {
+            month: "long",
+            year: "numeric",
+          });
+          if (monthLabel.textContent !== label) monthLabel.textContent = label;
         }
         grid.textContent = "";
         CAL_DAY_NAMES.forEach((name) => {
@@ -10306,11 +10373,16 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           grid.appendChild(cell);
         }
         if (refocusKey) {
-          // The same day if it is still on screen, otherwise the one now selected
-          // — paging a month with the keyboard should not drop focus either.
+          /* The same day if it is still on screen, then the selected one, then
+             simply the first day of the month. Every month change in the UI is
+             driven from a button that keeps focus itself, so in practice the first
+             selector always hits — but a fallback chain that can end in null would
+             drop focus to <body>, which is the exact failure this block exists to
+             prevent. */
           const back =
             grid.querySelector(`.cal-day[data-day-key="${refocusKey}"]`) ||
-            grid.querySelector(".cal-day.cal-selected");
+            grid.querySelector(".cal-day.cal-selected") ||
+            grid.querySelector(".cal-day:not(.cal-empty)");
           if (back) back.focus();
         }
       }
