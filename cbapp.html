@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v3.2.18 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v3.2.19 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -122,9 +122,6 @@
         background: transparent;
         transition: color 0.5s ease;
         overflow: auto;
-      }
-      textarea[readonly] {
-        background: rgba(0, 0, 0, 0.1);
       }
       .note-log-input-container {
         display: flex;
@@ -848,10 +845,6 @@
       .sticky-note-content {
         color: var(--text);
         font-family: var(--mono);
-      }
-
-      textarea[readonly] {
-        background: rgba(0, 0, 0, 0.2);
       }
 
       .note-log-input,
@@ -1604,11 +1597,15 @@
         box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
       }
 
-      /* A locked note's readonly wash was a flat rgba(0,0,0,0.2) regardless of
-         theme, which turned light-mode notes muddy grey. */
+      /* No wash at all any more. This was a flat rgba(0,0,0,0.2), then a themed
+         --bg-card-hover, and both had the same flaw: `textarea` and
+         `.sticky-note-content` are `background: transparent`, so painting the
+         readOnly state *replaced* whatever showed through — on a sticky note that
+         is the note's own colour, including a custom one the user picked. Locking
+         a yellow note turned it grey. Freezing is not a repaint; the cursor and
+         the frozen message say it instead. */
       textarea[readonly],
       .sticky-note-content[readonly] {
-        background: var(--bg-card-hover);
         cursor: not-allowed;
       }
 
@@ -1768,21 +1765,32 @@
       }
 
       /* --- Frozen windows ---
-         A disabled button dims itself; a readOnly input does not, so the
-         countdown fields of a frozen clock looked perfectly editable and simply
-         refused every keystroke. Cursor and border carry the state, and the text
-         stays on --text rather than being faded — a frozen note still has to be
-         readable, which is the whole reason text fields go readOnly instead of
-         disabled. */
-      [data-locked="true"] input:read-only,
-      [data-locked="true"] textarea:read-only {
-        cursor: not-allowed;
-        border-style: dashed;
-      }
+         Freezing must not repaint a window: the border and background belong to
+         the note, and a frozen sticky that loses its colour or grows an outline
+         is a worse bug than the silence this was meant to cure. The cursor is
+         the only global signal — it costs no pixels — and the spoken message in
+         wireFrozenFeedback() carries the rest.
 
+         v3.2.18 shipped `border-style: dashed` on every readOnly field in a
+         frozen window and it went wrong twice. `.sticky-note-content` and
+         `textarea` declare `border: none`, which resets the *width* to the
+         initial `medium` — so revealing the style painted a 3px dashed frame out
+         of nowhere. And `:read-only` matches far more than text fields: every
+         checkbox, colour swatch and select in the app is permanently read-only
+         by that definition, so they were all outlined too. */
+      [data-locked="true"] input:read-only,
+      [data-locked="true"] textarea:read-only,
       [data-locked="true"] button:disabled,
       [data-locked="true"] select:disabled {
         cursor: not-allowed;
+      }
+
+      /* The one place a dashed frame is wanted: the countdown fields carry a
+         real 1px border of their own, they are the controls that started this
+         whole report, and a number box that refuses digits deserves to look
+         like it will. */
+      [data-locked="true"] .countdown-field input {
+        border-style: dashed;
       }
 
       /* --- Notes ---
@@ -3130,7 +3138,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "3.2.18";
+      const CB_APP_VERSION = "3.2.19";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import

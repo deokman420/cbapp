@@ -7,6 +7,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.19] — 2026-08-06
+
+### Fixed
+
+- **Freezing no longer repaints a window.** v3.2.18's frozen-field styling was
+  meant for the clock's countdown boxes and reached every window instead: a
+  locked sticky note grew a heavy dashed frame and lost its own colour. Both
+  regressions are gone — a frozen note, sticky note or task list now looks
+  exactly like an unfrozen one, and only the cursor changes.
+- The dashed frame came from `border-style: dashed` meeting `border: none`.
+  The shorthand resets the border *width* to the initial `medium`, so the width
+  was 3px all along with the style hiding it; naming the style revealed a frame
+  nobody asked for. It is now scoped to `.countdown-field input`, which carries
+  a real 1px border and is the control the whole report started with.
+- `:read-only` was the second half of it. It matches far more than text fields —
+  every checkbox, colour swatch and select is permanently read-only by that
+  definition — so a frozen sticky note's two colour pickers were outlined too.
+- **The readOnly background wash is gone as well**, and it predates v3.2.18.
+  `textarea` and `.sticky-note-content` are `background: transparent`, so
+  painting the readOnly state replaced whatever showed through: on a sticky note
+  that is the note's own colour, including a custom one. Locking a yellow note
+  turned it grey. Three separate rules were doing it (`rgba(0,0,0,0.1)`,
+  `rgba(0,0,0,0.2)`, then a themed `--bg-card-hover`); all three are removed.
+
+### Notes
+
+- The spoken message from v3.2.18 is unchanged and still covers every window
+  type — it costs no pixels, and it is what makes a silent frozen control
+  explain itself. The visual signal is what got scoped back to the clock.
+- The calculator display is an `<input>`, never a `textarea`, so dropping the
+  wash left it untouched.
+
+---
+
 ## [3.2.18] — 2026-08-06
 
 ### Fixed
