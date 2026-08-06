@@ -7,6 +7,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.0.2] — 2026-08-06
+
+### Fixed
+
+- **The canvas `1:1` button keeps its label in its accessible name.** Found by
+  running Lighthouse against the deployed page rather than the local one, with the
+  canvas open — its accessible name was "Reset zoom to 100 percent", which does not
+  contain the "1:1" a user can see, so speech control could not reach it (WCAG
+  2.5.3, the same fault v4.0.1 fixed in the toolbar). `Zoom out`, `Zoom in` and
+  `Fit` already contained their glyph or word.
+
+### Notes
+
+- Lighthouse with a note, the calendar and the canvas all open at 100%:
+  **accessibility 100, best practices 100**.
+- The first live audit also reported eight failing touch targets at 6–8px. Those
+  were an artifact of auditing a restored session that happened to be on the canvas
+  desk at 25% zoom — the same controls measure 24px and up at 100%. Worth writing
+  down: a Lighthouse run against a *zoomed* canvas is not a fair reading of this
+  app, so audit a clean context.
+
+---
+
 ## [4.0.1] — 2026-08-06
 
 Reported: the New event title box looked cut off and "min before" was squashed.
