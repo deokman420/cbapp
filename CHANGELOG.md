@@ -7,6 +7,37 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.0.5] — 2026-08-09
+
+Two bugs in the locked-session path, both found while building a Lock button
+that was then dropped. Neither needed that button to reach — the locked state
+has always been reachable by getting your own passphrase wrong at boot — so the
+fixes ship on their own. No UI changes.
+
+### Fixed
+
+- **A save that was already encrypting when the session locked wrote over the
+  ciphertext.** Both gates — `saveSession` and `persistSessionPayload` — read
+  `sessionLocked` before the encryption starts, and encryption is 210,000
+  PBKDF2 iterations plus AES-GCM, not an instant. A save that began a moment
+  before a lock finished a moment after it and stored a pre-lock snapshot over
+  the sealed session, which is precisely what those gates exist to prevent. An
+  await is not a fence; `persistSessionPayload` re-reads the flag immediately
+  before the write and returns `false` rather than reporting a save that did not
+  happen. The new test drives the race through the app's internals, because the
+  window is a few hundred milliseconds wide inside one function and nothing a
+  user can click opens it on demand.
+- **A copy downloaded from a locked tab opened by describing the wrong
+  session.** `enterLockedState` rewrites the empty-state hint in place and the
+  export clones the live DOM, so a blank `cbapp.html` greeted its new owner with
+  "your saved session is encrypted and was not opened … nothing is being saved
+  until you unlock it" — about a session that copy has never had, and while it
+  was in fact saving normally. The original text was already parked on the
+  element for the unlock path; the export puts it back, and drops the leftover
+  `data-unlocked-text` attribute with it.
+
+---
+
 ## [4.0.4] — 2026-08-06
 
 A third pass, this one aimed at 4.0.3's own fixes — new code nobody had reviewed.

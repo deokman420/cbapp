@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.0.4 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.0.5 — 2026-08-09. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -3485,7 +3485,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.0.4";
+      const CB_APP_VERSION = "4.0.5";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -4234,6 +4234,13 @@
           );
           return false;
         }
+        /* The gate at the top was checked by a caller from *before* the await.
+           Encryption is PBKDF2 plus AES-GCM — thousands of iterations, not an
+           instant — and the session can become locked while it runs. Writing
+           here would then do exactly what the gate exists to prevent: overwrite
+           a locked session's ciphertext with a snapshot from before the lock.
+           An await is not a fence; the state has to be re-read after it. */
+        if (sessionLocked) return false;
         localStorage.setItem(SESSION_KEY, serialized);
         clearSaveFailure();
         return true;
@@ -9197,6 +9204,20 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // Same reasoning for the lock banner: this tab's state, not the
           // export's — the copy has its own session and its own lock, if any.
           clone.querySelector("#locked-banner")?.removeAttribute("style");
+          /* Same reasoning again, for the text the banner is paired with.
+             enterLockedState() rewrites the empty-state hint in place, and this
+             export clones the live DOM — so a copy downloaded from a locked tab
+             opened saying "your saved session is encrypted and was not opened",
+             about a session that copy has never had. Worse than cosmetic: the
+             sentence goes on to say nothing is being saved, which is false in
+             the fresh copy and would send someone hunting for a lock that is
+             not there. The original text is already parked on the element by
+             enterLockedState for the unlock path; put it back. */
+          const cloneHint = clone.querySelector("#empty-state .empty-hint");
+          if (cloneHint && cloneHint.dataset.unlockedText) {
+            cloneHint.innerHTML = cloneHint.dataset.unlockedText;
+            delete cloneHint.dataset.unlockedText;
+          }
           // The canvas view is state, not markup. Leaving the pan/zoom
           // transform and the mode class baked into the file would make the
           // copy open on a stale viewport that nothing later corrects.
