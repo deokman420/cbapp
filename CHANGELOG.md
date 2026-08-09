@@ -7,6 +7,58 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.1.0] — 2026-08-08
+
+Protect already decided how the session is *stored*. It had nothing to say about
+whether it is on screen right now — the only way to a locked session was to close
+the tab and reopen it, or to get your own passphrase wrong. That is the wrong
+gesture for the moment it is needed, which is someone walking up behind you.
+
+### Added
+
+- **A red 🔒 Lock button, next to Protect, and `Ctrl+Shift+L`.** It encrypts what
+  is open, drops the key out of memory, and clears the desk in one press — the
+  exact state a failed unlock at boot produces, entered deliberately. The
+  ciphertext stays in the browser, saving stops, and the existing 🔒 banner is
+  the way back in. Nothing is deleted and nothing is lost.
+  - On a session that is not protected yet, Lock asks for a new passphrase and
+    turns Protect on as part of locking, rather than sending you to a different
+    button and back.
+  - The order is the safety argument: the encrypted snapshot is written **and
+    read back** before the key is destroyed, so every failure path returns with
+    the session still open and nothing written. A passphrase invented by a Lock
+    that then failed is rolled back, so the tab never believes it is protected
+    while storage is plaintext.
+  - The shortcut fires from inside a textarea on purpose. That is where you will
+    be.
+  - Red in both themes (`--danger-solid`, white text — the lighter `--danger` is
+    3.3:1 and misses AA), and the padlock is `aria-hidden` so the accessible name
+    is "Lock — …" rather than "locked padlock Lock".
+
+### Fixed
+
+- **The toolbar had started growing underneath the download chip.** The chip is
+  fixed bottom-right at `z-index: 1001`, one above the toolbar, so anything the
+  toolbar reaches is not merely crowded — it is unclickable. At 1280px, adding
+  Lock put Reset 39px under it; the next button added would have done the same
+  thing to whatever was last. The toolbar now caps its width against the corner
+  the chip needs and wraps to another row instead. A regression test measures the
+  two rectangles at five widths.
+- **An encrypted write could still land after a lock.** `persistSessionPayload`
+  checked `sessionLocked` on the way in but not after awaiting the encryption, so
+  a save that started before a lock finished after it — overwriting the
+  ciphertext the lock had just sealed with a stale snapshot. It re-checks
+  immediately before the write.
+- **A copy downloaded while locked shipped the wrong first sentence.**
+  `enterLockedState` rewrites the empty-state hint in place, and the export
+  cloned the live DOM, so a blank `cbapp.html` opened saying "your saved session
+  is encrypted and was not opened" — about a session that copy has never had. The
+  original text was already parked on the element; the export restores it.
+- **"Was not opened" is a failure report, and locking is not a failure.** The
+  locked empty state now reads differently depending on how it was reached.
+
+---
+
 ## [4.0.4] — 2026-08-06
 
 A third pass, this one aimed at 4.0.3's own fixes — new code nobody had reviewed.

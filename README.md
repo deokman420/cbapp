@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.0.4`  
+**Version:** `v4.1.0`  
 **Released:** August 5, 2026  
 **Size:** ~253 KB (single file)  
 **License:** Provided as-is
@@ -35,6 +35,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 - **Log** with timestamped entries and per-entry deletion
 - **Session persistence** — Everything is automatically saved to localStorage
 - **Optional passphrase protection** — AES-GCM encrypts your session in the browser; the passphrase is entered masked, with a Show toggle, and is never stored
+- **Lock on demand** — A red 🔒 Lock button (or `Ctrl+Shift+L`) encrypts what is open, drops the key out of memory and clears the screen in one press; the 🔒 banner brings it back with the passphrase. Nothing is deleted — saving simply stops until you unlock. On a session that is not protected yet, Lock asks for a passphrase and turns Protect on as it locks
 - **Always-encrypted Backup** — Backup writes your session out as an AES-GCM `.json` file and never as plaintext. With Protect on it reuses that passphrase; with Protect off it asks for one for that file. Import reads a backup back, through strict schema validation
 - **One-click HTML download** — Save a blank standalone `cbapp.html`; copies carry the program only, never your notes
 - **Dark & Light themes**, both meeting WCAG AA contrast
@@ -47,7 +48,7 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.0.4)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.1.0)
 
 Simply save the file and open it in your browser.
 
@@ -172,7 +173,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.0.4)
+├── cbapp.html          # The complete application (v4.1.0)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -185,4 +186,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.0.4** — A self-contained productivity workspace that just works.
+**CB App v4.1.0** — A self-contained productivity workspace that just works.
