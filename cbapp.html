@@ -22,7 +22,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.1.0 — 2026-08-08. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.0.4 — 2026-08-06. See CBAPP-CHANGELOG.md for release history. -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -237,24 +237,6 @@
         width: max-content;
         max-width: none;
         flex-wrap: nowrap;
-      }
-
-      /* The download chip owns the bottom-right corner and sits at z-index
-         1001, one above the toolbar — so when the toolbar grows wide enough to
-         reach it, the chip silently eats the clicks on whatever button is
-         underneath. That was Reset at 1280px the moment v4.1.0 added Lock, and
-         it would have been Reset again on the next button either way.
-         Capping the width is the fix rather than reshuffling buttons: the
-         toolbar is centred, so its right edge is centre + width/2, and holding
-         the width under (viewport - 2×the corner the chip needs) keeps the two
-         apart at every size. Over the cap the nav rows wrap to a third line,
-         which is visible and harmless; sliding under an invisible link is
-         neither. Not applied below 601px, where the toolbar moves to the top
-         of the screen and the collision cannot happen. */
-      @media (min-width: 601px) {
-        .nav-menu {
-          max-width: max(320px, calc(100vw - 440px));
-        }
       }
 
       .nav-row {
@@ -1036,35 +1018,6 @@
         background: var(--accent-dim);
         color: var(--accent);
         border-color: var(--accent);
-      }
-
-      /* Lock is the one toolbar control meant to be hit in a hurry — someone
-         has walked up behind you and the notes are on screen. It is found by
-         colour before it is found by reading, so it carries the solid danger
-         red in both themes rather than the shared card fill. The theme rules
-         above are (0,0,3,0); adding .nav-lock puts these at (0,0,4,0) so they
-         win without an id or !important, and the same trick keeps the green
-         .active fill off it. --danger-solid, not --danger: white on the
-         lighter red is 3.3:1, which misses AA. */
-      .nav-menu button.nav-lock,
-      .light-mode .nav-menu button.nav-lock,
-      .dark-mode .nav-menu button.nav-lock,
-      .nav-menu button.nav-lock.active {
-        background: var(--danger-solid);
-        border-color: var(--danger-solid);
-        color: #fff;
-      }
-
-      .nav-menu button.nav-lock:hover {
-        background: #991b1b;
-        border-color: #991b1b;
-        color: #fff;
-        transform: none;
-      }
-
-      .nav-menu button.nav-lock:focus-visible {
-        outline: 2px solid var(--danger-solid);
-        outline-offset: 2px;
       }
 
       .nav-menu button::after,
@@ -3358,20 +3311,6 @@
             >
               Protect
             </button>
-            <!-- Lock sits next to Protect because it is the other half of the
-                 same idea: Protect decides how the session is stored, Lock
-                 decides whether it is on screen right now. The visible word is
-                 "Lock" and the padlock is decorative — an emoji inside the
-                 accessible name reads as "locked padlock Lock". -->
-            <button
-              id="lock-now"
-              class="nav-lock"
-              onclick="lockSessionNow()"
-              data-tooltip="Lock the session now — hides everything until the passphrase is entered (Ctrl+Shift+L)"
-              aria-label="Lock — hide the session now until the passphrase is entered"
-            >
-              <span aria-hidden="true">🔒</span> Lock
-            </button>
             <button
               id="theme-toggle"
               onclick="toggleTheme()"
@@ -3546,7 +3485,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.1.0";
+      const CB_APP_VERSION = "4.0.4";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -4295,11 +4234,6 @@
           );
           return false;
         }
-        // Re-check after the await: encryption is not instant, and Lock can
-        // land in the middle of one. The gate at the top of this function was
-        // passed by a caller from before the lock, whose snapshot is now stale
-        // — writing it here would overwrite the ciphertext Lock just sealed.
-        if (sessionLocked) return false;
         localStorage.setItem(SESSION_KEY, serialized);
         clearSaveFailure();
         return true;
@@ -4623,17 +4557,12 @@
       }
 
       /**
-       * Enter the locked state: the stored session is encrypted and is not
-       * open in this tab. Saving is suspended (see saveSession) so the
-       * ciphertext survives, and the user gets an unlimited number of further
-       * tries via the banner — three per round, as many rounds as they want.
-       *
-       * Two ways in, and the empty state has to say which: boot could not open
-       * what was there, or the user pressed Lock and this is exactly what they
-       * asked for. Same machinery, opposite tone — "was not opened" reads as a
-       * failure report, which is alarming when nothing failed.
+       * Enter the locked state: the stored session is encrypted and we could
+       * not open it. Saving is suspended (see saveSession) so the ciphertext
+       * survives, and the user gets an unlimited number of further tries via
+       * the banner — three per round, as many rounds as they want.
        */
-      function enterLockedState(envelope, { manual = false } = {}) {
+      function enterLockedState(envelope) {
         sessionLocked = true;
         lockedEnvelope = envelope || lockedEnvelope;
         clearSessionSecrets();
@@ -4644,9 +4573,8 @@
         const hint = document.querySelector("#empty-state .empty-hint");
         if (hint) {
           hint.dataset.unlockedText = hint.dataset.unlockedText || hint.innerHTML;
-          hint.textContent = manual
-            ? "Session locked. Your notes are encrypted in this browser and nothing is being saved until you unlock — click the 🔒 banner and enter your passphrase."
-            : "Your saved session is encrypted and was not opened. Nothing is being saved until you unlock it — click the 🔒 banner to try the passphrase again.";
+          hint.textContent =
+            "Your saved session is encrypted and was not opened. Nothing is being saved until you unlock it — click the 🔒 banner to try the passphrase again.";
         }
         updateProtectButton();
       }
@@ -4765,7 +4693,6 @@
          leads with its own visible word for the same reason: "click Protect" has
          to find the button called Protect (WCAG 2.5.3). */
       function updateProtectButton() {
-        updateLockButton();
         const btn = document.getElementById("protect-toggle");
         if (!btn) return;
         const label = (text, tip, aria) => {
@@ -4799,98 +4726,6 @@
           );
           btn.classList.remove("active");
         }
-      }
-
-      /* Lock has nothing to say while the session is already locked — the
-         banner and Protect ("Unlock") both point at the way out, and a red
-         button that means "do the thing that is already done" is just another
-         thing to reason about. Hidden rather than disabled: a disabled control
-         still asks to be understood. */
-      function updateLockButton() {
-        const btn = document.getElementById("lock-now");
-        if (!btn) return;
-        btn.style.display = sessionLocked ? "none" : "";
-        // Locking an unprotected session has to invent a passphrase first, and
-        // the button should say so before it is pressed, not after.
-        const tip = sessionPassphrase
-          ? "Lock the session now — hides everything until the passphrase is entered (Ctrl+Shift+L)"
-          : "Lock the session now — asks for a passphrase first, then hides everything (Ctrl+Shift+L)";
-        btn.setAttribute("data-tooltip", tip);
-        // "Lock" leads, so speech control can still reach the button by the
-        // word on it (WCAG 2.5.3) — same reason updateProtectButton does this.
-        btn.setAttribute("aria-label", `Lock — ${tip}`);
-      }
-
-      /**
-       * Lock the session on demand: encrypt what is on screen, drop the key
-       * from memory, and clear the desk. The reverse of retryUnlockSession().
-       *
-       * Order is the whole safety argument. The encrypted snapshot is written
-       * FIRST and read back as an envelope before anything is cleared, because
-       * clearSessionSecrets() destroys the only copy of the key — a failure
-       * after that point would leave the notes on screen with no way to save
-       * them. Every early return below happens with the session still open and
-       * nothing lost.
-       *
-       * enterLockedState() then suspends saving, so the pending debouncedSave
-       * from the user's last keystroke is a no-op rather than a plaintext
-       * write over the ciphertext.
-       */
-      async function lockSessionNow() {
-        if (sessionLocked) {
-          showStatus("Already locked — click the 🔒 banner to unlock.");
-          return;
-        }
-        // Before boot settles, what is on screen is not the session yet;
-        // snapshotting it would persist a half-restored desk.
-        if (!booted) {
-          showStatus("Still loading — try again in a moment.");
-          return;
-        }
-        // No passphrase means there is nothing to lock with. Sending the user
-        // to Protect and back would be two dialogs for one intention, so ask
-        // here and protect as part of locking.
-        const wasProtected = !!sessionPassphrase;
-        if (!wasProtected) {
-          const pass = await promptNewPassphrase({
-            title: "Lock this session",
-            message:
-              "Locking encrypts this session in the browser and hides it until the passphrase is entered again — the same protection the Protect button gives, applied right now.\n\nYou will need this passphrase every time you open CB App here. It is never stored, so there is no way to recover it.",
-            okLabel: "Lock",
-          });
-          if (pass === null) {
-            showStatus("Not locked — nothing was changed.");
-            return;
-          }
-          // Fresh salt, exactly as toggleSessionProtection does.
-          sessionCryptoKey = null;
-          sessionKeySalt = null;
-          sessionPassphrase = pass;
-        }
-        let envelope = null;
-        try {
-          const ok = await persistSessionPayload(buildSessionSnapshot());
-          if (ok) envelope = readStoredEnvelope();
-        } catch (e) {
-          console.error("Failed to encrypt session for lock:", e);
-        }
-        if (!envelope) {
-          // Roll back a passphrase this call invented, so a failed lock does
-          // not leave the tab believing it is protected when storage is not.
-          if (!wasProtected) clearSessionSecrets();
-          updateProtectButton();
-          showStatus(
-            "Could not encrypt the session — nothing was locked and nothing was lost."
-          );
-          return;
-        }
-        // Lock first, clear second: enterLockedState() is what closes saving,
-        // and emptying the desk while writes are still permitted is the one
-        // ordering where an autosave could overwrite the ciphertext with a
-        // snapshot of nothing.
-        enterLockedState(envelope, { manual: true });
-        clearScreenForRestore();
-        showStatus("Session locked — click the 🔒 banner to unlock.");
       }
 
       async function toggleSessionProtection() {
@@ -6839,7 +6674,6 @@ Keyboard
 - Ctrl+Shift+T    new task list
 - Ctrl+Shift+F    search / replace
 - Ctrl+Shift+W    close the active window
-- Ctrl+Shift+L    lock the session now
 - Ctrl+Shift+=    zoom in          (big canvas)
 - Ctrl+Shift+-    zoom out         (big canvas)
 - Ctrl+Shift+9    fit all windows  (big canvas)
@@ -6852,12 +6686,6 @@ Saving & security
 - By default storage is plaintext in this browser profile. Protect
   encrypts it with a passphrase (AES-GCM) so localStorage needs that
   passphrase to open. The passphrase is never stored.
-- The red 🔒 Lock button (or Ctrl+Shift+L) locks the session on the spot:
-  it saves and encrypts what is open, clears the screen, and stops
-  saving until you enter the passphrase again. Nothing is deleted — the
-  encrypted session stays in the browser and the 🔒 banner brings it
-  back. If the session is not protected yet, Lock asks you to choose a
-  passphrase first and turns Protect on as it locks.
 - Freeze (🔓) only stops accidental edits — it is not a password.
 - Get the passphrase wrong (three tries a go) or cancel, and the session
   stays locked rather than being lost: nothing is saved over it, and the
@@ -9369,17 +9197,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // Same reasoning for the lock banner: this tab's state, not the
           // export's — the copy has its own session and its own lock, if any.
           clone.querySelector("#locked-banner")?.removeAttribute("style");
-          clone.querySelector("#lock-now")?.removeAttribute("style");
-          /* enterLockedState() rewrites the empty-state hint in place, so a
-             copy taken while locked shipped a blank app whose first sentence
-             was "your saved session is encrypted and was not opened" — about a
-             session the copy has never had. The original text is parked on the
-             element for exactly this reason. */
-          const cloneHint = clone.querySelector("#empty-state .empty-hint");
-          if (cloneHint && cloneHint.dataset.unlockedText) {
-            cloneHint.innerHTML = cloneHint.dataset.unlockedText;
-            delete cloneHint.dataset.unlockedText;
-          }
           // The canvas view is state, not markup. Leaving the pan/zoom
           // transform and the mode class baked into the file would make the
           // copy open on a stale viewport that nothing later corrects.
@@ -11245,13 +11062,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           case "w":
             e.preventDefault();
             if (activeWindow) closeWindow(activeWindow);
-            break;
-          /* The point of Lock is speed, and reaching for the toolbar while
-             someone reads over your shoulder is not speed. Deliberately fires
-             from inside a textarea too — that is where you will be. */
-          case "l":
-            e.preventDefault();
-            lockSessionNow();
             break;
         }
       });
