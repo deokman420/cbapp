@@ -7,6 +7,60 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.1.1] — 2026-08-15
+
+### Fixed
+
+- **The first accessibility audit.** axe-core (WCAG 2.0/2.1 A + AA) had never
+  been run against CB App. Twelve app states now get scanned — landing, light
+  mode, note, task list, sticky, calculator, clock, log, calendar, instructions,
+  search/replace, big canvas — and the first pass found three defects, all fixed
+  here.
+  - **The clock's 12/24-hour dropdown had no accessible name.** A screen reader
+    announced it as an unlabelled combo box; it is now `aria-label="Time format"`.
+    Every other control in that window was already labelled, so this was the one
+    that got missed.
+  - **Active toolbar pills were 2.4:1.** The accent teal sat on the active green,
+    well under the 4.5:1 floor — so Calculator, Clock, Calendar, Canvas, and
+    Search all failed exactly when they were the toggled-on control the eye needs
+    to find. The pill is now a darker green with white text (5.9:1, and 7.7:1 on
+    hover), which also reads as "selected" more plainly than the teal did.
+  - **The instructions panel scrolled but took no keyboard focus.** A pointer
+    could read it and a keyboard could not; it is now a focusable labelled
+    region.
+
+---
+
+## [4.1.0] — 2026-08-14
+
+### Added
+
+- **A lock button in the bottom-left corner.** One click seals the session with
+  your passphrase, clears every window off the screen, and suspends saving until
+  you unlock — for stepping away from the desk. It ends in exactly the state a
+  failed unlock at boot produces (`sessionLocked`, ciphertext in storage, every
+  write refused, the 🔒 banner offering the passphrase), because that state is
+  already built and tested; only the empty-state wording differs, since nothing
+  failed here and "was not opened" would read as an error.
+  - **It saves before it drops the key.** `clearSessionSecrets()` removes the
+    only means of writing, so the desk is persisted first and the lock is
+    abandoned — session left open, nothing cleared — if that write does not
+    land.
+  - **An unprotected session is asked for a passphrase first.** Blanking the
+    screen over a plaintext localStorage entry is a lock in appearance only. The
+    new-passphrase flow is now shared with Protect rather than duplicated, so
+    the two cannot drift on rules or wording.
+  - **The screen is cleared, not dimmed** — windows, minimised chips, any alert
+    card naming a calendar event, the search bar's contents, and the in-memory
+    event store, which unlock reloads from the envelope.
+  - The button hides itself while the session is locked (the banner is the way
+    back in, and two lock affordances at once read as two different locks), and
+    the minimised-window chips start at 62px to leave it the corner. A copy
+    saved with "Download CB App" always ships with the button visible, for the
+    same reason the locked banner is scrubbed from an export.
+
+---
+
 ## [4.0.5] — 2026-08-09
 
 Two bugs in the locked-session path, both found while building a Lock button
