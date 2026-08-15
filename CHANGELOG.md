@@ -7,6 +7,370 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.2.0] — 2026-08-15
+
+CB App has always been shaped for one screen: a wide desktop in the Island
+browser. Opened on a phone it technically worked and practically did not — the
+toolbar's twenty buttons wrapped into four rows and ate a quarter of the
+screen, and the windows underneath were 557px wide on a 393px display, so their
+own close and minimise buttons sat past the right edge with no way to reach
+them.
+
+This release gives the app a second **shape**. Desktop is byte-for-byte
+unchanged and is asserted to be, by a test block whose entire purpose is to
+fail if any of this leaks out of the breakpoint.
+
+### Added
+
+- **A phone shape.** Below the breakpoint the app sets `body.mobile-ui` and
+  behaves differently in three ways: the toolbar rests collapsed as a bottom
+  sheet, windows are full-bleed and stacked rather than floating, and a strip
+  of tabs along the top switches between them.
+
+  `stackMode()` — mobile *and* the windowed desk — is the state in which
+  windows are full-bleed. The canvas desk is deliberately excluded: windows
+  there are placed in world coordinates and reached by panning, and making them
+  full-bleed would leave the pan/zoom transform with nothing to move.
+
+- **The toolbar as a bottom sheet.** Collapsed it is a 44px hamburger pill in
+  the bottom-left corner — thumb-reachable, and about 6% of the screen where
+  the wrapped bar was 25%. Expanded it is a labelled sheet: the four button
+  groups, which on desktop read as groups only because vertical rules separate
+  them, print their own names when stacked. It closes itself after any action,
+  on a tap outside, and on Escape.
+
+- **A window switcher.** Full-bleed windows are opaque and cover each other
+  completely, so `#stack-tabs` lists every window on the desk and marks the one
+  on top. It carries minimised windows too, which is why `#minimized-bar`
+  stands down on a phone: two bars listing overlapping sets of the same windows
+  is worse than one listing all of them. It appears at two windows, or at one
+  that is minimised and would otherwise be unreachable.
+
+- **The minimap, on a phone.** It was hidden outright below 720px, and a
+  phone is the shape that needs it most: the canvas is three viewports wide,
+  one finger pans a fraction of it at a time, and there is no wheel, no
+  space-drag and no scrollbar. A window panned off-screen was findable only by
+  dragging until it came back. It sits in the top-right corner and is a jump
+  target, same as on desktop — tap or drag it and the view follows.
+
+  It is scaled to fit a BOX now rather than to a fixed width. Width alone was
+  fine while the only client was a desktop, where the world is wider than it is
+  tall and 168px across yields ~95px down; on a portrait phone the world
+  inherits the viewport's aspect and the same 168px came out ~360px tall, 43%
+  of the screen, over the canvas it exists to help you read. A desktop's box
+  has no height limit, so the width is still the binding constraint there and
+  the map is unchanged.
+
+  The zoom widget moved to the top-left to make room, which also fixed a
+  collision the map exposed: the widget's narrow-screen position lived in a
+  `max-width: 720px` block that a landscape phone (802px) does not match, so it
+  had stayed at the desktop's top-right. The four corners of a phone canvas are
+  now zoom widget · map · toolbar pill, lock and chips · download chip.
+
+- **Pinch to zoom the canvas.** Ctrl+wheel is the trackpad pinch and a phone
+  has neither; two fingers arrive as two pointers and nothing else.
+  `wireCanvasInput()` now tracks them and zooms around their midpoint, exactly
+  as the wheel zooms around the cursor. One-finger panning on the background
+  already worked — a touch pointer reports button 0.
+
+- **Both phone orientations are real gates now**, not courtesy runs:
+  `npm run test:cbapp:mobile` runs Pixel 5 and Pixel 5 landscape. Before this
+  release 19 of portrait's 110 tests failed; the whole suite passes on all five
+  projects.
+
+- **A `CB App — layout` block that runs everywhere.** It asserts that no window
+  hides its own contents (`scrollHeight > clientHeight` on an `overflow: hidden`
+  box is invisible, unreachable content), that a new window opens somewhere you
+  can see it, and that nothing pushes the page sideways. Those three catch the
+  note-height and window-placement bugs below on *every* project, including the
+  desktop where one of them had been shipping for a long time.
+
+- **`npm run test:cbapp:visual`** — pixel baselines for six states across
+  desktop and both phone orientations. Deliberately outside the default gate:
+  a baseline PNG only matches the platform that recorded it. Refresh with
+  `-- --update-snapshots`.
+
+  Its first tolerance, 2%, was worse than useless — 2% of a landscape shot is
+  ~4700 pixels, more than the entire hamburger button, so it reported green
+  while that button was missing from the sheet. It is 0.2% now. A tolerance
+  that cannot see a missing control is not a test.
+
+### Fixed
+
+- **A new window was placed underneath the open toolbar, off the bottom of the
+  screen.** `canvasBounds()` treats the toolbar as a region to place windows
+  *around*, which is right for a bar that is always there and wrong for a sheet
+  that is not. The sheet is still open while the button's own handler runs — the
+  auto-collapse is a bubbled listener, so it fires after — and a 400px-tall
+  sheet measured at that moment reads as an obstacle covering most of the
+  screen. Every window opened from the toolbar landed in the strip below it,
+  and on the canvas nothing pulls it back. The toolbar is no longer treated as
+  an obstacle on a phone; the standing chrome is reserved in CSS instead.
+
+- **`body.className = "dark-mode"` wiped the layout.** Reset, and a boot with
+  nothing in storage, both wrote the whole class list to set the theme. `<body>`
+  also carries the canvas classes and now the shape, so a Reset on a phone
+  silently dropped the mobile layout until the breakpoint was crossed again —
+  which on a phone is never. Both sites go through `setThemeClass()`, which
+  writes the theme token and nothing else, the way the restore path already
+  did.
+
+- **The tab strip was nearly named `#window-switcher`.** Notes are `#window1`,
+  `#window2`, … and the canvas layer is `#windows`, so `[id^="window"]` is an
+  established way to reach "every note" in this file and in the spec. A chrome
+  element in that namespace was picked up as the newest note. It is
+  `#stack-tabs`.
+
+- **The scrim sat on top of the sheet for the first 150ms.** `.nav-menu`
+  carries `transition: all 0.3s ease` and z-index is an animatable integer, so
+  opening the sheet interpolated 1000 → 1004 discretely and held the old value
+  for the first half — long enough that the first tap after opening the toolbar
+  hit the scrim and closed it again. Nothing about the sheet is worth animating
+  on a phone; the transition is off there.
+
+- **Every note in the app clipped its own word count, on every screen.**
+  `updateWindowSize()` summed a note's height as header + 22 + buttons + counts
+  + logInput, where 22 was "padding plus borders" — and silently omitted the
+  three 10px gaps `.window-content` puts between its four children. Every note
+  was therefore sized 30px shorter than its own contents, and since `.window`
+  is `overflow: hidden` the shortfall was not merely ugly, it was invisible and
+  unreachable with no scrollbar to say so. It predates this release by a long
+  way and was only *noticed* on a phone, where the same 30px is a much larger
+  share of the window. Both that function and `setMaxDimensions()` now measure
+  the chrome (`noteChromeHeight()`) instead of adding up constants.
+
+- **A new window on the canvas was placed underneath the chrome.**
+  `canvasBounds()` reserved a flat 46px at the top of a phone screen — enough
+  for the 38px zoom widget and nothing like enough for the minimap, which is
+  132px tall on a portrait phone. A new window landed with its own freeze and
+  close buttons under the map: the one control that cannot be moved out of the
+  way, because it is how you find the window again. The band is measured off
+  the real chrome now, and a new window is sized to the band it will be placed
+  in rather than to the viewport.
+
+- **A phone in landscape got the desktop app back.** ~802x293 is wider than
+  720px, so the first version of the breakpoint did not match it: the
+  twenty-button toolbar reappeared, over the top of a note it now overlapped —
+  the exact layout this release exists to remove. See the breakpoint note under
+  Changed. `mobile-landscape` is a Playwright project now, so the next one gets
+  caught.
+
+- **A restored note was capped to the size of the screen instead of the
+  canvas, and had its bottom cut off.** `view.on` is restored *after* the loop
+  that rebuilds the windows, so for the whole of that loop `sizingBasis()`
+  answered with the viewport rather than the world — and `setMaxDimensions()`,
+  which runs inside every `add*()`, wrote each note an inline `max-height`
+  sized for a phone screen instead of for a three-viewport canvas. On a
+  landscape phone that capped a 400px note at 322px and hid 78px of it behind
+  `overflow: hidden`, with no scrollbar to say so. The visible symptom was the
+  word count jammed against the bottom border.
+
+  It looked intermittent because each container's ResizeObserver fires its
+  first callback after the restore returns, by which time `view.on` is true,
+  and that recomputes everything correctly. The bug was a race against the
+  observer's schedule — one that both emulated engines win every time, which is
+  why it reproduced on a real phone and nowhere else, and why resizing the
+  window always appeared to fix it. Restore now re-derives each note's box once
+  the view is final, rather than leaving it to the observer.
+
+  Not phone-specific underneath: with the observer stubbed out, the same test
+  fails on desktop with 127px of the note cut off.
+
+- **The minimap's window blocks did not follow a viewport change.** The map
+  has two update paths: `applyView()` repaints the viewport frame and re-sizes
+  the map box, while the blocks inside are rebuilt on a separate debounce fired
+  by add / close / minimise / restore / drag / resize-of-a-window. A viewport
+  resize is none of those, so the blocks kept the pixel positions they were
+  given under the OLD world while the map around them was rescaled to the new
+  one. Rotating a phone put every block in the wrong place at the wrong size
+  until you happened to touch a window. Latent on desktop — resizing the
+  browser with the canvas open is rare — and confirmed there too by the test
+  that now covers it.
+
+- **A note's word count lost the space under it on a landscape phone.** The
+  short-screen rule that tightens a note to fit a 293px-tall screen took 4px
+  off all four sides of `.window-content`, and the bottom one is against an
+  edge where its absence shows: the count all but touches the border, which
+  reads as the padding having been dropped rather than reduced. The 20px still
+  comes out of the three inter-row gaps and the top, none of which are against
+  an edge, and the bottom stays at 10px in both orientations.
+
+- **The status toast painted as a giant blob across a landscape phone.**
+  `#status` is top-anchored by default (`top: 18px`) and the rule that flips it
+  to bottom-anchored lives in a `max-width: 720px` block — which a phone in
+  landscape (802px) does not match. The mobile rule set only `bottom`, leaving
+  BOTH offsets non-auto, and an absolutely positioned box with both set and
+  `height: auto` is stretched to fill the gap between them. The toast became
+  422x302 with two lines of text stranded at the top of it, and since it
+  carries `border-radius: 999px` for its one-line pill shape, 302px of it
+  painted as an enormous dark oval over the middle of the canvas. The search
+  panel shares the same slot and the same pair of rules, and had the same
+  latent bug.
+
+  This is the third instance of one trap — a narrow-screen rule keyed on width
+  alone does not fire in landscape — so it now has a test that measures a
+  fixed element's box against the height of the text inside it. Asserting a
+  maximum height would not do: a stretched box is one whose height has nothing
+  to do with its contents, and a 200px box full of 200px of text is fine.
+
+- **The toolbar sheet dropped its first 70px off the top of itself.**
+  `.nav-menu` is `justify-content: center`, which centres a bar's buttons on a
+  desktop and does something else entirely once the content is taller than the
+  box: overflow in a centred flex container is split evenly between *both*
+  ends. On a landscape phone the hamburger and the whole "Create" label sat
+  above the sheet's own top edge, where `scrollTop` cannot reach them — scroll
+  offsets do not go negative — while `scrollTop` read 0 the entire time.
+  Overflow now goes to the end you can scroll to.
+
+- **The sheet laid its second row out sideways.** The 720px block sets
+  `flex-wrap: wrap` on `.nav-menu`, from when the toolbar was a top-anchored bar
+  that needed to wrap. Combined with the sheet's `flex-direction: column` and
+  its height cap, wrap means wrap into *columns* — the Tools and Session groups
+  were rendered beside the Create and Edit ones, off the right edge, with a
+  sliver of each visible.
+
+### Changed
+
+- **Lint is clean, and stays clean.** `npm run lint` had eleven standing
+  warnings; it has none, and it runs at `--max-warnings=0` now so the next one
+  fails the check rather than joining a pile nobody reads.
+
+  Six were `consistent-return` on the window-creating helpers, and they were
+  pointing at something real rather than being noise: each returns the new
+  element normally but did a bare `return;` at the 25-window cap, so it handed
+  back `undefined` while the restore path's own comment said *"add\*() returns
+  null once MAX_WINDOWS is hit"*. Every caller tests for falsiness, so the
+  behaviour is identical — but the code and its documentation now agree, and
+  `addCalculator`/`addClock` already did it this way.
+
+  The other five were `no-await-in-loop` in the passphrase retry loops, and
+  those are not defects: attempt 2 is a response to attempt 1 having been
+  wrong, so running the three concurrently would stack three modal dialogs on
+  screen at once. They are suppressed individually, each with the reason
+  written next to it.
+
+- **The breakpoint is not width alone, and it is not one clause.** It is
+  `(max-width: 720px) and (pointer: coarse)`,
+  `(max-height: 520px) and (pointer: coarse)`, `(max-width: 560px)`.
+
+  The pointer test is there because a desktop browser with devtools docked to
+  the side is routinely under 720px with a mouse attached, and turning that
+  into full-bleed windows with no drag and no resize takes the app away from
+  someone who has lost nothing but width. The height clause is there because a
+  phone in landscape is ~802x293 — *wider* than 720, so a width-only query
+  dropped it straight back to the desktop shape. The last clause is the floor
+  under both: below ~560px the toolbar cannot be laid out as a bar by any
+  arrangement, mouse or no mouse.
+
+- **Geometry is frozen while the phone layout is on.** A note is 557x429 by
+  default; on a 393px screen the CSS stretches it to the viewport, and
+  `measuredBox()` must not write that back or a Backup taken on a phone would
+  carry 393px notes to the desktop they were built on. `geometryFrozen()` falls
+  through to the stored box instead — the same thing a minimised window already
+  did — and `updateWindowSize()`, plus the resize handler's
+  `clampWindowIntoView()` sweep, stand down with it. A window that has only
+  ever existed on a phone still saves its real size; the freeze is not an
+  unconditional early return.
+
+- **Dragging and resizing are off in the phone shape**, and the resize grip is
+  hidden with them. Every window is the whole screen there, so there is nowhere
+  to drag one to, and an affordance that does nothing is worse than no
+  affordance.
+
+- **A new window on the canvas is trimmed to fit the screen.** The canvas keeps
+  world coordinates on a phone, so nothing else stops a 557x429 note or a
+  400x400 Log from opening with its own controls past the edge or below the
+  fold. Only brand-new windows; a saved size is the user's.
+
+- **The viewport meta declares `viewport-fit=cover` and
+  `interactive-widget=resizes-content`.** The first is what makes
+  `env(safe-area-inset-*)` report anything but 0 on a notched phone, which the
+  mobile stylesheet leans on throughout. The second shrinks the layout viewport
+  when the on-screen keyboard opens, so a note's buttons do not end up
+  underneath it while you type. Page zoom is deliberately still allowed.
+
+- **The calendar's event list is keyboard-scrollable.** `.cal-lower` is the
+  calendar's one scroller, and on a 293px-tall screen it genuinely overflows —
+  a scrollable region with no tab stop cannot be scrolled by keyboard at all.
+  It takes `tabindex="0"` and a label. Found by running the axe suite against
+  the landscape project.
+
+- **Notes tighten up on a short screen.** Under `max-height: 520px` the flex
+  gaps and padding drop from 10px to 6px and the textarea's floor drops to
+  60px — the textarea is the only part of a note that can give up height
+  without something becoming unreachable, and it is also the part the on-screen
+  keyboard is covering. The standing chrome shrinks with it (48px instead of
+  56, a 32px tab strip instead of 38), because two bands costing 11% of a
+  portrait screen cost 24% of a landscape one.
+
+- **Hover tooltips are suppressed on a phone.** The synthesised `mouseenter`
+  arrives with the tap that already ran the button, so the tip appeared over
+  the toolbar it was meant to explain, after the fact, with nothing to dismiss
+  it.
+
+- **The empty-state hint knows which shape it is in.** The desktop wording
+  points at a toolbar along the bottom that a phone does not have. Both
+  wordings are spans inside the single `.empty-hint` element, because the
+  locked-session message swaps that element's contents wholesale.
+
+---
+
+## [4.1.3] — 2026-08-15
+
+### Fixed
+
+- **A failed session load threw away the reason it failed.** Parsing a stored
+  session wrapped every `JSON.parse` failure in a flat "Session is not valid
+  JSON", discarding the original `SyntaxError` — and with it the byte offset
+  that is the only thing distinguishing a session truncated partway through a
+  write from one whose contents are corrupt. The underlying error now rides
+  along as `cause`. The message shown to you is unchanged.
+
+### Changed
+
+- **The first static analysis pass.** ESLint had never been run against
+  `cbapp.html`; the offline security check only ever parsed the script for
+  syntax errors, which catches nothing that still parses. The inline script is
+  now linted in place (`npm run lint`) and is clean.
+
+  It found three globals — `activeTool`, `offsetX`, `offsetY` — left behind by
+  an older drag implementation. `activeTool` appeared exactly once in the file,
+  at its own declaration. The other two were never read: every use inside
+  `makeDraggable` bound to same-named locals that shadowed them, so editing the
+  globals to change drag behaviour would have done nothing at all. All three are
+  gone. A calendar-form local that shadowed the `hasAlert()` predicate is now
+  `alertOn`, two silently swallowed resize-observer errors say why they are
+  ignored, and a handful of dead initialisers and one unused parameter are gone.
+
+  No behaviour changes beyond the `cause` fix above — the 330-test
+  cross-browser suite and the axe-core pass are unchanged.
+
+---
+
+## [4.1.2] — 2026-08-15
+
+### Fixed
+
+- **Restoring with devtools open bunched every window into a corner.** The big
+  canvas sizes its world from the browser viewport, which is not a stable
+  quantity — opening devtools, snapping the window to half the screen, or
+  rotating a tablet all shrink it. A reload starts the world at zero and
+  re-derives it, so unlocking a session in that shrunken state computed a world
+  smaller than the one the saved coordinates were written against, and the
+  restore clamp then dragged every window past the new edge back onto it. The
+  view got pinned to the same corner, so it looked like the whole workspace had
+  collapsed into a pile — and it was saved that way, so closing devtools did not
+  undo it.
+
+  The world now has two floors it can never fall below: its own size, persisted
+  with the session, and a measurement of the windows actually on the canvas
+  (which is what rescues sessions saved before this release). A narrow viewport
+  can still grow the world; it can no longer shrink it. The drag clamp gets the
+  same guarantee, so a drag no longer stops dead well inboard of where the
+  neighbouring windows are sitting.
+
+---
+
 ## [4.1.1] — 2026-08-15
 
 ### Fixed

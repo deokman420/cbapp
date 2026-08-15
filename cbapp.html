@@ -2,7 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      interactive-widget=resizes-content, not the default resizes-visual: the
+      windows are height:100% of a position:fixed .whiteboard, so the layout
+      viewport has to shrink when the on-screen keyboard opens or a note's
+      buttons sit underneath it while you type. viewport-fit=cover is what
+      makes env(safe-area-inset-*) report anything but 0 on a notched phone;
+      the mobile section of the stylesheet leans on those insets throughout.
+      No user-scalable=no — pinch-zooming the page is an accessibility right,
+      and the canvas has its own two-finger gesture only while it is on.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <meta name="description" content="CB App - A browser-based notepad and productivity tool">
     <meta name="theme-color" content="#007bff">
     <!--
@@ -22,7 +35,99 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.1.1 — 2026-08-15. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.2.0 — 2026-08-15. See CBAPP-CHANGELOG.md for release history. -->
+
+    <!-- ORIENTATION — read this before editing. Written for whoever opens this
+         file with no memory of it, which is usually an AI agent starting cold.
+
+      WHAT THIS IS
+        One self-contained file. No build step, no imports, no framework, one
+        classic inline script, ~11.5k lines. It is opened from file:// on a
+        locked-down managed work machine, so it must stay strictly offline:
+        no network, no telemetry, no CDN. The CSP above enforces that; keep it.
+        Top-level `let`/`const` are in the script's global lexical scope, so
+        they are reachable from page.evaluate() by name but never on `window`.
+
+      HOW TO NAVIGATE
+        Line numbers in comments go stale, so nothing here cites one. Jump by
+        grepping the banner headings instead:
+            grep -n "^      /\* =\{10,\}" cbapp.html
+        Banners, in file order: UX pass (CSS) · BIG CANVAS (CSS) · MOBILE
+        (CSS) · CALENDAR EVENTS · BIG CANVAS — view state · MOBILE — the two
+        mode tests · Mode-scoped windows · ONE PER DESK · Minimap · CALENDAR
+        ENGINE · THE CALENDAR WINDOW · BIG CANVAS — input.
+        Everything inside the style element is CSS; everything inside the
+        script element is the app, and that is most of the file. Grep for
+        "text/javascript" to find the boundary. Within the script, in order:
+        session security and validation, canvas/mode state, window creation,
+        persistence, the calendar, then event wiring at the bottom.
+
+      THE FIVE CONCEPTS EVERYTHING ELSE ASSUMES
+        1. DESKS. `WINDOWED` and `CANVAS` are two different desks, not two
+           views of one desk. A window belongs to the desk it was created on
+           (`data-mode`) and exists on that desk only. `modeWindows()` is
+           "windows on the desk showing now"; `inCurrentMode(el)` is the test.
+           Anything off-desk is display:none and therefore measures 0.
+        2. THE WORLD. On the canvas, window coordinates are world pixels, not
+           screen pixels, and `#windows` is the pan/zoom layer. `view` is the
+           live transform; `canvasViewMemory` is the viewpoint kept while the
+           canvas is off. The world only ever grows — see INVARIANT at
+           growWorldTo().
+        3. THE SESSION. One localStorage key (`notepadSession`), optionally
+           AES-GCM wrapped behind a passphrase. Write path:
+           buildSessionSnapshot() -> persistSessionPayload(). Read path:
+           validateSessionObject() -> loadSessionFromStorage(). Every field
+           crossing that boundary is sanitized; untrusted input reaches it via
+           Import, so treat the sanitizers as a security control, not tidiness.
+        4. COMPATIBILITY. Sessions written by older builds are still out there
+           on real machines and must keep restoring. That is why ids look
+           historic (`help-window` in the DOM, `help` in the session) and why
+           absent fields are read as "the writer said nothing", never as a
+           real value. Never repurpose a persisted key; add a new one.
+        5. SHAPES (v4.2.0). Desks are orthogonal to this: the app has two
+           SHAPES, chosen by the device rather than by the user. `mobileUI` is
+           the phone shape; `stackMode()` is mobileUI AND the windowed desk,
+           where windows are full-bleed and stacked instead of floating. The
+           CSS mirror of stackMode() is `body.mobile-ui:not(.canvas-on)`;
+           change one and change the other. `geometryFrozen()` is the rule
+           that keeps the two shapes from corrupting each other — while the
+           layout on screen is CSS rather than the user's, nothing measured
+           may reach the session. Desktop matches none of it, which the
+           "does not reach the desktop" block in the spec asserts directly.
+
+      COMMENT CONVENTIONS — greppable on purpose
+        INVARIANT:  something that must stay true. Breaking it breaks the app
+                    somewhere far from your edit.
+        TRAP:       a change that looks obviously correct and is not, plus the
+                    consequence. These are bugs that already shipped once.
+        WHY:        a non-obvious reason for code that looks odd or redundant.
+        TEST:       the spec that proves the point, so you can verify instead
+                    of trusting the comment.
+        Get the whole minefield in one call before a large change:
+            grep -n "TRAP:\|INVARIANT:" cbapp.html
+
+      BEFORE YOU SHIP
+        npm run lint — clean since v4.2.0 and gated at --max-warnings=0, so a
+        new warning fails rather than joining a pile nobody reads. The five
+        `no-await-in-loop` suppressions are each a modal retry loop that only
+        a human can advance; do not "fix" one by parallelising it.
+        npx playwright test tests/cbapp.spec.ts tests/cbapp-a11y.spec.ts --project=desktop
+        Cross-browser: --project=firefox --project=webkit. A fresh clone needs
+        `npx playwright install firefox webkit` before those two will run.
+        --project=mobile AND --project=mobile-landscape are real gates since
+        v4.2.0, not courtesy runs: they are the only projects that exercise the
+        phone shape, and landscape is not a formality — a phone on its side is
+        802x293, wider than any width-only breakpoint calls narrow and shorter
+        than anything else this app runs on. Portrait alone missed both.
+        `npm run test:cbapp:mobile` runs the pair.
+        Pixel baselines: `npm run test:cbapp:visual`, refreshed with
+        `-- --update-snapshots`. They are per-platform and not part of the gate;
+        the geometry assertions in the `CB App — layout` block are.
+        (cbapp-a11y on firefox/webkit has a long-standing .minimize-window
+        contrast failure — that is why its script pins --project=desktop.)
+        Deploy is `npm run deploy` from phbeks-site/ — plain `vercel deploy
+        --prod` fails the build gate by design.
+    -->
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -68,16 +173,12 @@
         transition: opacity 0.3s ease;
         transform: translate(0, 0);
       }
-      /* Drag feedback lives in the UX pass near the end of this stylesheet.
-         The old rule here was `opacity: 0.8` on five of the seven window
-         types. */
-      /* The `.dark-mode X` legacy rules that used to live here outranked the
-         token-based system further down purely on specificity (0,0,2,0 beats
-         0,0,1,0), so windows were still painting rgba(0,0,0,0.3) over a
-         rgba(200,200,200,0.3) border instead of --bg-card / --border. The
-         tokens already cover both themes; the overrides only defeated them. */
-      /* Legacy controls flex rule removed - now in modern section near header styles */
-      /* Legacy close button colors removed - now using modern muted/accent variables */
+      /* TRAP: do not add `.dark-mode X` rules here. At (0,0,2,0) they outrank
+         the token-based system in the UX pass at the end of this stylesheet
+         (0,0,1,0), so windows paint hard-coded rgba() instead of --bg-card /
+         --border. The tokens already cover both themes. Several such rules
+         lived here and were deleted for exactly this reason; drag feedback,
+         control layout and close-button colour are all in the UX pass now. */
       .window-content {
         padding: 10px;
         display: flex;
@@ -980,14 +1081,11 @@
         border-color: color-mix(in srgb, var(--accent) 35%, transparent);
       }
 
-      /* An id-specificity rule for #theme-toggle / #log-toggle /
-         #calculator-toggle / #clock-toggle / #search-btn used to sit here. It
-         existed only to neutralise the legacy skins those buttons carried, and
-         those were deleted in v3.0 — but at (0,1,0,0) it also outranked
-         `.nav-menu button:hover` (0,0,2,0) and `.nav-menu button.active`, so
-         Calc, Clock, Log, Theme and Search stayed plain on hover while Note,
-         Tasks and T2 highlighted. Removed: the shared nav rules already give
-         every toolbar button the same resting, hover and active styling. */
+      /* TRAP: never style a toolbar button by id. At (0,1,0,0) it outranks
+         `.nav-menu button:hover` and `.nav-menu button.active` (0,0,2,0), so
+         that button goes dead on hover while its neighbours highlight. A rule
+         covering five of them sat here until v3.0 and did exactly that. The
+         shared nav rules already style every toolbar button identically. */
 
       .calculator-buttons .special,
       .clear-note-button {
@@ -1710,19 +1808,19 @@
 
       /* --- App alert ---
          One card for every message the app must not lose: the countdown
-         finishing (v3.2.17) and now calendar reminders (v4.0.0). The countdown
-         used to end in an OS notification, which is the wrong surface for this
-         app: it needs a permission the app never asks for, it is silently
-         dropped under file:// in some browsers, and on a managed machine it
-         leaks "CB App" into the desktop. This stays put until it is dismissed,
-         so an alert that fires while you are in another tab is still there when
-         you come back (unlike the 3s #status toast). Static by design: no
-         pulse, no flash.
+         finishing (v3.2.17) and calendar reminders (v4.0.0). Persists until
+         dismissed, so an alert that fires while you are in another tab is
+         still there when you come back — unlike the 3s #status toast.
 
-         Dead centre of the viewport, not the top-centre strip the toast and the
-         search panel share: these are the messages you asked for and must not
-         miss, and the eye lands in the middle. It also means no stacking rules
-         against #status or #search-replace. */
+         TRAP: routing these to an OS notification. It needs a permission the
+         app never asks for, some browsers drop it silently under file://, and
+         on a managed machine it leaks "CB App" onto the desktop.
+
+         INVARIANT: static — no pulse, no flash, no motion behind text. That
+         is a standing accessibility rule for this app, not a style choice.
+         Centred rather than in the top-centre strip #status and
+         #search-replace share, which also avoids stacking rules against
+         them. */
       #app-alert {
         display: none;
         position: fixed;
@@ -1829,19 +1927,18 @@
       }
 
       /* --- Frozen windows ---
-         Freezing must not repaint a window: the border and background belong to
-         the note, and a frozen sticky that loses its colour or grows an outline
-         is a worse bug than the silence this was meant to cure. The cursor is
-         the only global signal — it costs no pixels — and the spoken message in
-         wireFrozenFeedback() carries the rest.
+         INVARIANT: freezing must not repaint a window. The border and
+         background belong to the note, and a frozen sticky that loses its
+         colour or grows an outline is a worse bug than the silence this cures.
+         The cursor is the only global signal — it costs no pixels — and
+         wireFrozenFeedback() speaks the rest.
 
-         v3.2.18 shipped `border-style: dashed` on every readOnly field in a
-         frozen window and it went wrong twice. `.sticky-note-content` and
-         `textarea` declare `border: none`, which resets the *width* to the
-         initial `medium` — so revealing the style painted a 3px dashed frame out
-         of nowhere. And `:read-only` matches far more than text fields: every
-         checkbox, colour swatch and select in the app is permanently read-only
-         by that definition, so they were all outlined too. */
+         TRAP: `:read-only` matches far more than text fields. Every checkbox,
+         colour swatch and select in the app is permanently read-only by that
+         definition. TRAP: setting `border-style` on elements that declare
+         `border: none` resets the *width* to the initial `medium`, painting a
+         3px frame out of nowhere. v3.2.18 hit both at once with one
+         `border-style: dashed` rule. */
       [data-locked="true"] input:read-only,
       [data-locked="true"] textarea:read-only,
       [data-locked="true"] button:disabled,
@@ -1989,17 +2086,17 @@
       }
 
       /* --- Drag feedback ---
-         This used to be `opacity: 0.8` alone, which only ever read as a drag
-         cue by accident. Compositing a white window over the light canvas at
-         0.8 lands on rgb(253,253,254) — a 2/255 shift, invisible — so in light
-         mode the only visible effect was windows underneath bleeding through,
-         which looks like a rendering fault rather than "picked up". Dark mode
-         got away with it because light text dims noticeably on a dark ground.
-         A lift reads identically in both themes, so the ring and the scale do
-         the load-bearing work and the opacity is free to go properly
-         translucent — 0.8 in both themes, enough that the canvas reads through
-         a window in flight. It also covers sticky notes and the help window,
-         which the original rule omitted entirely. */
+         The ring and the scale carry the cue, because a lift reads identically
+         in both themes; the opacity is then free to be properly translucent.
+         Covers all seven window types — the original rule missed sticky notes
+         and the help window.
+
+         TRAP: relying on opacity alone. Compositing a white window over the
+         light canvas at 0.8 lands on rgb(253,253,254) — a 2/255 shift, i.e.
+         invisible — so in light mode the only visible effect is windows
+         underneath bleeding through, which reads as a rendering fault rather
+         than "picked up". Dark mode hides the problem, because light text
+         dims noticeably on a dark ground. */
       .window.dragging,
       .calculator.dragging,
       .task-window.dragging,
@@ -2543,14 +2640,14 @@
         transition: color 0.2s, border-color 0.2s, background 0.2s;
       }
 
-      /* Small print, and it stays small print on hover — the chip already turns
-         red to say it writes a file, and a version stamp brightening along with
-         it would read as part of the warning rather than as a label. */
-      /* Was 9px at opacity 0.65, which computed to #5d6777 on --bg-card — 3.1:1,
-         under AA for small text, and this is the one label that tells you which
-         build you are looking at. A dimmer token at full opacity gets the same
-         "secondary" reading at 5.7:1, and 10px is a build stamp people squint at
-         on purpose. */
+      /* Small print, and it stays small print on hover: the chip already turns
+         red to say it writes a file, and a version stamp brightening with it
+         would read as part of that warning rather than as a label.
+
+         TRAP: dimming this with opacity. 9px at 0.65 computed to #5d6777 on
+         --bg-card — 3.1:1, under AA for small text, on the one label that
+         says which build you are looking at. A dimmer token at full opacity
+         reads the same and measures 5.7:1. */
       .download-app-version {
         font-size: 10px;
         letter-spacing: 0.06em;
@@ -2815,16 +2912,15 @@
       }
 
       /* --- Resize grip ---
-         Native CSS `resize` takes its delta in screen pixels and applies it to
-         layout pixels. Those are the same thing until a scale exists, after
-         which resizing runs at 1/zoom speed — half speed at 50%, double at
-         200%. The delta has to go through the same screen->world conversion as
-         dragging, and there is no hook into the native behaviour, so the corner
-         becomes ours whenever the native one can't be trusted.
-
-         That also covers touch, which has never been able to resize at all:
-         the (pointer: coarse) rule below turns the native corner off because it
-         is unusable with a finger, and nothing replaced it until now. */
+         TRAP: native CSS `resize` cannot be used on the canvas. It takes its
+         delta in screen pixels and applies it to layout pixels — identical
+         until a scale exists, after which resizing runs at 1/zoom speed (half
+         at 50%, double at 200%). The delta has to go through the same
+         screen->world conversion as dragging and there is no hook into the
+         native behaviour, so the corner is ours whenever native can't be
+         trusted. That also finally gives touch a resize handle; the
+         (pointer: coarse) rule below turns the native corner off as unusable
+         with a finger. */
       .resize-grip {
         position: absolute;
         right: 0;
@@ -3039,9 +3135,18 @@
          while the toolbar was still bottom-anchored, so between 721 and 760px
          you lost the overview for no reason. */
       @media (max-width: 720px) {
-        /* The widget moves to the bottom on narrow screens; the map would
-           cover the canvas, so it goes away entirely. */
-        #canvas-map {
+        /* A narrow DESKTOP window still loses the map: 168px of it over a
+           700px canvas is a poor trade, and a mouse has the scrollbar-free
+           pan and the zoom widget anyway.
+
+           A phone does not — `body.mobile-ui` is excluded here and gets its
+           own, smaller map in the mobile section. It is the one shape where
+           the overview matters MOST: the canvas is three viewports wide, one
+           finger pans a fraction of it at a time, and there is no wheel, no
+           space-drag and no scrollbar. Without the map, a window panned
+           off-screen on a phone was findable only by dragging until it
+           reappeared. */
+        body:not(.mobile-ui) #canvas-map {
           display: none !important;
         }
       }
@@ -3259,6 +3364,624 @@
         background: #991b1b;
         border-color: #991b1b;
       }
+
+      /* ==========================================================
+         MOBILE — one hand, one screen
+         ----------------------------------------------------------
+         Every rule below is gated on `body.mobile-ui`, which syncMobileUI()
+         adds and removes from a matchMedia listener at 720px. Desktop — the
+         Island browser this app is actually used in — never matches any of
+         it, and a window dragged back past 720px drops straight out.
+
+         THE TWO IDEAS
+           1. The toolbar is a 44px pill, not a bar. Twenty buttons wrapping
+              into four rows ate a quarter of a phone screen. Collapsed is the
+              resting state here; expanding raises a bottom sheet that closes
+              itself again after any action.
+           2. Windows are full-bleed and stacked, not floating. A 557px note
+              on a 390px screen was unreachable, and hunting a title bar with
+              a finger to raise the window behind it is worse. Whatever is
+              top of the z-order is what you see; #stack-tabs is the way
+              to change that.
+
+         STACK MODE is `body.mobile-ui:not(.canvas-on)` — mobile, windowed
+         desk. The canvas desk keeps world-positioned windows on a phone
+         because panning to reach them IS that desk; full-bleed there would
+         make the transform meaningless. Read that selector as "stack mode"
+         everywhere below; stackMode() is the same test in JS.
+
+         THE SCREEN IS DIVIDED, ONCE, BY TWO VARIABLES
+           --stack-top     the window-tab strip, when there is more than one
+                           window to switch between
+           --stack-bottom  the standing bottom chrome: the toolbar pill, the
+                           lock button and the download chip, all of which
+                           already existed and would otherwise sit on top of
+                           a full-bleed window's own controls
+         Both are 0 outside stack mode, so nothing reserves space it is not
+         using. Windows read them and nothing else does the arithmetic twice.
+
+         TRAP: never write `display` with !important in this section. A
+         minimised window and an off-desk window are both inline
+         `display: none`, and an !important rule here would out-rank the
+         inline style and un-hide every one of them at once.
+         ========================================================== */
+      body.mobile-ui {
+        --stack-top: 0px;
+        --stack-bottom: 0px;
+      }
+
+      body.mobile-ui:not(.canvas-on) {
+        --stack-bottom: calc(56px + env(safe-area-inset-bottom));
+      }
+
+      body.mobile-ui:not(.canvas-on).has-switcher {
+        --stack-top: calc(38px + env(safe-area-inset-top));
+      }
+
+      /* A phone in landscape is ~390px tall, so the two bands that cost 11% of
+         a portrait screen cost 24% of this one. Everything shrinks to the
+         smallest that still clears a 40px touch target. */
+      @media (max-height: 520px) {
+        body.mobile-ui:not(.canvas-on) {
+          --stack-bottom: calc(48px + env(safe-area-inset-bottom));
+        }
+
+        body.mobile-ui:not(.canvas-on).has-switcher {
+          --stack-top: calc(32px + env(safe-area-inset-top));
+        }
+
+        body.mobile-ui .nav-menu.collapsed,
+        body.mobile-ui .nav-menu .nav-toggle {
+          width: 40px;
+          height: 40px;
+        }
+
+        .window-tab {
+          height: 26px;
+          padding: 0 10px;
+        }
+
+        /* The sheet is the one thing that must NOT shrink here — it is a list
+           of twenty buttons and there is less room than ever for it. It scrolls
+           instead, which is what its max-height and overflow-y are for. */
+        body.mobile-ui .nav-menu:not(.collapsed) {
+          max-height: min(88dvh, calc(100dvh - 12px));
+        }
+      }
+
+      /* --- The toolbar becomes a pill, and then a bottom sheet ---
+         Bottom-anchored rather than top: it is the control you reach for
+         most, and the thumb does not travel to the top of a phone. */
+      body.mobile-ui .nav-menu {
+        top: auto;
+        bottom: max(8px, env(safe-area-inset-bottom));
+        left: max(8px, env(safe-area-inset-left));
+        right: auto;
+        transform: none;
+        width: max-content;
+        max-width: none;
+        align-items: stretch;
+        gap: 4px;
+        /* TRAP: the desktop rule is `transition: all 0.3s ease`, and z-index
+           is an animatable integer. Opening the sheet raised it 1000 → 1004
+           over 300ms, which discrete interpolation holds at 1000 for the first
+           half — so for ~150ms the scrim at 1003 was ON TOP of the sheet, and
+           the first tap after opening the toolbar hit the scrim and shut it
+           again. Nothing here is worth animating on a phone anyway: the sheet
+           is a state change, not a movement. */
+        transition: none;
+      }
+
+      body.mobile-ui .nav-menu.collapsed {
+        width: 44px;
+        height: 44px;
+        padding: 0;
+      }
+
+      /* Expanded it is a sheet, not a bar: full width, capped at three
+         quarters of the screen and scrolled internally, so a short phone in
+         landscape can still reach the last group. */
+      body.mobile-ui .nav-menu:not(.collapsed) {
+        right: max(8px, env(safe-area-inset-right));
+        width: auto;
+        max-height: min(76dvh, calc(100dvh - 24px));
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        padding: 8px 12px 14px;
+        /* TRAP: the 720px block above sets `flex-wrap: wrap` on .nav-menu,
+           from when the toolbar was a top-anchored bar that needed to wrap.
+           Combined with this element's `flex-direction: column` and the
+           max-height below, wrap means wrap into COLUMNS — the second .nav-row
+           was laid out beside the first, off the right edge of the sheet, with
+           only a sliver of "Tools" and "Session" visible. Content taller than
+           the cap must scroll, which is what overflow-y is for. */
+        flex-wrap: nowrap;
+        /* TRAP, and the same rule's second half: .nav-menu is also
+           `justify-content: center`, which centres a bar's buttons on a
+           desktop and does something else entirely once the content is taller
+           than the box. Overflow in a centred flex container is split evenly
+           between BOTH ends — so the first 70px of the sheet sat above its own
+           top edge, where scrollTop cannot reach it (scroll offsets do not go
+           negative). The ☰ and the whole "Create" label were simply gone on a
+           landscape phone, with scrollTop reading 0 the entire time. Overflow
+           belongs at the end you can scroll to. */
+        justify-content: flex-start;
+        /* Above the bottom chrome (1001) and its own scrim (1003), which the
+           desktop z-index of 1000 would sit under. */
+        z-index: 1004;
+        /* Opaque, not the desktop bar's 92%. A bar floating over a canvas
+           reads well translucent; a sheet covering three quarters of the
+           screen just shows the lock button and the download chip ghosting
+           through the buttons on top of them. */
+        background: #141820;
+      }
+
+      body.mobile-ui.light-mode .nav-menu:not(.collapsed) {
+        background: #fff;
+      }
+
+      /* The ☰ is the only route back to the toolbar here, so unlike desktop
+         it is present in both states: collapsed it IS the toolbar, expanded
+         it is the close button, parked top-right of the sheet where a close
+         control belongs. */
+      body.mobile-ui .nav-menu .nav-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        font-size: 20px;
+      }
+
+      /* Not sticky, though it was tried: on a short screen the sheet scrolls
+         and pinning the ☰ to its top puts it over the first group's label for
+         no real gain. Scrolling down and losing sight of it costs nothing,
+         because every button in the sheet closes the sheet — the ☰ is the way
+         out only when you decide not to press anything, and at that point the
+         scrim and Escape are both still there. */
+      body.mobile-ui .nav-menu:not(.collapsed) .nav-toggle {
+        align-self: flex-end;
+      }
+
+      body.mobile-ui .nav-menu:not(.collapsed) .nav-row {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        gap: 4px;
+        flex-wrap: nowrap; /* same trap as the sheet itself, one level down */
+      }
+
+      /* A grid rather than wrapped flex: wrapping left a ragged last row of
+         part-width buttons, and every one of these is a 44px touch target
+         whose width carries no meaning. */
+      body.mobile-ui .nav-menu:not(.collapsed) .nav-group {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
+        gap: 6px;
+        width: 100%;
+        padding: 10px 0 2px;
+        border-right: none;
+        border-top: 1px solid var(--border);
+      }
+
+      body.mobile-ui .nav-menu:not(.collapsed) .nav-row:first-child
+        .nav-group:first-child {
+        border-top: none;
+        padding-top: 0;
+      }
+
+      /* The four groups only read as groups while they sit side by side
+         behind vertical rules. Stacked, they need their names — hence the
+         data-label on each .nav-group in the markup, which nothing but this
+         rule consumes. */
+      body.mobile-ui .nav-menu:not(.collapsed) .nav-group::before {
+        content: attr(data-label);
+        grid-column: 1 / -1;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      body.mobile-ui .nav-menu:not(.collapsed) .nav-btn-dropdown {
+        display: block;
+      }
+
+      /* min-width:0 matters: `minmax(88px, 1fr)` sizes the TRACK, and a button
+         whose nowrap label is wider than its track overflows it rather than
+         shrinking. "Sticky Note" and "Calendar" both do at this size, and the
+         overflow ran to the edge of the sheet. */
+      body.mobile-ui .nav-menu:not(.collapsed) button:not(.nav-toggle) {
+        width: 100%;
+        min-width: 0;
+        height: 44px;
+        padding: 0 8px;
+        justify-content: center;
+        font-size: 12px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* 140px was there to keep "Sticky Note" on one line in a row of pills.
+         In a grid cell it just forces a two-column layout to one column. */
+      body.mobile-ui .nav-menu .nav-sticky {
+        min-width: 0;
+        padding: 0 10px;
+      }
+
+      /* Tapping the page behind an open sheet should close it, which is what
+         everyone expects and is far easier to hit than the ☰. Driven by the
+         sibling selector rather than a body class so it cannot fall out of
+         sync with the sheet it is dimming. */
+      #nav-scrim {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 1003;
+        background: rgba(0, 0, 0, 0.45);
+      }
+
+      body.mobile-ui .nav-menu:not(.collapsed) + #nav-scrim {
+        display: block;
+      }
+
+      /* Hover tooltips are a mouse affordance. On touch the "hover" arrives
+         with the tap that already ran the button, so the tip appears over the
+         thing it was describing after the fact. showNavTooltip() refuses on
+         mobile too; this is the belt to that pair of braces. */
+      body.mobile-ui #nav-tooltip {
+        display: none;
+      }
+
+      /* --- Windows go full-bleed ---
+         !important throughout: left/top/width/height are all written inline
+         by placeWindow() and updateWindowSize(), and those inline values are
+         the size the user chose on a real screen. They are deliberately left
+         intact and merely overridden here — see the geometry freeze in
+         measuredBox(), which is what stops this layout being saved back over
+         them. */
+      body.mobile-ui:not(.canvas-on) #windows > .window,
+      body.mobile-ui:not(.canvas-on) #windows > .task-window,
+      body.mobile-ui:not(.canvas-on) #windows > .clock-window,
+      body.mobile-ui:not(.canvas-on) #windows > .log-window,
+      body.mobile-ui:not(.canvas-on) #windows > .calendar-window,
+      body.mobile-ui:not(.canvas-on) #windows > .calculator,
+      body.mobile-ui:not(.canvas-on) #windows > .sticky-note-window,
+      body.mobile-ui:not(.canvas-on) #windows > .help-window {
+        left: 0 !important;
+        top: var(--stack-top) !important;
+        width: 100% !important;
+        height: calc(100% - var(--stack-top) - var(--stack-bottom)) !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        max-width: none !important;
+        max-height: none !important;
+        border-radius: 0;
+        border-left: 0;
+        border-right: 0;
+        box-shadow: none;
+        resize: none;
+        flex-direction: column;
+      }
+
+      /* .window and .calculator are the two types that were not already flex
+         columns; the rest (sticky, task) declare it themselves further up. */
+      body.mobile-ui:not(.canvas-on) #windows > .window,
+      body.mobile-ui:not(.canvas-on) #windows > .calculator,
+      body.mobile-ui:not(.canvas-on) #windows > .clock-window,
+      body.mobile-ui:not(.canvas-on) #windows > .log-window,
+      body.mobile-ui:not(.canvas-on) #windows > .calendar-window,
+      body.mobile-ui:not(.canvas-on) #windows > .help-window {
+        display: flex;
+      }
+
+      /* min-height:0 on both, or a flex child refuses to shrink below its
+         content and the window scrolls its own header off the top. */
+      body.mobile-ui:not(.canvas-on) .window-content,
+      body.mobile-ui:not(.canvas-on) .task-content,
+      body.mobile-ui:not(.canvas-on) .calculator-content,
+      body.mobile-ui:not(.canvas-on) .clock-content,
+      body.mobile-ui:not(.canvas-on) .help-content,
+      body.mobile-ui:not(.canvas-on) .log-content,
+      body.mobile-ui:not(.canvas-on) .cal-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+      }
+
+      /* The note's textarea is the point of the window, so it takes whatever
+         the fixed rows below it leave. Its own width/height are inline (they
+         are the note's true stored size) and so need !important, same as the
+         window box. */
+      body.mobile-ui:not(.canvas-on) .textarea-container {
+        width: auto !important;
+        height: auto !important;
+        min-width: 0 !important;
+        max-width: none !important;
+        max-height: none !important;
+        flex: 1 1 auto;
+        min-height: 140px !important;
+        resize: none;
+      }
+
+      /* A phone in landscape, or one with the keyboard up, is short — a Pixel
+         5 on its side gives the page 293px, not the ~390 the hardware sounds
+         like. A note has to fit a title bar, a textarea, a log row, four
+         format buttons and a word count into that, and the first draft of this
+         rule left it 35px over: the word count sat below the fold with only an
+         inner scrollbar to reach it.
+
+         Three savings, cheapest first. The gaps and padding go from 10px to
+         6px, which is 20px and costs nothing but air. The textarea gives up
+         the rest, because it is the only part of a note that can shrink
+         without something becoming unreachable — and it is also the part the
+         on-screen keyboard is covering anyway. */
+      @media (max-height: 520px) {
+        body.mobile-ui:not(.canvas-on) .textarea-container {
+          min-height: 60px !important;
+        }
+
+        /* The bottom stays at 10px while everything else gives up 4.
+
+           Tightening all four sides was the first cut, and it reads as a bug
+           rather than as a tighter layout: the word count ends up all but
+           touching the window's bottom edge, so flipping a phone on its side
+           looks like the padding was dropped rather than reduced. The three
+           inter-row gaps plus the top are 16 of the 20px that needed to go,
+           and none of them are against an edge where their absence shows. */
+        body.mobile-ui:not(.canvas-on) .window-content {
+          gap: 6px;
+          padding: 6px 6px 10px;
+        }
+
+        body.mobile-ui:not(.canvas-on) .format-buttons button,
+        body.mobile-ui:not(.canvas-on) .note-log-button {
+          min-height: 32px;
+        }
+      }
+
+      body.mobile-ui:not(.canvas-on) .note-log-input-container,
+      body.mobile-ui:not(.canvas-on) .format-buttons,
+      body.mobile-ui:not(.canvas-on) .counts {
+        flex: 0 0 auto;
+      }
+
+      body.mobile-ui:not(.canvas-on) .format-buttons {
+        flex-wrap: wrap;
+      }
+
+      /* 32px is the smallest a control gets here. The window header packs
+         rename, minimise, freeze and close into a strip a thumb has to hit
+         without closing the wrong thing. */
+      body.mobile-ui .window-controls > *,
+      body.mobile-ui .sticky-note-controls > * {
+        min-width: 32px;
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      body.mobile-ui .format-buttons button,
+      body.mobile-ui .note-log-button,
+      body.mobile-ui .task-content button {
+        min-height: 36px;
+      }
+
+      /* Dragging and resizing are off in stack mode (makeDraggable and
+         attachResizeGrip both refuse), so the affordances must go too — a
+         grip that does nothing is worse than no grip. */
+      body.mobile-ui:not(.canvas-on) .resize-grip {
+        display: none;
+      }
+
+      body.mobile-ui:not(.canvas-on) .window-header,
+      body.mobile-ui:not(.canvas-on) .task-header,
+      body.mobile-ui:not(.canvas-on) .clock-header,
+      body.mobile-ui:not(.canvas-on) .log-header,
+      body.mobile-ui:not(.canvas-on) .calendar-header,
+      body.mobile-ui:not(.canvas-on) .calculator-header,
+      body.mobile-ui:not(.canvas-on) .help-header,
+      body.mobile-ui:not(.canvas-on) .sticky-note-header {
+        cursor: default;
+        touch-action: auto;
+      }
+
+      /* --- Window switcher ---
+         The cost of full-bleed: everything but the top window is completely
+         hidden, so there has to be a list. It carries minimised windows too,
+         which is why #minimized-bar stands down in stack mode — two bars
+         listing overlapping sets of windows is worse than one listing all of
+         them. */
+      #stack-tabs {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1001;
+        gap: 6px;
+        align-items: center;
+        padding: 4px max(6px, env(safe-area-inset-right)) 4px
+          max(6px, env(safe-area-inset-left));
+        padding-top: calc(4px + env(safe-area-inset-top));
+        background: var(--bg-card);
+        border-bottom: 1px solid var(--border);
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+      }
+
+      #stack-tabs::-webkit-scrollbar {
+        display: none;
+      }
+
+      body.mobile-ui:not(.canvas-on) #stack-tabs:not([hidden]) {
+        display: flex;
+      }
+
+      body.mobile-ui:not(.canvas-on) #minimized-bar {
+        display: none;
+      }
+
+      .window-tab {
+        flex: 0 0 auto;
+        max-width: 44vw;
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text-dim);
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+      }
+
+      .window-tab.current {
+        color: var(--text);
+        border-color: var(--accent);
+        background: var(--accent-dim);
+      }
+
+      /* A minimised window is still in the list — it is the only way back to
+         it now — but it must not read as one of the open ones. */
+      .window-tab.hidden-window {
+        opacity: 0.55;
+        border-style: dashed;
+      }
+
+      /* --- The standing bottom chrome ---
+         The lock owned the bottom-left corner and the toolbar pill now wants
+         it, so the lock steps right to sit beside it — inside the 56px band
+         --stack-bottom already reserves, rather than above it where it would
+         overlay the window it is meant to sit clear of. 54px is the pill's
+         44px plus a gap. Rightward, not upward, and specifically not toward
+         the download chip in the opposite corner, whose width is a label and
+         therefore not a number this can be positioned against. */
+      body.mobile-ui #session-lock {
+        left: calc(max(8px, env(safe-area-inset-left)) + 54px);
+        bottom: max(12px, env(safe-area-inset-bottom));
+      }
+
+      /* The 720px block above put these just above the screen edge, back when
+         the toolbar was top-anchored. The toolbar is down here now, so they
+         move up to clear it.
+
+         TRAP: `top: auto` is not tidying, it is the entire fix. Both elements
+         are top-anchored by default (`#status { top: 18px }`), and the rule
+         that flips them to bottom-anchored lives in a `max-width: 720px`
+         block — which a phone in LANDSCAPE (802px) does not match. Setting
+         only `bottom` there left BOTH offsets non-auto, and an absolutely
+         positioned box with both set and `height: auto` is stretched to fill
+         the gap between them. The status toast became 422x302, and since it
+         carries `border-radius: 999px` for its one-line pill shape, it painted
+         as an enormous dark blob across the middle of the screen with two
+         lines of text stranded at the top of it.
+
+         Same trap, third time: a narrow-screen rule keyed on width alone does
+         not fire in landscape. Anything in this section that adjusts an offset
+         must set its opposite to auto. */
+      body.mobile-ui #status,
+      body.mobile-ui #search-replace {
+        top: auto;
+        bottom: calc(70px + env(safe-area-inset-bottom));
+      }
+
+      body.mobile-ui #search-replace.active ~ #status {
+        top: auto;
+        bottom: calc(148px + env(safe-area-inset-bottom));
+      }
+
+      body.mobile-ui #empty-state {
+        padding-bottom: 120px;
+      }
+
+      /* One hint or the other, never both: the desktop wording points at a
+         toolbar along the bottom that a phone does not have, and the mobile
+         wording names a control desktop does not show. Both are spans inside
+         the single .empty-hint the lock message swaps — see the INVARIANT on
+         that element. */
+      .empty-hint--mobile {
+        display: none;
+      }
+
+      body.mobile-ui .empty-hint--desktop {
+        display: none;
+      }
+
+      body.mobile-ui .empty-hint--mobile {
+        display: inline;
+      }
+
+      /* --- Canvas on a phone ---
+         The canvas desk keeps its world, so the only thing that changes is
+         how you move around it: one finger on the background pans (that
+         already worked — a touch pointer reports button 0), and two fingers
+         pinch (wireCanvasInput tracks them). touch-action has to come off the
+         layer or the browser consumes the second finger as a page zoom before
+         either handler sees it.
+
+         Scoped to mobile: on desktop #windows must keep its default
+         touch-action so a touchscreen laptop still scrolls the page normally
+         over the canvas. */
+      body.mobile-ui.canvas-on #windows {
+        touch-action: none;
+      }
+
+      /* --- The minimap on a phone ---
+         Top-right, and the corner is free: on a phone the toolbar is a pill in
+         the bottom-left, the zoom widget is bottom-right and the minimised
+         chips are bottom-left too, so nothing else wants the top of the screen
+         while the canvas is on. (The window-tab strip does own the top — but
+         only in stack mode, which is the windowed desk, which is not this.)
+
+         52px on desktop clears the zoom widget above it. Here that widget is
+         at the bottom, so the map takes the corner itself. */
+      body.mobile-ui.canvas-on #canvas-map {
+        top: max(12px, env(safe-area-inset-top));
+        right: max(12px, env(safe-area-inset-right));
+        /* The map is a drag target — drag it and the view follows — so the
+           browser must not claim the gesture as a scroll or a page zoom first.
+           #windows gets the same treatment a few rules up; the map is outside
+           it and needs its own. */
+        touch-action: none;
+      }
+
+      /* The zoom widget takes the remaining free corner, top-left.
+
+         TRAP: its narrow-screen position lives in a `max-width: 720px` block,
+         which a phone in LANDSCAPE (802px) does not match — so it stayed at
+         the desktop's top-right and landed on top of the map the moment the
+         map appeared there. Keying it on body.mobile-ui instead means one
+         position for both orientations, and no arithmetic against the height
+         of anything else.
+
+         The four corners on a phone canvas, for whoever adds the fifth thing:
+         top-left zoom widget · top-right map · bottom-left toolbar pill, lock
+         and minimised chips · bottom-right download chip. */
+      body.mobile-ui.canvas-on #canvas-controls {
+        top: max(12px, env(safe-area-inset-top));
+        left: max(12px, env(safe-area-inset-left));
+        right: auto;
+        bottom: auto;
+      }
+
+      /* Given back to the things that legitimately scroll inside a window,
+         or a note on the canvas becomes unscrollable with a finger. */
+      body.mobile-ui.canvas-on textarea,
+      body.mobile-ui.canvas-on .task-list,
+      body.mobile-ui.canvas-on .log-list,
+      body.mobile-ui.canvas-on .help-content,
+      body.mobile-ui.canvas-on .cal-content {
+        touch-action: pan-y;
+      }
     </style>
   </head>
   <body class="dark-mode">
@@ -3275,7 +3998,11 @@
           >
             ☰
           </button>
-          <div class="nav-group">
+          <!-- data-label is consumed by exactly one rule, in the mobile
+               section of the stylesheet: stacked into a sheet the four groups
+               lose the vertical rules that made them read as groups, so each
+               one prints its own name above itself. Invisible on desktop. -->
+          <div class="nav-group" data-label="Create">
             <div class="nav-btn-dropdown">
               <button onclick="addWindow()" data-tooltip="New Note" data-tooltip-type="note">
                 Note
@@ -3299,7 +4026,7 @@
               <div class="sticky-dropdown" id="sticky-dropdown"></div>
             </div>
           </div>
-          <div class="nav-group">
+          <div class="nav-group" data-label="Edit">
             <button onclick="copyText()" data-tooltip="Copy Active Note">
               Copy
             </button>
@@ -3316,7 +4043,7 @@
           </div>
         </div>
         <div class="nav-row">
-          <div class="nav-group">
+          <div class="nav-group" data-label="Tools">
             <button
               id="calculator-toggle"
               onclick="toggleCalculator()"
@@ -3349,7 +4076,7 @@
               Calendar
             </button>
           </div>
-          <div class="nav-group">
+          <div class="nav-group" data-label="Session">
             <button onclick="importData()" data-tooltip="Import Session File">
               Import
             </button>
@@ -3394,13 +4121,51 @@
           </div>
         </div>
       </nav>
+      <!-- Immediately after the nav, and nothing may come between them: the
+           only rule that shows this uses the adjacent-sibling selector, so
+           the scrim cannot get out of step with the sheet it dims. -->
+      <div id="nav-scrim" aria-hidden="true"></div>
+      <!-- Filled by renderWindowSwitcher() and only ever shown in stack mode.
+           Hidden here so the very first paint on a phone, before any window
+           exists, does not flash an empty strip.
+
+           TRAP: not #window-switcher, which is what this was called first.
+           Notes are #window1, #window2, … and the canvas layer is #windows,
+           so `[id^="window"]` is an established way to reach "every note" in
+           this file and in the test suite. A chrome element in that namespace
+           gets picked up as the newest note. -->
+      <div
+        id="stack-tabs"
+        role="group"
+        aria-label="Open windows"
+        hidden
+      ></div>
       <div id="empty-state">
         <div class="empty-title">CB App</div>
+        <!-- INVARIANT: exactly one .empty-hint. The locked-session message
+             swaps this element's innerHTML wholesale, stashing the original
+             on a dataset key it removes again on unlock, so the two wordings
+             have to be spans INSIDE it and not two paragraphs. A second
+             .empty-hint would leave half the hint un-swapped, still on screen
+             next to "your session is encrypted".
+
+             TRAP: do not name that dataset key in a comment. The download
+             test asserts the saved copy carries no trace of it by searching
+             the file as text, and a comment is text. -->
         <p class="empty-hint">
-          Nothing open yet. Start with <strong>Note</strong>, <strong>Tasks</strong>
-          or <strong>T2</strong> in the toolbar below — or press
-          <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> for a new note.
-          Everything you type is saved to this browser automatically.
+          <span class="empty-hint--desktop">
+            Nothing open yet. Start with <strong>Note</strong>, <strong>Tasks</strong>
+            or <strong>T2</strong> in the toolbar below — or press
+            <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> for a new note.
+            Everything you type is saved to this browser automatically.
+          </span>
+          <span class="empty-hint--mobile">
+            Nothing open yet. Tap <strong>☰</strong> in the bottom-left corner
+            for the toolbar, then <strong>Note</strong>, <strong>Tasks</strong>
+            or <strong>T2</strong>. Windows fill the screen here, and the strip
+            along the top switches between them once more than one is open.
+            Everything you type is saved to this browser automatically.
+          </span>
         </p>
       </div>
       <div id="search-replace" role="search" aria-label="Search and replace in the active note">
@@ -3553,7 +4318,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.1.1";
+      const CB_APP_VERSION = "4.2.0";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -4002,6 +4767,18 @@
         }
       }
 
+      /* A saved world dimension, reduced to something safe to write onto an
+         element's width. Junk and absence both become 0, which the restore
+         path reads as "this session predates the saved world" rather than as
+         a real zero-sized world. */
+      const WORLD_DIMENSION_MAX = 100000;
+
+      function clampWorldDimension(value) {
+        const n = Number(value);
+        if (!Number.isFinite(n) || n <= 0) return 0;
+        return Math.min(Math.round(n), WORLD_DIMENSION_MAX);
+      }
+
       function sanitizeColorString(value, label) {
         if (value === undefined || value === null || value === "") return "";
         assertString(value, label, 64);
@@ -4221,6 +4998,13 @@
               zoom: Number.isFinite(Number(raw.canvas.zoom))
                 ? Number(raw.canvas.zoom)
                 : 1,
+              // Absent in sessions written before v4.1.2; 0 then means "no
+              // saved world", and restore falls back to measuring the windows.
+              // Capped because these become the layer's width/height, and a
+              // corrupt session should not be able to ask for a 10-million-
+              // pixel element.
+              worldW: clampWorldDimension(raw.canvas.worldW),
+              worldH: clampWorldDimension(raw.canvas.worldH),
             };
           } else if (SINGLETON_KEY_KIND[key] && raw[key]) {
             assertPlainObject(raw[key], key);
@@ -4564,6 +5348,12 @@
         cancelStatus,
       } = {}) {
         for (let attempt = 0; attempt < 3; attempt++) {
+          /* Sequential on purpose, and the rule cannot know that: this is a retry
+             loop around a MODAL. Attempt 2 is a response to attempt 1 having been
+             wrong, so there is nothing to parallelise — running the three prompts
+             concurrently would stack three dialogs on the screen at once. Only a
+             human answering can advance it. */
+          // eslint-disable-next-line no-await-in-loop
           const pass = await promptPassphrase({
             title,
             message,
@@ -4587,6 +5377,8 @@
 
       async function unlockEnvelopeWithPrompt(envelope, reason) {
         for (let attempt = 0; attempt < 3; attempt++) {
+          /* As above — a modal retry loop, three attempts, one human. */
+          // eslint-disable-next-line no-await-in-loop
           const pass = await promptPassphrase({
             title: "Unlock session",
             message:
@@ -4600,6 +5392,9 @@
             continue;
           }
           try {
+            /* Same retry loop. The decrypt is what judges the passphrase the user just
+               typed, so it cannot start before they type it. */
+            // eslint-disable-next-line no-await-in-loop
             const session = await decryptSessionEnvelope(envelope, pass);
             // sessionPassphrase / key cached inside decryptSessionEnvelope
             return session;
@@ -4835,7 +5630,10 @@
         try {
           parsed = JSON.parse(raw);
         } catch (e) {
-          throw new Error("Session is not valid JSON");
+          // Keep the underlying SyntaxError as `cause`: it carries the offset
+          // of the bad byte, which is the only thing that tells a truncated
+          // session apart from a corrupted one when a load fails.
+          throw new Error("Session is not valid JSON", { cause: e });
         }
         if (isEncryptedEnvelope(parsed)) {
           const unlocked = await unlockEnvelopeWithPrompt(
@@ -5141,9 +5939,6 @@
       // plaintext session. Refuse every write until boot says otherwise;
       // storage already holds the truth, so there is nothing to lose by waiting.
       let booted = false;
-      let activeTool = null;
-      let offsetX = 0;
-      let offsetY = 0;
       /* Counted across BOTH desks, deliberately, unlike every other "how many
          windows" question in here — this one guards how big a session can get
          before it stops fitting in localStorage, and a window costs the same
@@ -5189,19 +5984,218 @@
       }
 
       /* ==========================================================
+         MOBILE — the two mode tests
+         ----------------------------------------------------------
+         The layout itself is CSS (grep "MOBILE — one hand" in the style
+         element). This is only the state the CSS keys off, plus the handful
+         of behaviours that cannot be expressed as a rule: what the toolbar's
+         resting state is, which window is on top, and what must NOT be
+         written back to the session while the layout is not the user's.
+
+         THE QUERY IS THREE QUERIES, and none of them is the plain
+         `(max-width: 720px)` every other narrow-screen rule in this file uses:
+
+           (max-width: 720px) and (pointer: coarse)    a phone held upright
+           (max-height: 520px) and (pointer: coarse)   the same phone turned
+           (max-width: 560px)                          any window this narrow
+
+         Width alone was wrong twice over.
+
+         TRAP (the reason the pointer test is there): a desktop browser with
+         devtools docked to the side is routinely under 720px with a mouse
+         attached. Turning that into full-bleed windows with no drag and no
+         resize takes the app away from someone who has lost nothing but width.
+
+         TRAP (the reason the height clause is there): a phone in landscape is
+         ~844x390. It is WIDER than 720, so a width-only query dropped it
+         straight back to the desktop shape — the twenty-button bar reappeared
+         over a note it now overlapped, which is the exact layout this release
+         exists to remove. A phone is a phone in both orientations; what
+         changes is which dimension is small.
+
+         The last clause is the floor under both: below ~560px the toolbar
+         cannot be laid out as a bar by any arrangement, mouse or no mouse.
+
+         matchMedia rather than a resize listener: it fires once on each
+         crossing instead of on every pixel of a window drag. Three clauses in
+         one list is still one listener and one boolean.
+         ========================================================== */
+      const MOBILE_MQ = window.matchMedia(
+        "(max-width: 720px) and (pointer: coarse)," +
+          " (max-height: 520px) and (pointer: coarse)," +
+          " (max-width: 560px)"
+      );
+      let mobileUI = false;
+
+      /* Stack mode: mobile AND the windowed desk, the state in which windows
+         are full-bleed. Mirrors `body.mobile-ui:not(.canvas-on)` in the CSS
+         exactly — if one of the two ever changes, change both.
+
+         The canvas desk is deliberately excluded. Windows there are placed in
+         world coordinates and reached by panning; making them full-bleed
+         would leave the pan/zoom transform with nothing to move. */
+      function stackMode() {
+        return mobileUI && !view.on;
+      }
+
+      /* INVARIANT: while stack mode is on, no measurement of a window may
+         reach the session.
+
+         The full-bleed size is CSS. The inline width/height it overrides are
+         the size the user chose on a real screen, and they are the ones worth
+         keeping — so measuredBox() stops measuring here and falls back to its
+         stored box instead. Without this, opening a session on a phone
+         silently rewrites every note to 390x700, and the next Backup carries
+         that to the desktop the note was actually built for. */
+      function geometryFrozen() {
+        return stackMode();
+      }
+
+      // The one place the collapsed state is written, so the aria and the
+      // class can never disagree. Collapsed is the resting state on mobile
+      // and the exception on desktop, which is why every caller that used to
+      // hard-code remove("collapsed") now passes mobileUI instead.
+      /* The only way the theme is written to <body>.
+
+         INVARIANT: never `body.className = ...`. <body> also carries the
+         canvas classes and, since v4.2.0, "mobile-ui" and "has-switcher" —
+         device and view state that the theme has no business clearing. Two
+         call sites did exactly that and turned a Reset on a phone back into
+         the desktop layout. */
+      function setThemeClass(theme) {
+        document.body.classList.remove("light-mode", "dark-mode");
+        document.body.classList.add(theme);
+      }
+
+      function setNavCollapsed(collapsed) {
+        const navMenu = document.querySelector(".nav-menu");
+        if (!navMenu) return;
+        navMenu.classList.toggle("collapsed", collapsed);
+        /* Open at the top, every time. On a short screen the sheet scrolls,
+           and clicking the ☰ focuses it — which makes the browser scroll it
+           into view as the sheet expands around it, landing on whatever
+           happened to be under the pointer. Opening the toolbar has to show
+           the first group, not the middle of the list. */
+        if (!collapsed) navMenu.scrollTop = 0;
+        const toggle = navMenu.querySelector(".nav-toggle");
+        if (!toggle) return;
+        toggle.setAttribute("aria-expanded", String(!collapsed));
+        toggle.setAttribute(
+          "aria-label",
+          collapsed ? "Expand toolbar" : "Collapse toolbar"
+        );
+      }
+
+      function syncMobileUI(initial = false) {
+        const on = MOBILE_MQ.matches;
+        if (!initial && on === mobileUI) return;
+        mobileUI = on;
+        document.body.classList.toggle("mobile-ui", on);
+        setNavCollapsed(on);
+        // Crossing the breakpoint changes whether the switcher exists and
+        // whether windows are full-bleed, and refreshChrome() owns both.
+        refreshChrome();
+        // Coming back to desktop, the sizes frozen above have to be applied
+        // to the real layout again — the notes are still carrying whatever
+        // inline box they had before the phone-shaped detour.
+        if (!on) setMaxDimensions();
+      }
+
+      MOBILE_MQ.addEventListener("change", () => syncMobileUI());
+
+      /* Full-bleed windows are opaque and cover each other completely, so the
+         z-order is not a subtlety here — it is the only thing that decides
+         what you are looking at. This is the tab strip's model of that. */
+      function topmostWindow(windows) {
+        return windows
+          .filter((el) => el.style.display !== "none")
+          .reduce(
+            (best, el) =>
+              !best ||
+              (parseInt(el.style.zIndex) || 0) >=
+                (parseInt(best.style.zIndex) || 0)
+                ? el
+                : best,
+            null
+          );
+      }
+
+      // Every window type's title span, in one place. windowLabel() below the
+      // lock code is the only reader; the minimised chips, the switcher tabs
+      // and the freeze toast all go through it.
+      const WINDOW_TITLE_SELECTOR =
+        ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calendar-title, .calculator-title, .help-title";
+
+      /* The cost of full-bleed, paid back. Everything but the top window is
+         completely hidden, so there has to be a list, and it carries the
+         minimised windows too — #minimized-bar stands down in stack mode
+         (CSS), because two bars listing overlapping sets of the same windows
+         is worse than one bar listing all of them.
+
+         Shown at two or more, or at one that is minimised: a strip naming the
+         only thing on screen costs 38px and tells you nothing, but a single
+         minimised window with no strip and no chip bar would be unreachable. */
+      function renderWindowSwitcher(all) {
+        const strip = document.getElementById("stack-tabs");
+        if (!strip) return;
+        const minimizedCount = all.filter(
+          (el) => el.style.display === "none"
+        ).length;
+        const show = stackMode() && (all.length > 1 || minimizedCount > 0);
+        document.body.classList.toggle("has-switcher", show);
+        strip.hidden = !show;
+        strip.innerHTML = "";
+        if (!show) return;
+        const top = topmostWindow(all);
+        all.forEach((el) => {
+          const label = windowLabel(el);
+          const minimized = el.style.display === "none";
+          const tab = document.createElement("button");
+          tab.type = "button";
+          tab.className = "window-tab";
+          if (el === top) tab.classList.add("current");
+          if (minimized) tab.classList.add("hidden-window");
+          tab.textContent = label;
+          // The visible text is the window's name and nothing else, so the
+          // verb has to come from the accessible name or the strip reads as a
+          // list of nouns to a screen reader. Label in Name still holds: the
+          // visible word is inside the spoken one.
+          tab.setAttribute(
+            "aria-label",
+            minimized ? `${label} — restore` : `${label} — bring to front`
+          );
+          if (el === top) tab.setAttribute("aria-current", "true");
+          tab.addEventListener("click", () => raiseWindow(el.id));
+          strip.appendChild(tab);
+        });
+      }
+
+      /* One action behind every tab, whether the window was minimised or just
+         buried: un-hide it, put it on top, and let refreshChrome() re-render
+         the strip so the new current tab lights up. */
+      function raiseWindow(windowId) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        el.style.display = "";
+        el.style.zIndex = nextWindowZ();
+        setActiveWindow(windowId);
+        refreshChrome();
+        saveSession();
+      }
+
+      /* ==========================================================
          BIG CANVAS — view state
          ----------------------------------------------------------
-         Window left/top have always been screen pixels, because nothing could
-         scroll or scale. They are now *world* pixels, and the view is what maps
-         world to screen:
+         Window left/top are WORLD pixels. The view maps world to screen:
 
              screen = world * zoom + pan
 
-         While the canvas is off the view is the identity transform (pan 0,
-         zoom 1), so world and screen coordinates are the same number and every
-         existing code path — including sessions saved by earlier versions —
-         behaves exactly as it did before. That is the whole reason the maths is
-         written as one path rather than branching on the mode everywhere.
+         INVARIANT: one code path, never a branch on the mode. While the canvas
+         is off the view is the identity transform (pan 0, zoom 1), so world
+         and screen are the same number and every path — including sessions
+         saved by older builds — behaves as it always did. Adding
+         `if (view.on)` around coordinate maths is how that guarantee gets
+         lost; convert with screenToWorld() instead.
          ========================================================== */
       const CANVAS_MULTIPLE = 3; // world is 3 viewports wide and tall
       const ZOOM_MIN = 0.25;
@@ -5212,23 +6206,21 @@
       /* ==========================================================
          Mode-scoped windows (v3.2.10)
          ----------------------------------------------------------
-         The two modes are two different desks, not two views of one desk.
-         Windowed is a single screen you arrange tightly; the canvas is three
-         screens you spread out across. A window belongs to the desk it was
-         created on and appears on that desk only.
+         Two different desks, not two views of one desk. A window belongs to
+         the desk it was created on and appears on that desk only.
 
-         v3.2.9 got this half right — it gave each mode its own *positions*
-         while every window stayed in both — so opening a T2 template on the
-         canvas also put one in windowed mode, and closing it in one place
-         left the other behind. Membership is the thing that has to be
-         per-mode; once it is, positions follow for free, because a window
-         that only ever exists on one desk never needs a second coordinate.
+         INVARIANT: membership is per-desk, so a window needs only one
+         coordinate pair. v3.2.9 made positions per-mode while every window
+         stayed in both, and opening a T2 template on the canvas also put one
+         in windowed mode. If you find yourself adding a second coordinate,
+         you are rebuilding that bug.
 
-         Mode is a data attribute so it survives everything that already
-         round-trips a window (save, restore, backup, import). Hiding is a
-         class rather than style.display, which is the minimise flag — the two
-         are independent, and a window minimised on the canvas must still come
-         back minimised when you return to it.
+         WHY data attribute: it round-trips through save, restore, backup and
+         import for free.
+
+         TRAP: hide with a class, never style.display — display is the
+         minimise flag. Conflating them loses the minimised state of anything
+         on the desk you switched away from.
          ========================================================== */
       const WINDOWED = "windowed";
       const CANVAS = "canvas";
@@ -5260,28 +6252,34 @@
         );
       }
 
-      /* offsetWidth/offsetHeight are 0 for anything display:none. That was
-         already quietly true of a minimised window — minimise it, and the very
-         next save wrote width:0 and height:0 into its record, which restore
-         faithfully rebuilt as a 0px window that came back from the chip bar
-         invisible. Mode-hidden windows are display:none for a second reason,
-         so the same hole would have swallowed the size of every window on the
-         desk you were not looking at, on every save.
+      /* INVARIANT: never read offsetWidth/offsetHeight off a window directly
+         on the save path — go through here. They are 0 for anything
+         display:none, which covers both minimised windows and every window on
+         the desk you are not looking at, and a 0 written into a record is
+         faithfully restored as a 0px window that comes back invisible.
 
-         So: whenever a window is measured while it is actually being rendered,
-         remember the box; when it is not, answer with what it last was. */
+         So: remember the box whenever the window is measured while actually
+         rendered, and answer with the last known box when it is not. */
       function measuredBox(el) {
         const w = el.offsetWidth;
         const h = el.offsetHeight;
-        if (w && h) {
-          el.dataset.boxW = w;
-          el.dataset.boxH = h;
-          return { width: w, height: h };
-        }
-        return {
+        const stored = {
           width: parseFloat(el.dataset.boxW) || parseFloat(el.dataset.width) || 0,
           height: parseFloat(el.dataset.boxH) || parseFloat(el.dataset.height) || 0,
         };
+        if (!w || !h) return stored;
+        /* geometryFrozen(): in stack mode what is on screen is a full-bleed
+           CSS box, not the box the user sized, so measuring it here would
+           persist the phone's dimensions over theirs. Fall through to the
+           stored box instead — exactly what a minimised window already does.
+
+           Unless there is no stored box. A window created on a phone has only
+           ever had this size, and measuring it beats writing 0 into the
+           session, which is what an unconditional early return did. */
+        if (geometryFrozen() && stored.width && stored.height) return stored;
+        el.dataset.boxW = w;
+        el.dataset.boxH = h;
+        return { width: w, height: h };
       }
 
       function applyModeVisibility() {
@@ -5296,27 +6294,28 @@
       /* ==========================================================
          ONE PER DESK (v3.2.13)
          ----------------------------------------------------------
-         Calc, Clock, Log and Help used to be one window each in total, with a
-         fixed id, so pressing the button from the other desk could only drag
-         the single window across. They are one per *desk* now — two at most,
-         independent of each other: separate log entries, separate calculator
+         The singletons (see SINGLETON_KINDS below) are one per *desk*, two at
+         most, fully independent: separate log entries, separate calculator
          history, separate stopwatch and countdown.
 
-         The windowed instance keeps the historic id so every session ever
-         written still restores into it untouched; the canvas one takes a
-         suffix. Everything inside a window is likewise suffixed with its
-         owner's id, because two of them in one document would otherwise be two
-         elements answering to `calculator-input` — and getElementById returns
-         the first, so the canvas keypad would have driven the plain view's
-         calculator. That per-window-id suffix is the same convention notes
-         (`clipboard-<id>`) and the clock (`clock-time-<id>`) already used.
+         INVARIANT: the windowed instance keeps the historic id and the canvas
+         one takes CANVAS_ID_SUFFIX. Renaming the windowed id strands every
+         session already written.
+
+         TRAP: every element *inside* one of these must be suffixed with its
+         owner's window id. Two desks otherwise put two `calculator-input`
+         elements in one document, getElementById returns the first, and the
+         canvas keypad silently drives the plain view's calculator. Notes
+         (`clipboard-<id>`) and the clock (`clock-time-<id>`) already follow
+         this convention — match it.
          ========================================================== */
       const CANVAS_ID_SUFFIX = "-canvas";
 
-      /* The four, and the session key each one's record lives under. The key
-         is not always the element id: help's window has always been
-         `help-window` in the DOM and `help` in the session, and changing
-         either would strand every session already written. The canvas
+      /* The singletons, and the session key each one's record lives under.
+
+         TRAP: the key is not always the element id. Help is `help-window` in
+         the DOM and `help` in the session. Both are load-bearing for sessions
+         already written, so neither can be "tidied" into matching. The canvas
          instance takes the same suffix on both. */
       const SINGLETON_KINDS = [
         { base: "calculator", key: "calculator" },
@@ -5411,19 +6410,17 @@
       // there would strand them past the clamp, with no way to reach them.
       let worldSize = { w: 0, h: 0 };
 
-      /* The world must still cover the screen at maximum zoom-out, so the
-         multiple is whichever is larger: the 3 viewports we want at 1:1, or
-         the 1/ZOOM_MIN viewports the screen spans once fully zoomed out.
+      /* INVARIANT: the world covers the screen even at maximum zoom-out. So
+         the multiple is whichever is larger — the 3 viewports we want at 1:1,
+         or the 1/ZOOM_MIN viewports the screen spans fully zoomed out.
 
-         At 3 viewports with ZOOM_MIN 0.25 the world was 3834px wide but the
-         screen spanned 4 viewports of it, so below 1/3 zoom the scaled world
-         was *smaller* than the viewport. clampPan() then took its centring
-         branch and parked it in the middle, leaving a dead margin all round —
-         160px each side at 25% on a 1278px screen. The grid is a fixed
-         backdrop so it kept painting across that margin, which made it read as
-         reachable canvas, but clampBounds() works in world coordinates: a
-         dragged window stopped dead at the world edge, well inboard of the
-         screen edge, looking like it was being forced back toward the centre. */
+         TRAP: setting this to CANVAS_MULTIPLE alone. At 3 with ZOOM_MIN 0.25
+         the scaled world is smaller than the viewport below 1/3 zoom,
+         clampPan() takes its centring branch, and a dead margin opens all
+         round (160px each side at 25% on a 1278px screen). The grid is a
+         fixed backdrop so it keeps painting across that margin and it reads
+         as reachable canvas — but the clamp works in world coordinates, so a
+         dragged window stops dead well inboard of the screen edge. */
       const WORLD_MULTIPLE = Math.max(CANVAS_MULTIPLE, 1 / ZOOM_MIN);
 
       function computeWorldSize() {
@@ -5439,6 +6436,42 @@
         return worldSize;
       }
 
+      /* Raise the world floor so a rect that already exists stays inside it.
+
+         INVARIANT: the world only ever grows. computeWorldSize() derives it
+         from the *current* viewport, and that is not a stable quantity —
+         docking devtools, snapping the browser to half the screen and
+         rotating a tablet all shrink it. The world therefore takes its floor
+         from two other places too: its own persisted size, and a measurement
+         of the windows on the canvas desk.
+
+         TRAP: letting any viewport-derived value shrink it. That is v4.1.2 —
+         restoring while devtools were docked computed a world smaller than
+         the one the saved coordinates were laid out on, clampWindowIntoView()
+         hauled every window onto the new edge, and saveSession() wrote the
+         pile straight back out, so closing devtools could not undo it.
+         TEST: cbapp.spec.ts › "restoring on a shrunken viewport leaves canvas
+         windows where they are". */
+      function growWorldTo(w, h) {
+        worldSize = {
+          w: Math.max(worldSize.w, Math.round(w) || 0),
+          h: Math.max(worldSize.h, Math.round(h) || 0),
+        };
+      }
+
+      // The world must cover every window on the canvas desk, wherever the
+      // viewport happens to be right now.
+      function growWorldToFitWindows() {
+        if (!view.on) return;
+        const pad = 12;
+        modeWindows().forEach((el) => {
+          growWorldTo(
+            (parseFloat(el.dataset.x) || 0) + el.offsetWidth + pad,
+            (parseFloat(el.dataset.y) || 0) + el.offsetHeight + pad
+          );
+        });
+      }
+
       function screenToWorld(clientX, clientY) {
         return {
           x: (clientX - view.x) / view.zoom,
@@ -5452,6 +6485,13 @@
       // can see it. The two were the same rect until the canvas existed.
       function clampBounds() {
         if (!view.on) return canvasBounds();
+        /* Never hand back a limit that excludes a window already sitting past
+           it. Restore is the loud case, but the same shrunken-viewport world
+           would also stop a drag dead well inboard of where the neighbouring
+           windows are. O(windows) and only reached at drag start and on the
+           restore/clamp paths, not per frame — applyView() deliberately does
+           not do this. */
+        growWorldToFitWindows();
         const world = computeWorldSize();
         const pad = 12;
         return {
@@ -5478,18 +6518,16 @@
             : Math.min(0, Math.max(window.innerHeight - scaledH, view.y));
       }
 
-      /* The first version of this ran synchronously from every pointermove and
-         wheel event, and rewrote the layer's width, height, transform and the
-         zoom label on each one. Pointer events fire faster than the screen
-         refreshes, so that was several full style-and-layout passes per frame,
-         and setting width/height on a 3700px layer holding every open window
-         invalidated layout for that whole subtree each time. That is what made
-         panning and zooming feel like they were skipping.
+      /* INVARIANT: one write per animation frame, and inside it touch only
+         what actually changed. On a normal pan that is the transform alone,
+         which is compositor work rather than layout work.
 
-         Now: coalesce to one write per animation frame, and inside that write
-         only touch what actually changed. The transform is the only thing that
-         changes on a normal pan, and on its own it is compositor work rather
-         than layout work. */
+         TRAP: writing from pointermove/wheel directly. They fire faster than
+         the screen refreshes, so it becomes several style-and-layout passes
+         per frame — and setting width/height on a multi-thousand-pixel layer
+         holding every open window invalidates layout for that whole subtree
+         each time. That is what made panning and zooming feel like they were
+         skipping. */
       let viewFrame = null;
       let lastGeometry = "";
       let lastLabel = "";
@@ -5564,11 +6602,33 @@
          on a debounce — rebuilding 25 nodes inside the pan loop would put back
          exactly the per-frame DOM churn the render loop above removes.
          ========================================================== */
+      /* The map is scaled to FIT A BOX, not to a fixed width.
+
+         Width alone was fine while the only client was a desktop, where the
+         world is wider than it is tall and 168px across yields something
+         around 95px down. On a portrait phone the world inherits the
+         viewport's aspect, so the same 168px came out ~360px tall — 43% of the
+         screen, over the canvas it is supposed to help you read. Fitting both
+         dimensions keeps it a glance rather than a panel.
+
+         Desktop is unchanged by construction: its box has no height limit, so
+         the width is always the binding constraint and the map is still
+         exactly MAP_WIDTH across. */
       const MAP_WIDTH = 168;
+
+      function mapBox() {
+        if (!mobileUI) return { w: MAP_WIDTH, h: Infinity };
+        // A phone on its side has ~293px of height in total; a map that would
+        // be a fifth of a portrait screen is most of a landscape one.
+        return window.innerHeight <= 520
+          ? { w: 84, h: 58 }
+          : { w: 108, h: 132 };
+      }
 
       function mapScale() {
         const world = computeWorldSize();
-        return MAP_WIDTH / world.w;
+        const box = mapBox();
+        return Math.min(box.w / world.w, box.h / world.h);
       }
 
       function sizeMap() {
@@ -5576,7 +6636,7 @@
         if (!map) return null;
         const world = computeWorldSize();
         const s = mapScale();
-        map.style.width = `${MAP_WIDTH}px`;
+        map.style.width = `${Math.round(world.w * s)}px`;
         map.style.height = `${Math.round(world.h * s)}px`;
         return s;
       }
@@ -5861,9 +6921,61 @@
       // Usable canvas: where a new window should be dropped so it lands in
       // sight. Off, that is the viewport minus whatever edge the toolbar
       // occupies; on, it is the slice of the world currently on screen.
+      /* The strip of screen a new window on a phone may be placed in.
+
+         The chrome there is two bands rather than one toolbar: the zoom widget
+         and the minimap along the top, the toolbar pill / lock / download chip
+         along the bottom. All of it is position:fixed and all of it paints
+         ABOVE the windows, so a window placed underneath any of it has that
+         part of itself permanently covered.
+
+         The top edge is MEASURED, not a constant, and that is the whole point.
+         The first version reserved a flat 46px — enough for the 38px zoom
+         widget and nothing like enough for the map, which on a portrait phone
+         is 132px tall because the world inherits the viewport's aspect. A new
+         window landed with its own freeze and close buttons directly under the
+         map: the one control that cannot be moved out of the way, because it
+         is how you find the window again.
+
+         The widget and the map are display:none while the canvas is off, so
+         they measure 0 and this collapses to the padding on its own — no
+         branch on view.on needed.
+
+         The bottom stays a constant. Its tallest occupant is the 44px toolbar
+         pill sitting 8px off the edge, and unlike the top that number does not
+         move: measuring the toolbar here would catch the EXPANDED sheet, which
+         is the trap canvasBounds() already documents above. */
+      function mobileCanvasBand() {
+        const pad = 12;
+        const BOTTOM_CHROME = 56; // 44px pill + its 8px offset, rounded up
+        const tops = ["canvas-controls", "canvas-map"]
+          .map((id) => document.getElementById(id))
+          .filter((el) => el && el.offsetHeight)
+          .map((el) => el.getBoundingClientRect().bottom);
+        return {
+          top: (tops.length ? Math.max(...tops) : 0) + pad,
+          bottom: window.innerHeight - BOTTOM_CHROME,
+          get height() {
+            return this.bottom - this.top;
+          },
+        };
+      }
+
       function canvasBounds() {
         const pad = 12;
-        const nav = navMenuBounds();
+        /* The toolbar is a region new windows are placed AROUND, which is
+           right for a bar that is always there and wrong for a sheet that is
+           not.
+
+           TRAP: on a phone the sheet is still open while the button's own
+           handler runs — the auto-collapse is a bubbled listener, so it fires
+           after. A 400px-tall sheet measured at that moment reads as an
+           obstacle covering most of the screen, and canvasBounds() handed back
+           the strip BELOW it: every window opened from the toolbar was placed
+           past the bottom of the viewport, and on the canvas nothing pulls it
+           back. The standing chrome on a phone is reserved in CSS instead
+           (--stack-bottom), so there is nothing here to route around. */
+        const nav = mobileUI ? null : navMenuBounds();
         const openTop = pad;
         const openBottom = window.innerHeight - pad;
         let top = openTop;
@@ -5872,6 +6984,13 @@
           // Toolbar is bottom-anchored on desktop, top-anchored on narrow screens.
           if (nav.top > window.innerHeight / 2) bottom = nav.top - pad;
           else top = nav.bottom + pad;
+        }
+        // On a phone the chrome is two fixed bands, not one toolbar to route
+        // around. See mobileCanvasBand().
+        if (mobileUI) {
+          const band = mobileCanvasBand();
+          top = Math.max(top, band.top);
+          bottom = Math.min(bottom, band.bottom);
         }
         if (view.on) {
           const tl = screenToWorld(pad, top);
@@ -5899,18 +7018,15 @@
       /* Clamp a window into bounds, keeping it clear of the toolbar — but only
          where the toolbar actually is.
 
-         The toolbar is a centred island: on a 1900px screen it spans about 560
-         to 1340, roughly 41% of the width. The clamp treated its top edge as a
-         floor across the *whole* width, so a window parked at the far left —
-         its right edge 400px clear of the toolbar — still stopped dead level
-         with the toolbar's top, with ~120px of completely empty canvas beneath
-         it. Two dead strips, one down each side, for an obstacle that isn't
-         there. (Pre-existing since v3.0; the big canvas just made the wasted
-         space easier to see.)
+         INVARIANT: resolve x first, then pick the vertical limits from
+         whether the window overlaps the toolbar's column at that x. Anything
+         clear of it gets the full viewport.
 
-         So the horizontal clamp is resolved first, and the vertical limits are
-         then chosen based on whether the window overlaps the toolbar's column
-         at that x. Anything clear of it gets the full viewport. */
+         WHY: the toolbar is a centred island, roughly the middle 41% of the
+         width. Treating its top edge as a floor across the whole width (the
+         behaviour up to v3.0) left a dead strip down each side for an
+         obstacle that isn't there — a window at the far left, 400px clear of
+         the toolbar, still stopped level with its top. */
       function clampSpot(width, height, x, y, b) {
         const maxX = Math.max(b.left, b.right - width);
         const cx = Math.min(Math.max(b.left, x), maxX);
@@ -6020,7 +7136,97 @@
 
       // Raise + focus. Previously .active was set but never styled, so nothing
       // told the user which note Copy/Paste/Search would act on.
+      /* Trim a brand-new window to something a phone can hold.
+
+         Only the canvas desk is affected: in stack mode the CSS makes every
+         window full-bleed already, so the early return below fires. On the
+         canvas, windows keep world coordinates, and a 557px note opened on a
+         393px screen puts its own close and minimise buttons past the right
+         edge — reachable only by panning a window you cannot grab, because
+         the header you would grab is the part that is off-screen.
+
+         TRAP: this cannot run from placeWindow(). Every add* helper calls
+         that BEFORE assigning innerHTML, and a note's markup hard-codes
+         `width: 525px` on its .textarea-container — so the trim was written
+         and then overwritten by the content that arrived after it. The
+         container is the real size for a note (the window box is DERIVED from
+         it by updateWindowSize), which is why it is the thing trimmed.
+
+         Not on restore: a saved size is the user's, and re-trimming it on
+         every boot would ratchet notes smaller with each one. */
+      function fitNewWindowToScreen(element) {
+        if (!mobileUI || restoring) return;
+        const capW = Math.max(280, window.innerWidth - 24);
+        // Sized to the band it is about to be PLACED in, not to the viewport,
+        // so a fresh window sits entirely inside the clear strip rather than
+        // merely starting there. The floor matters on a landscape phone, where
+        // the band is genuinely smaller than a usable window.
+        const capH = Math.max(200, mobileCanvasBand().height - 12);
+        const overW = element.offsetWidth > capW;
+        // Height matters as much as width and for the same reason: the Log's
+        // "Log" button and the Calculator's bottom row are the parts that run
+        // past the fold, and on the canvas nothing clips them into view.
+        const overH = element.offsetHeight > capH;
+        if (!overW && !overH) return;
+        const target = resizeTargetFor(element);
+        if (!target || target === element) {
+          if (overW) {
+            element.style.width = `${capW}px`;
+            element.dataset.width = capW;
+          }
+          if (overH) {
+            element.style.height = `${capH}px`;
+            element.dataset.height = capH;
+          }
+          return;
+        }
+        // A note, whose box is derived from its container. 32 is the chrome
+        // updateWindowSize() adds back on — border plus padding either side —
+        // so the derived window lands on the cap rather than just over it; the
+        // height is trimmed by the overshoot for the same reason, since the
+        // rows below the textarea are a fixed cost this cannot know. Called
+        // directly because this runs before the add* helper attaches the
+        // ResizeObserver that would otherwise notice; the container's own
+        // min-width and min-height still have the final say.
+        if (overW) target.style.width = `${Math.max(160, capW - 32)}px`;
+        if (overH) {
+          const overshoot = element.offsetHeight - capH;
+          target.style.height = `${Math.max(120, target.offsetHeight - overshoot)}px`;
+        }
+        updateWindowSize(element.id);
+      }
+
+      /* Pull a brand-new window into the part of the world that is on screen.
+
+         placeWindow() ran before the window had any content, so it positioned
+         a box whose real height it could not know, and on the canvas nothing
+         afterwards clips the result into view — a Log opened on a phone landed
+         with its own "Log" button a hundred pixels below the fold, reachable
+         only by panning. canvasBounds() on the canvas IS the visible slice in
+         world coordinates, so clamping to it says exactly "somewhere you can
+         see", at whatever size the trim above settled on.
+
+         Not on restore, and not on a desktop: a window the user parked
+         off-screen is where they put it. */
+      function pullNewWindowIntoView(element) {
+        if (!mobileUI || restoring) return;
+        const spot = clampSpot(
+          element.offsetWidth,
+          element.offsetHeight,
+          parseFloat(element.dataset.x) || 0,
+          parseFloat(element.dataset.y) || 0,
+          canvasBounds()
+        );
+        element.style.left = `${spot.x}px`;
+        element.style.top = `${spot.y}px`;
+        element.dataset.x = spot.x;
+        element.dataset.y = spot.y;
+      }
+
       function wireWindowFocus(element) {
+        // Size first, then position: the clamp needs the size it is clamping.
+        fitNewWindowToScreen(element);
+        pullNewWindowIntoView(element);
         /* The one call every window type makes on the way in, which makes it
            the place to stamp the desk it was born on — a per-creator stamp
            would be seven chances to forget one, and forgetting one is exactly
@@ -6073,15 +7279,17 @@
         // funnels through here, so the minimap gets one hook instead of six.
         if (view.on) scheduleMapWindows();
 
+        // Stack mode's answer to "what else is open" — it supersedes the
+        // chip bar below rather than sitting beside it. Called before the
+        // early return so a missing #minimized-bar cannot strand it.
+        renderWindowSwitcher(all);
+
         const bar = document.getElementById("minimized-bar");
         if (!bar) return;
         const minimized = all.filter((el) => el.style.display === "none");
         bar.innerHTML = "";
         minimized.forEach((el) => {
-          const label =
-            el.querySelector(
-              ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calendar-title, .calculator-title, .help-title"
-            )?.textContent || el.id;
+          const label = windowLabel(el);
           const chip = document.createElement("button");
           chip.className = "minimized-chip";
           chip.textContent = label;
@@ -6101,7 +7309,7 @@
         saveSession();
       }
 
-      // --- Internal stability helpers (no UI or behavior change) ---
+      // --- Internal stability helpers ---
       let _saveTimer = null;
       function debouncedSave(delay = 180) {
         if (_saveTimer) clearTimeout(_saveTimer);
@@ -6116,7 +7324,10 @@
 
       function registerResizeObserver(windowId, observer) {
         if (_resizeObservers[windowId]) {
-          try { _resizeObservers[windowId].disconnect(); } catch (e) {}
+          // Ignored: we are replacing this observer regardless, and a
+          // disconnect() on one whose element is already gone is a no-op we
+          // do not want to surface.
+          try { _resizeObservers[windowId].disconnect(); } catch { /* empty */ }
         }
         _resizeObservers[windowId] = observer;
       }
@@ -6124,7 +7335,9 @@
       function disconnectResizeObserver(windowId) {
         const obs = _resizeObservers[windowId];
         if (obs) {
-          try { obs.disconnect(); } catch (e) {}
+          // Ignored for the same reason as in registerResizeObserver: the
+          // entry is being deleted next line either way.
+          try { obs.disconnect(); } catch { /* empty */ }
           delete _resizeObservers[windowId];
         }
       }
@@ -6149,24 +7362,12 @@
         textareaContainers.forEach((container) => {
           const windowElement = container.closest(".window");
           if (windowElement) {
-            const headerHeight =
-              windowElement.querySelector(".window-header").offsetHeight || 30;
-            const paddingAndBorders = 22;
-            const buttonsHeight =
-              windowElement.querySelector(".format-buttons")?.offsetHeight || 0;
-            const countsHeight =
-              windowElement.querySelector(".counts")?.offsetHeight || 0;
-            const logInputHeight =
-              windowElement.querySelector(".note-log-input-container")
-                ?.offsetHeight || 0;
-            const maxHeight =
-              basis.h -
-              headerHeight -
-              paddingAndBorders -
-              buttonsHeight -
-              countsHeight -
-              logInputHeight -
-              20;
+            /* The same measured chrome updateWindowSize() uses. It has to be
+               the same or the two disagree by exactly the gaps the old
+               arithmetic omitted, and a container allowed to grow to its max
+               produces a window 30px past the bottom of the screen. */
+            const chrome = noteChromeHeight(windowElement);
+            const maxHeight = basis.h - chrome - 20;
             const maxWidth = basis.w - 32 - 20;
             container.style.maxHeight = `${maxHeight}px`;
             container.style.maxWidth = `${Math.min(
@@ -6177,14 +7378,7 @@
               maxWidth + 32,
               basis.w - 30
             )}px`;
-            windowElement.style.maxHeight = `${
-              maxHeight +
-              headerHeight +
-              paddingAndBorders +
-              buttonsHeight +
-              countsHeight +
-              logInputHeight
-            }px`;
+            windowElement.style.maxHeight = `${maxHeight + chrome}px`;
           }
         });
       }
@@ -6197,7 +7391,12 @@
           document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
           showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
-          return;
+          // null, not a bare return. Every caller tests the result for
+          // falsiness and the restore path's own comment already said "add*()
+          // returns null once MAX_WINDOWS is hit" — this was the one place
+          // that actually handed back undefined. Same behaviour, and the
+          // function now has one return type instead of two.
+          return null;
         }
 
         windowCount++;
@@ -6375,18 +7574,21 @@
         session.theme = document.body.classList.contains("dark-mode")
           ? "dark-mode"
           : "light-mode";
-        /* `on` is which desk is showing; x/y/zoom always mean the canvas
-           viewpoint. While the canvas is off, `view` holds the identity
-           transform — persisting that would forget where the user was on the
-           canvas and drop them at the default centre next time, so persist the
-           remembered viewpoint instead of the live one.
+        /* Schema of session.canvas — the restore side is in
+           loadSessionFromStorage(), keep the two reading the same:
+             on    which desk is showing
+             x/y/zoom  ALWAYS the canvas viewpoint, whichever desk is showing
+             seen  whether there is a viewpoint to remember at all
 
-           `seen` says whether there is a viewpoint to remember at all. Without
-           it the placeholder written for a session that has never opened the
-           canvas — {0, 0, zoom 1} — is indistinguishable from a real viewpoint
-           parked at the top-left corner, and restore believed it. That is what
-           made the canvas open in the corner on every machine where it had
-           been saved once with the canvas off. */
+           TRAP: persisting the live `view` while the canvas is off. It holds
+           the identity transform then, so this would forget where the user was
+           and drop them at the default centre. Persist canvasViewMemory.
+
+           TRAP: dropping `seen` as redundant. Without it the placeholder for a
+           session that has never opened the canvas — {0, 0, zoom 1} — cannot
+           be told apart from a real viewpoint at the top-left corner, and
+           restore believes it. That is the v3.2.11 bug where the canvas opened
+           in the corner on every machine that had saved once with it off. */
         const seenCanvas = view.on || !!canvasViewMemory;
         const canvasView = view.on
           ? { x: view.x, y: view.y, zoom: view.zoom }
@@ -6397,6 +7599,11 @@
           x: canvasView.x,
           y: canvasView.y,
           zoom: canvasView.zoom,
+          // The world the saved coordinates were laid out on. Restoring on a
+          // temporarily narrow viewport must not compute a smaller one and
+          // then clamp every window onto its new edge.
+          worldW: worldSize.w,
+          worldH: worldSize.h,
         };
         document
           .querySelectorAll(".sticky-note-window")
@@ -6498,7 +7705,12 @@
           document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
           showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
-          return;
+          // null, not a bare return. Every caller tests the result for
+          // falsiness and the restore path's own comment already said "add*()
+          // returns null once MAX_WINDOWS is hit" — this was the one place
+          // that actually handed back undefined. Same behaviour, and the
+          // function now has one return type instead of two.
+          return null;
         }
         windowCount++;
         noteCount++;
@@ -6556,7 +7768,6 @@
         refreshChrome();
         const textarea = document.getElementById(`clipboard-${windowId}`);
         textarea.addEventListener("scroll", () => syncScroll(windowId));
-        // Debounced persistence for stability (no behavior change)
         textarea.addEventListener("input", () => debouncedSave(160), { passive: true });
         const logInput = document.getElementById(`note-log-input-${windowId}`);
         logInput.addEventListener("keydown", (e) => {
@@ -6586,7 +7797,12 @@
           document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
           showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
-          return;
+          // null, not a bare return. Every caller tests the result for
+          // falsiness and the restore path's own comment already said "add*()
+          // returns null once MAX_WINDOWS is hit" — this was the one place
+          // that actually handed back undefined. Same behaviour, and the
+          // function now has one return type instead of two.
+          return null;
         }
         windowCount++;
         taskCount++;
@@ -6926,6 +8142,35 @@ Enterprise browser
         refreshChrome();
         saveSession();
       }
+      /* Everything in a note that is NOT its resizable .textarea-container:
+         the title bar, the three rows under the textarea, the flex gaps
+         between them, and the window's own padding and borders.
+
+         Measured, not added up from constants. The old arithmetic summed
+         header + 22 + buttons + counts + logInput, where 22 was "padding plus
+         borders" — and silently omitted the three 10px gaps .window-content
+         puts between its four children. Every note was therefore sized 30px
+         shorter than its own contents, and since .window is overflow:hidden
+         the word-count line was clipped off the bottom of every note in the
+         app, on every screen, since the day the flex gap was introduced. It
+         only became obvious on a phone, where the same 30px is a much larger
+         share of the window.
+
+         INVARIANT: .window-content's offsetHeight already includes its own
+         padding and every gap. Taking the container back out of it is what
+         makes this immune to the next row someone adds. */
+      function noteChromeHeight(windowElement) {
+        const container = windowElement.querySelector(".textarea-container");
+        const content = windowElement.querySelector(".window-content");
+        if (!container || !content) return 0;
+        const header =
+          windowElement.querySelector(".window-header")?.offsetHeight || 30;
+        const WINDOW_BORDERS = 2;
+        return (
+          header + (content.offsetHeight - container.offsetHeight) + WINDOW_BORDERS
+        );
+      }
+
       function updateWindowSize(windowId) {
         const textareaContainer = document.querySelector(
           `#${windowId} .textarea-container`
@@ -6944,6 +8189,13 @@ Enterprise browser
         ) {
           return;
         }
+        /* Same reasoning one step earlier than measuredBox()'s freeze. In
+           stack mode the container is stretched by CSS, which fires its
+           ResizeObserver, which lands here — and this function writes its
+           result to dataset.width/height, the very fallback measuredBox()
+           retreats to. Left running, the freeze would be protecting a number
+           this had already overwritten. */
+        if (geometryFrozen()) return;
         if (textareaContainer && windowElement) {
           // sizingBasis(), not window.innerWidth: on the big canvas the note
           // can legitimately be wider than the screen, and clamping to the
@@ -6955,26 +8207,11 @@ Enterprise browser
           );
           const containerHeight = textareaContainer.offsetHeight;
           const newWidth = containerWidth + 32;
-          const headerHeight =
-            windowElement.querySelector(".window-header").offsetHeight || 30;
-          const paddingAndBorders = 22;
-          const buttonsHeight =
-            windowElement.querySelector(".format-buttons")?.offsetHeight || 0;
-          // Was document.querySelector(".counts") - the first .counts in the
-          // whole document, i.e. some other window's, once more than one note
-          // was open.
-          const countsHeight =
-            windowElement.querySelector(".counts")?.offsetHeight || 0;
-          const logInputHeight =
-            windowElement.querySelector(".note-log-input-container")
-              ?.offsetHeight || 0;
-          const newHeight =
-            containerHeight +
-            headerHeight +
-            paddingAndBorders +
-            buttonsHeight +
-            countsHeight +
-            logInputHeight;
+          // Measured in one place now — see noteChromeHeight, and the 30px of
+          // flex gaps the hand-summed version left out. The old code also read
+          // document.querySelector(".counts"), i.e. the first .counts in the
+          // whole document — some other window's, once two notes were open.
+          const newHeight = containerHeight + noteChromeHeight(windowElement);
           windowElement.style.width = `${Math.min(
             newWidth,
             sizingBasis().w - 30
@@ -7132,14 +8369,14 @@ Enterprise browser
         const input = instancePart(windowId, "calculator-input");
         const display = instancePart(windowId, "calculator-display");
         if (input && display) {
-          let expression = input.value;
+          const expression = input.value;
           if (!expression) {
             display.value = "0";
             return;
           }
           const history = stateFor(windowId).history;
           try {
-            let result = evaluateExpression(expression);
+            const result = evaluateExpression(expression);
             display.value = isFinite(result) ? result : "Error";
             history.push({ expression, result: display.value });
           } catch {
@@ -7211,22 +8448,16 @@ Enterprise browser
         if (targetMode) newWindow.dataset.mode = targetMode;
         const clockLabel = "Clock";
 
-        /* 350x516 was not in fact tall enough: .clock-content overflowed by
-           ~40px, so the stopwatch buttons were sliced in half by the countdown
-           block below them. 566 fixed that but overshot — and because the
-           countdown sat outside the flex:1 scroller, the surplus opened as a
-           band of dead space above it rather than below everything. The
-           countdown is inside the scroller now, so the surplus is just window;
-           506 is the measured height of all four sections (452 of content, 41
-           of header, 2 of border) plus the 8px WebKit needs on top of that —
-           it lays the same markup out taller, and coming up short there means
-           a scrollbar rather than a few px of slack. The header grew from 39 to
-           41 in v4.0.1, when the title-bar controls went to a 24px minimum
-           pointer target; WebKit reported the missing pixel as a scrollbar while
-           Chromium absorbed it. 390 was the
-           width that kept the countdown controls on one row as a sibling of
-           the scroller; inside it they also clear the scroller's own 10px side
-           margins, so the window needs those 20px back. */
+        /* Measured, not chosen. Height = 452 content + 41 header + 2 border,
+           plus 8px because WebKit lays the same markup out taller than
+           Chromium. Width = 390 to keep the countdown controls on one row,
+           plus 20 for the scroller's side margins.
+
+           TRAP: rounding these to tidy numbers. Coming up short costs a
+           scrollbar in WebKit while Chromium absorbs it, so it looks fine
+           locally and regresses on Safari — that is how the v4.0.1 header
+           change (39 -> 41, from the 24px minimum pointer target) was
+           missed. Re-measure in WebKit if the clock's markup changes. */
         const defaultWidth = 410;
         const defaultHeight = 506;
         newWindow.style.zIndex = nextWindowZ();
@@ -7443,7 +8674,12 @@ Enterprise browser
           document.querySelectorAll(WINDOW_SELECTOR).length >= MAX_WINDOWS
         ) {
           showStatus(`Maximum of ${MAX_WINDOWS} windows reached — close one first.`);
-          return;
+          // null, not a bare return. Every caller tests the result for
+          // falsiness and the restore path's own comment already said "add*()
+          // returns null once MAX_WINDOWS is hit" — this was the one place
+          // that actually handed back undefined. Same behaviour, and the
+          // function now has one return type instead of two.
+          return null;
         }
         const windowsContainer = document.getElementById("windows");
         const newWindow = document.createElement("div");
@@ -7652,16 +8888,17 @@ Enterprise browser
         logList.scrollTop = logList.scrollHeight;
       }
 
-      // Pointer Events rather than mouse events: the old handler was
-      // mousedown/mousemove/mouseup only, so on a touch screen a window could
-      // not be moved at all. Pointer events cover mouse, touch and pen through
-      // one path, and setPointerCapture keeps the drag alive if the finger
-      // outruns the header.
-      /* Which element actually carries a window's size. For a note it is the
-         .textarea-container — the window sizes itself to fit via
-         updateWindowSize(), so resizing the window directly would be undone on
-         the next sync. Sticky notes and task lists size themselves. Everything
-         else (calculator, clock, log, help) has never been resizable. */
+      // INVARIANT: Pointer Events throughout, never mouse events — they cover
+      // mouse, touch and pen through one path, and setPointerCapture keeps a
+      // drag alive when the finger outruns the header. The original
+      // mousedown/mousemove/mouseup handler made windows unmovable on touch.
+
+      /* Which element actually carries a window's size.
+
+         TRAP: resizing a note's window element directly. A note sizes itself
+         to fit its .textarea-container via updateWindowSize(), so the next
+         sync undoes it. Sticky notes and task lists size themselves too;
+         calculator, clock, log and help have never been resizable. */
       function resizeTargetFor(element) {
         if (
           element.classList.contains("sticky-note-window") ||
@@ -7749,6 +8986,11 @@ Enterprise browser
 
         grip.addEventListener("pointerdown", (e) => {
           if (element.dataset.locked === "true") return;
+          // Stack mode sizes windows from CSS, so a resize would be undone on
+          // the next layout and persisted over the user's real size on the
+          // way there. The grip is display:none there too; this is the guard
+          // behind the affordance, not a substitute for it.
+          if (stackMode()) return;
           if (gripPointerId !== null) return;
           if (e.button !== undefined && e.button !== 0) return;
           // Never let this reach the header drag or the canvas pan.
@@ -7792,14 +9034,14 @@ Enterprise browser
         let dragPointerId = null;
         let offsetX = 0;
         let offsetY = 0;
-        // Measured once per drag. Reading offsetWidth/offsetHeight inside the
-        // move handler was a layout read immediately after a style write, which
-        // forces a synchronous re-layout on every single pointer event — the
-        // classic thrash, and the reason dragging felt heavier than panning
-        // did. Neither the window's size nor the clamp can change mid-drag, so
-        // neither needs re-reading. In the off state clampBounds() also calls
-        // getBoundingClientRect() on the toolbar, so this removes a second
-        // forced layout per event.
+        // INVARIANT: no layout reads inside the move handler. Measure once per
+        // drag — neither the window's size nor the clamp can change mid-drag.
+        //
+        // TRAP: reading offsetWidth/offsetHeight (or clampBounds(), which
+        // calls getBoundingClientRect() on the toolbar) from the move handler.
+        // It is a layout read straight after a style write, so it forces a
+        // synchronous re-layout on every pointer event. That thrash is why
+        // dragging used to feel heavier than panning.
         let dragW = 0;
         let dragH = 0;
         let dragBounds = null;
@@ -7867,6 +9109,10 @@ Enterprise browser
           // header, which also killed the lock and close buttons inside it and
           // forced toggleWindowLock to re-implement this whole handler.
           if (element.dataset.locked === "true") return;
+          // Every window is the full screen in stack mode, so there is nowhere
+          // to drag one to — and a title bar that moved a full-bleed window a
+          // few pixels off the edge would be worse than one that does nothing.
+          if (stackMode()) return;
           // Don't start a drag from a control in the title bar.
           if (e.target.closest("[role='button'], button, input, select")) return;
           if (e.button !== undefined && e.button !== 0) return; // left/primary only
@@ -7903,18 +9149,18 @@ Enterprise browser
         ".window-header, .task-header, .clock-header, .log-header, .calendar-header, .calculator-header, .help-header, .sticky-note-header";
 
       // What "frozen" freezes inside a window. This is NOT encryption or access
-      // control — anyone can unfreeze with one click. Text fields go readOnly
-      // rather than disabled so a frozen note can still be read, scrolled and
-      // copied; everything else (buttons, checkboxes, selects, colour swatches)
-      // is disabled. Title-bar controls are excluded — you must always be able
-      // to unfreeze, minimize or close.
-      /* `data-lock-exempt` is for controls that NAVIGATE rather than edit. A
-         frozen note stays readable and scrollable on purpose — text fields go
-         readOnly rather than disabled precisely so it can be read — and the
-         calendar's month arrows, day cells and search box are the same kind of
-         thing: looking at another day is not an edit. Without the exemption a
-         frozen calendar could only ever show the one day it was frozen on, which
-         is not what "freeze editing, dragging and resizing" promises. */
+      // control — anyone can unfreeze with one click.
+      //
+      // INVARIANT: frozen means "cannot edit", never "cannot read". Text
+      // fields go readOnly rather than disabled so a frozen note can still be
+      // read, scrolled and copied; everything else (buttons, checkboxes,
+      // selects, colour swatches) is disabled. Title-bar controls are always
+      // excluded — you must be able to unfreeze, minimise or close.
+      //
+      // `data-lock-exempt` extends that to controls which NAVIGATE rather than
+      // edit: the calendar's month arrows, day cells and search box. Looking
+      // at another day is not an edit, and without the exemption a frozen
+      // calendar could only ever show the day it was frozen on.
       function lockableControls(windowElement) {
         return Array.from(
           windowElement.querySelectorAll("textarea, input, select, button")
@@ -7976,9 +9222,8 @@ Enterprise browser
       // Everything hangs off dataset.locked, which makeDraggable() reads.
       function windowLabel(windowElement) {
         return (
-          windowElement.querySelector(
-            ".window-title, .task-title, .sticky-note-title, .clock-title, .log-title, .calendar-title, .calculator-title, .help-title"
-          )?.textContent || "Window"
+          windowElement.querySelector(WINDOW_TITLE_SELECTOR)?.textContent ||
+          "Window"
         ).trim();
       }
 
@@ -8143,7 +9388,6 @@ Enterprise browser
           document.execCommand("selectAll", false, null); // Select all text for easy editing
           currentEditable = { windowId, element: titleSpan };
 
-          // Listen for Enter, Escape, or blur
           titleSpan.addEventListener("keydown", handleRenameKeydown);
           titleSpan.addEventListener("blur", endRename);
           document.addEventListener("mousedown", handleOutsideClick);
@@ -8174,7 +9418,6 @@ Enterprise browser
           element.removeEventListener("blur", endRename);
           document.removeEventListener("mousedown", handleOutsideClick);
 
-          // Set default name if empty, based on window type
           let defaultName = "";
           if (element.classList.contains("window-title")) {
             defaultName = `Note ${windowId.replace("window", "")}`;
@@ -8202,7 +9445,6 @@ Enterprise browser
           element.removeEventListener("blur", endRename);
           document.removeEventListener("mousedown", handleOutsideClick);
 
-          // Set default name if cancelled, based on window type
           let defaultName = "";
           if (element.classList.contains("window-title")) {
             defaultName = `Note ${windowId.replace("window", "")}`;
@@ -8247,7 +9489,7 @@ Enterprise browser
         scratch.style.cssText = "position:fixed;top:-1000px;opacity:0;";
         document.body.appendChild(scratch);
         scratch.select();
-        let ok = false;
+        let ok;
         try {
           ok = document.execCommand("copy");
         } catch {
@@ -8332,7 +9574,7 @@ Enterprise browser
         textarea.focus();
         const start = textarea.selectionStart ?? textarea.value.length;
         const end = textarea.selectionEnd ?? textarea.value.length;
-        let inserted = false;
+        let inserted;
         try {
           inserted = document.execCommand("insertText", false, text);
         } catch {
@@ -8473,7 +9715,6 @@ Enterprise browser
         body.classList.remove("light-mode", "dark-mode");
         body.classList.add(newMode);
 
-        // Update favicon based on theme
         let link = document.querySelector("link[rel~='icon']");
         if (!link) {
           link = document.createElement("link");
@@ -8487,7 +9728,6 @@ Enterprise browser
         // Dark theme pencil (white)
         const lightIconSvg = `PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiNGRkZGRkYiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg==`;
 
-        // Set favicon based on theme
         link.href = `data:image/svg+xml;base64,${
           newMode === "dark-mode" ? darkIconSvg : lightIconSvg
         }`;
@@ -8504,15 +9744,8 @@ Enterprise browser
 
       function toggleNavMenu() {
         const navMenu = document.querySelector(".nav-menu");
-        const collapsed = navMenu.classList.toggle("collapsed");
-        const toggle = navMenu.querySelector(".nav-toggle");
-        if (toggle) {
-          toggle.setAttribute("aria-expanded", String(!collapsed));
-          toggle.setAttribute(
-            "aria-label",
-            collapsed ? "Expand toolbar" : "Collapse toolbar"
-          );
-        }
+        if (!navMenu) return;
+        setNavCollapsed(!navMenu.classList.contains("collapsed"));
       }
       function openInstructions(isT2 = false) {
         const windowElement = addWindow();
@@ -8645,6 +9878,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         { title, message, okLabel, cancelStatus, eraseMessage } = {}
       ) {
         for (let attempt = 0; attempt < 3; attempt++) {
+          /* As above — a modal retry loop, three attempts, one human. */
+          // eslint-disable-next-line no-await-in-loop
           const pass = await promptPassphrase({
             title,
             message,
@@ -8655,6 +9890,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             showStatus(cancelStatus);
             return false;
           }
+          /* Same retry loop: the verify is the judgement of the answer given on this
+             attempt, so it is downstream of a prompt no code can hurry. */
+          // eslint-disable-next-line no-await-in-loop
           if (await verifyEnvelopePassphrase(envelope, pass)) return true;
           if (attempt < 2) window.alert("Wrong passphrase. Try again.");
         }
@@ -8775,9 +10013,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           clearSaveFailure();
           updateProtectButton();
 
-          // Reset UI state
           document.getElementById("windows").innerHTML = ""; // Remove all windows
-          document.body.className = "dark-mode"; // Set default theme
+          /* The theme token only, exactly as the restore path does it. Writing
+             className wholesale also cleared "mobile-ui", which syncMobileUI()
+             had set from the media query at boot — so a Reset on a phone
+             silently dropped the whole mobile layout until the next time the
+             breakpoint was crossed, which on a phone is never. */
+          setThemeClass("dark-mode");
           // "Fresh UI" includes the view: a reset that left you panned into an
           // empty corner of a three-screen canvas would look like a blank page.
           view.on = false;
@@ -8789,10 +10031,12 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // session the user just deleted.
           canvasViewMemory = null;
           applyView();
-          document.querySelector(".nav-menu").classList.remove("collapsed"); // Expand nav menu
+          // Back to the resting state for THIS device, not unconditionally
+          // expanded: on a phone the toolbar rests collapsed, and a Reset that
+          // left the sheet open would hide the fresh empty screen behind it.
+          setNavCollapsed(mobileUI);
           document.getElementById("search-replace").classList.remove("active"); // Hide search/replace
 
-          // Reset global variables
           windowCount = 0;
           noteCount = 0;
           taskCount = 0;
@@ -8827,10 +10071,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         try {
         // Restore theme — the token only, for the same reason toggleTheme()
         // does: the canvas classes on <body> are not the theme's to clear.
-        document.body.classList.remove("light-mode", "dark-mode");
-        document.body.classList.add(
-          session.theme === "dark-mode" ? "dark-mode" : "light-mode"
-        );
+        setThemeClass(session.theme === "dark-mode" ? "dark-mode" : "light-mode");
 
         // Only a real boolean speaks here; anything else means a session from
         // before the jingle existed, which keeps the default (on).
@@ -8843,7 +10084,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
            further down and each one renders from this store on the way in. */
         calendarEvents = Array.isArray(session.events) ? session.events : [];
 
-        // Restore windows
         Object.keys(session).forEach((key) => {
           if (key.startsWith("window")) {
             const windowData = session[key];
@@ -8863,7 +10103,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             }
             const windowElement = document.getElementById(newWindow.id);
 
-            // Restore position, size, and content
             windowElement.style.left = `${windowData.position.left}px`;
             windowElement.style.top = `${windowData.position.top}px`;
             /* Sessions written before v3.2.10 can carry width:0/height:0 for
@@ -8898,7 +10137,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             if (windowData.mode) windowElement.dataset.restoredMode = windowData.mode;
 
             if (windowData.isTaskWindow) {
-              // Restore tasks
               const taskList = windowElement.querySelector(".task-list");
               if (taskList && windowData.tasks) {
                 taskList.innerHTML = "";
@@ -9020,19 +10258,14 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         // and silently collapse the canvas.
         const savedView = session.canvas;
         view.on = !!(savedView && savedView.on);
-        /* x/y/zoom always describe the canvas viewpoint, whichever desk was
-           showing when this was saved, so it is remembered either way — that
-           is what puts the user back where they were on the canvas rather than
-           at the default centre.
+        /* Resolve `seen` — see the schema comment in buildSessionSnapshot().
 
-           Only if there is one to remember. A session written before v3.2.12
-           says nothing about `seen`, and every one of those that had never
-           opened the canvas carries the placeholder {0, 0, zoom 1} — which is
-           precisely the top-left corner. Read that back as the "never been" it
-           actually stood for. A real viewpoint from that era is anything else
-           and still survives the upgrade; the only thing given up is a user
-           who deliberately parked at the exact corner at 1:1, who gets centred
-           once. */
+           A session written before v3.2.12 says nothing about it, so null
+           means "the writer had no opinion" and the placeholder {0, 0, zoom 1}
+           is read back as the "never been" it actually stood for. Any other
+           value from that era is a real viewpoint and survives the upgrade;
+           the only user who loses anything is one who deliberately parked at
+           the exact corner at 1:1, and they get centred once. */
         const seenCanvas =
           savedView == null
             ? false
@@ -9054,6 +10287,12 @@ Tip: Use the Download button inside the app to preserve your open windows and no
                 ),
               }
             : null;
+        /* Take the saved world as the floor before anything measures it. The
+           world is grow-only within a session, but a reload starts it at zero
+           and re-derives it from the viewport — so restoring while devtools
+           were open, or the browser window was half-width, produced a world
+           smaller than the one the saved coordinates were written against. */
+        if (savedView) growWorldTo(savedView.worldW, savedView.worldH);
         if (view.on) {
           if (canvasViewMemory) {
             computeWorldSize();
@@ -9083,7 +10322,45 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           delete el.dataset.restoredMode;
         });
         applyModeVisibility();
+        /* Belt and braces for the world floor, and the only thing that helps a
+           session written before the world was saved: measure what is actually
+           on the canvas and make sure the world still contains it. Windows are
+           visible from applyModeVisibility() above, so offsetWidth/Height are
+           real here; it has to run before the clamp below, which is what would
+           otherwise haul a far-flung window back onto a shrunken edge. */
+        growWorldToFitWindows();
         applyView();
+
+        /* Re-derive every note's box from its container, now that the DOM and
+           the CSS are both final.
+
+           TRAP, and the reason this cannot be left to the ResizeObserver:
+           `view.on` is restored ABOVE, after the replay loop that rebuilt the
+           windows. So for the whole of that loop a phone had view.on false and
+           mobileUI true — which is stackMode(), which is geometryFrozen() —
+           and updateWindowSize() correctly stood down for every note it
+           rebuilt. The window box therefore still carries whatever number the
+           session recorded, and that is only right if the chrome around the
+           textarea measures the same today as it did when the number was
+           written. A different orientation, a different device, or any build
+           that changed a row's height breaks it, and since .window is
+           overflow:hidden the symptom is silent: the word count loses the
+           space beneath it, with no scrollbar to say why.
+
+           It used to come right anyway, but only by luck — each container's
+           observer fires its first callback after this function returns, by
+           which time view.on is true, and that recomputes the box. That is a
+           race against the observer's schedule, and on a real phone it is one
+           the user was losing on every reload while a later resize (which
+           nudges the container through setMaxDimensions) always won it.
+
+           Cheap and idempotent: on a healthy session every note recomputes to
+           the size it already had. In stack mode updateWindowSize() is still
+           frozen, which is correct — the box is CSS there, not arithmetic. */
+        modeWindows().forEach((el) => {
+          if (el.classList.contains("window")) updateWindowSize(el.id);
+        });
+
         // A session saved on a large display used to restore partly or wholly
         // off-screen on a smaller one, with no way to drag anything back.
         // Only this desk: the other one's coordinates mean something else, and
@@ -9107,17 +10384,30 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const versionEl = document.getElementById("download-app-version");
         if (versionEl) versionEl.textContent = `v${CB_APP_VERSION}`;
 
-        /* One-time purge of the retired calendar feature's stale storage key —
-           v4.0.0's `session.events` is a different thing entirely and lives
-           inside the session, not under this key.
+        /* Before the session is touched, because it decides what restoring one
+           means: whether windows are full-bleed, whether their measured sizes
+           may be written back, and whether the toolbar rests collapsed. Doing
+           it afterwards would restore the session into a desktop layout and
+           then move everything, which is visible as a jump on the first paint.
 
-           try/catch because merely touching localStorage throws SecurityError
-           where site data is blocked by policy, and this line runs OUTSIDE the
-           try that guards the session load below. Unguarded it took the whole of
-           window.onload down with it, which since v4.0.0 also means
-           startAlertScheduler() never runs — a calendar that silently never fires
-           a reminder. Every other purge in this file already wraps its
-           removeItem; this one did not. */
+           `true` forces the first application — syncMobileUI() otherwise
+           returns early when the media query already agrees with mobileUI,
+           which on a desktop it does. */
+        syncMobileUI(true);
+
+        /* One-time purge of the retired calendar feature's stale storage key.
+           Not related to v4.0.0's `session.events`, which lives inside the
+           session.
+
+           INVARIANT: every localStorage access in this file is wrapped. Merely
+           touching it throws SecurityError where site data is blocked by
+           policy — which is a real configuration on the managed machines this
+           app runs on, not a theoretical one.
+
+           TRAP: an unguarded access during boot takes all of window.onload
+           down with it, and since v4.0.0 that means startAlertScheduler()
+           never runs. The visible symptom is a calendar that silently never
+           fires a reminder, which looks nothing like a storage problem. */
         try {
           localStorage.removeItem("calendarEvents");
         } catch (e) {
@@ -9129,16 +10419,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         purgeRetiredExportKeys();
         updateProtectButton();
 
-        /* The file on disk is just the program now; an exported copy carries
-           no session, and a pre-3.2.7 export's payload is ignored outright.
-           The only thing that decides what opens is this browser's storage.
+        /* The file on disk is just the program; an exported copy carries no
+           session, and a pre-3.2.7 export's payload is ignored outright. This
+           browser's storage is the only thing that decides what opens.
 
-           Guarded for the same reason as the purge above: a policy that blocks
-           site data makes the mere act of reading throw, and an exception here
-           aborted the rest of boot — including the alert scheduler at the end, so
-           reminders never fired and nothing said why. A browser that will not let
-           us read will not let us write either, so this is also the honest moment
-           to say that nothing is being saved. */
+           Guarded per the INVARIANT on the purge above. A browser that will
+           not let us read will not let us write either, so this is also the
+           honest moment to tell the user nothing is being saved. */
         let rawToLoad = null;
         try {
           rawToLoad = localStorage.getItem(SESSION_KEY);
@@ -9217,9 +10504,10 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             );
           }
         } else {
-          // Ensure fresh state on load
-          document.body.className = "dark-mode";
-          document.querySelector(".nav-menu").classList.remove("collapsed");
+          // Token only — see the note on the Reset path. Nothing in storage
+          // means the default theme, not a blank <body> class list.
+          setThemeClass("dark-mode");
+          setNavCollapsed(mobileUI);
           document.getElementById("search-replace").classList.remove("active");
           // Nothing in storage to protect — writes are safe from here.
           booted = true;
@@ -9234,12 +10522,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         sweepDueEvents();
       };
 
-      // Save session automatically when the tab or browser closes
-      window.addEventListener("beforeunload", (event) => {
+      // No preventDefault/returnValue here on purpose: saving is synchronous
+      // and silent, so there is nothing to warn the user about, and a
+      // beforeunload prompt on a scratchpad would be noise on every close.
+      window.addEventListener("beforeunload", () => {
         saveSession();
-        // Optionally, show a confirmation dialog (not recommended for modern browsers)
-        // event.preventDefault();
-        // event.returnValue = '';
       });
 
       const resizeObserver = new ResizeObserver(() => {
@@ -9263,7 +10550,6 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const windowElement = document.getElementById(windowId);
         const textarea = document.getElementById(`clipboard-${windowId}`);
 
-        // Check if window is locked
         if (windowElement && windowElement.dataset.locked === "true") {
           showStatus("Cannot clear note: window is frozen.");
           return;
@@ -9343,18 +10629,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       }
 
       // This ships the *program*, never the contents. It used to carry the
-      // session as embedded JSON so a copy booted exactly like the original,
-      // and that turned out to be a hole: opening any export displaced the
-      // session already in the browser and, because a plaintext payload never
-      // sets sessionPassphrase, silently dropped Protect and wrote the next
-      // autosave in the clear. Backup (encrypted .json) is the only path that
-      // carries content now — see the Saving & security section of Help.
+      // session as embedded JSON, which was a security hole: opening any
+      // export displaced the session already in the browser and, because a
+      // plaintext payload never sets sessionPassphrase, silently dropped
+      // Protect and wrote the next autosave in the clear.
       //
-      // The clone is scrubbed rather than serialised verbatim: an outerHTML
-      // dump baked every open window in as static markup, with no event
-      // listeners (undraggable, unclosable), empty bodies (textarea .value
-      // doesn't serialise), a duplicate #nav-tooltip id, and windowCount reset
-      // to 0 so new windows collided with the baked-in ids.
+      // INVARIANT: this path ships the program only. Backup (encrypted .json)
+      // is the sole path that carries content — see Help § Saving & security.
+      //
+      // TRAP: serialising the clone verbatim. An outerHTML dump bakes every
+      // open window in as static markup — no event listeners (undraggable,
+      // unclosable), empty bodies (textarea .value does not serialise), a
+      // duplicate #nav-tooltip id, and windowCount reset to 0 so new windows
+      // collide with the baked-in ids. Scrub it, as below.
       async function downloadCbApp() {
         try {
           const clone = document.documentElement.cloneNode(true);
@@ -9422,8 +10709,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             ?.classList.remove(
               "canvas-on",
               "canvas-panning",
-              "canvas-interacting"
+              "canvas-interacting",
+              // Device state, not markup, exactly like the canvas classes
+              // above: syncMobileUI() decides these at boot from the screen
+              // the copy is opened on, not the one it was saved from.
+              "mobile-ui",
+              "has-switcher"
             );
+          // Its tabs are generated from the live windows, which do not travel.
+          const switcherClone = clone.querySelector("#stack-tabs");
+          if (switcherClone) {
+            switcherClone.innerHTML = "";
+            switcherClone.setAttribute("hidden", "");
+          }
           // Created by script at load; leaving it in yields two same-id nodes.
           clone.querySelector("#nav-tooltip")?.remove();
           clone.querySelector("#empty-state")?.removeAttribute("hidden");
@@ -9529,9 +10827,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const minInput = instancePart(windowId, "countdown-minutes");
         const secInput = instancePart(windowId, "countdown-seconds");
         if (!minInput || !secInput) return;
-        let minutes = parseInt(minInput.value, 10) || 0;
-        let seconds = parseInt(secInput.value, 10) || 0;
-        let totalMs = (minutes * 60 + seconds) * 1000;
+        const minutes = parseInt(minInput.value, 10) || 0;
+        const seconds = parseInt(secInput.value, 10) || 0;
+        const totalMs = (minutes * 60 + seconds) * 1000;
         if (totalMs <= 0) {
           showStatus("Please enter a time greater than 0.");
           return;
@@ -9561,8 +10859,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const secInput = instancePart(windowId, "countdown-seconds");
         const display = instancePart(windowId, "countdown-display");
         if (!minInput || !secInput || !display) return;
-        let minutes = parseInt(minInput.value, 10) || 0;
-        let seconds = parseInt(secInput.value, 10) || 0;
+        const minutes = parseInt(minInput.value, 10) || 0;
+        const seconds = parseInt(secInput.value, 10) || 0;
         display.textContent = `${Math.floor(minutes / 60)
           .toString()
           .padStart(2, "0")}:${(minutes % 60)
@@ -9575,7 +10873,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const display = instancePart(windowId, "countdown-display");
         const cd = stateFor(windowId).countdown;
         if (!display || !cd.active || !cd.endTime) return;
-        let msLeft = cd.endTime - Date.now();
+        const msLeft = cd.endTime - Date.now();
         if (msLeft <= 0) {
           display.textContent = "00:00:00";
           cd.active = false;
@@ -9585,10 +10883,10 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           setCountdownFavicon();
           return;
         }
-        let totalSeconds = Math.floor(msLeft / 1000);
-        let h = Math.floor(totalSeconds / 3600);
-        let m = Math.floor((totalSeconds % 3600) / 60);
-        let s = totalSeconds % 60;
+        const totalSeconds = Math.floor(msLeft / 1000);
+        const h = Math.floor(totalSeconds / 3600);
+        const m = Math.floor((totalSeconds % 3600) / 60);
+        const s = totalSeconds % 60;
         display.textContent = `${h.toString().padStart(2, "0")}:${m
           .toString()
           .padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
@@ -9646,18 +10944,17 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
       /* --- Alert chime ---
          Synthesised with the Web Audio API, deliberately not a base64 audio
-         file. A base64 <audio> would cost three things this app does not want
-         to pay: ~40KB of data: URI in a single file people download, a
-         `media-src data:` hole in a CSP that is otherwise `media-src 'none'`,
-         and a binary blob nobody can review in a diff. Three sine tones with a
-         bell partial and a long decay cost about forty lines and no bytes, and
-         `media-src` stays shut — an AudioContext is not a media fetch.
+         file. Forty lines of sine tones cost no bytes and keep `media-src`
+         shut — an AudioContext is not a media fetch.
 
-         D5 - A5 - D6: an open fifth and octave, ~1.3s, one pass. It reads as a
-         soft chime rather than a ringtone, and it does not repeat. To swap in a
-         recorded chime later: base64 an .mp3 into an <audio src="data:audio/
-         mpeg;base64,..."> and add `media-src data:` to BOTH the meta CSP at the
-         top of this file and the cbapp headers in vercel.json. */
+         TRAP: swapping in a base64 <audio>. It costs ~40KB of data: URI in a
+         file people download, a binary blob nobody can review in a diff, and
+         a `media-src data:` hole in a CSP that is otherwise `media-src
+         'none'`. If you do it anyway, the CSP must change in BOTH the meta tag
+         at the top of this file and the cbapp headers in vercel.json.
+
+         D5 - A5 - D6: an open fifth and octave, ~1.3s, one pass — a soft
+         chime rather than a ringtone, and it does not repeat. */
       const ALERT_CHIME = [
         { hz: 587.33, at: 0 }, // D5
         { hz: 880.0, at: 0.16 }, // A5
@@ -9755,9 +11052,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
          (v4.0.0). It stays up until it is dismissed, which is the whole point —
          an alert you asked for must survive being in another tab.
 
-         Every caller goes through here. `detail` and every button label are set
-         with textContent, never innerHTML: an event title is user text, and the
-         catch-up card renders several of them at once. */
+         INVARIANT: every caller goes through here, and `detail` plus every
+         button label is set with textContent, never innerHTML. An event title
+         is user text, and the catch-up card renders several at once. */
       function showAppAlert({ icon, title, detail, actions }) {
         const alertEl = document.getElementById("app-alert");
         if (!alertEl) return;
@@ -9881,7 +11178,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
       function restoreFavicon() {
         if (originalFavicon) {
-          let link = document.querySelector("link[rel~='icon']");
+          const link = document.querySelector("link[rel~='icon']");
           if (link) link.href = originalFavicon;
         }
       }
@@ -9909,14 +11206,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         return calendarEvents.slice();
       }
 
-      /* Every mutation goes through here: it keeps the cap honest, keeps both
-         desks' calendars in step, and saves. Sorting on the way in means every
-         reader — grid, day list, agenda, scheduler — gets chronological order
-         without sorting again. */
+      /* INVARIANT: every mutation of calendarEvents goes through here. It
+         keeps the cap honest, keeps both desks' calendars in step, and saves.
+         Sorting on the way in means every reader — grid, day list, agenda,
+         scheduler — gets chronological order without sorting again. */
       function commitEvents(nextEvents, { save = true } = {}) {
-        /* Sort THEN slice. The other way round dropped whichever entries the
-           caller happened to put last rather than the latest events — order in,
-           order out, with no relation to the calendar. */
+        /* TRAP: sort THEN slice. The other way round drops whichever entries
+           the caller happened to put last rather than the latest events. */
         calendarEvents = nextEvents
           .slice()
           .sort((a, b) =>
@@ -9991,24 +11287,22 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       }
 
       /* Whole local days between two local midnights, and days added the only
-         way that is safe.
+         way that is safe. Every repeat rule, grid dot and reminder asks this
+         one pair of functions, so an error here is an error everywhere.
 
-         v4.0.3: `daily` and `weekly` used to do millisecond arithmetic —
-         `Math.ceil((fromDay - first) / (7 * DAY))` and
-         `first.getTime() + steps * 7 * DAY`. Elapsed ms between two local
-         midnights is NOT a whole number of days across a DST boundary: it is off
-         by an hour. So the division stopped being exact, `Math.ceil` rounded a
-         partial week up to a whole extra one, and the timestamp landed on the
-         wrong local weekday. A weekly event dated Wednesday 2026-07-01 reported
-         TUESDAYS from November onwards — 4,592 wrong answers in a year-long
-         sweep, in the grid dots, the day list and the scheduler alike, because
-         everything asks this one function. `daily` failed too, once a year, on
-         the spring-forward day: the event vanished from the grid and skipped its
-         reminder.
+         TRAP: do not do millisecond arithmetic on local dates. Elapsed ms
+         between two local midnights is not a whole number of days across a
+         DST boundary — it is off by an hour, division stops being exact, and
+         `Math.ceil` rounds a partial week up to a whole one. That is v4.0.3:
+         a weekly event dated Wednesday reported TUESDAYS from November on
+         (4,592 wrong answers in a year-long sweep), and daily events vanished
+         each spring-forward day.
 
-         Math.round, not ceil, because after rounding to whole days the gap is
-         exact by construction. Adding through the (y, m, d) constructor lets the
-         platform handle the offset instead of pretending there isn't one. */
+         So: Math.round, because after rounding to whole days the gap is exact
+         by construction; and add days through the (y, m, d) constructor so
+         the platform applies the offset instead of pretending there is none.
+         TEST: cbapp.spec.ts › "recurrence survives a DST boundary" and
+         "recurrence holds in a zone that deleted a whole calendar day". */
       function dayDiff(fromMidnight, toMidnight) {
         /* Differenced as UTC calendar dates, not as elapsed local time. Rounding
            the elapsed ms recovers a plus-or-minus 1h DST shift, which was the
@@ -10230,26 +11524,22 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       }
 
       /* The occurrence of `event` whose alert time has passed but which has not
-         been announced yet, or null. This is the one place `lastFired` is
-         interpreted: it holds the occurrence stamp that was announced, so a
-         one-off never repeats and a recurring event is free to fire again next
-         time round.
+         been announced yet, or null.
 
-         v4.0.3 rewrote the search. It used to ask nextOccurrence from
-         `now - leadTime`, which returns the FIRST occurrence in that window —
-         the oldest pending one, the exact opposite of what a reminder means.
-         With a one-day lead a daily event announced YESTERDAY's occurrence and
-         stamped it, so today's genuine reminder never fired and the event stayed
-         permanently one lead behind. With a lead over CATCHUP_DAYS (the form
-         allows up to 69 days) the occurrence it picked was always older than the
-         catch-up cutoff, so sweepDueEvents counted it stale and said nothing at
-         all: a two-week reminder was silent forever. It could also skip a genuine
-         missed occurrence outright, because looking forward from `now - lead`
-         steps straight over anything earlier.
+         INVARIANT: this is the only place `lastFired` is interpreted. It holds
+         the occurrence stamp that was announced, which is what stops a one-off
+         repeating while leaving a recurring event free to fire again.
 
-         fireAt rises monotonically with the occurrence, so "the latest one whose
-         alert has passed" is simply the last occurrence to have started by
-         `now + leadTime` — one previousOccurrence call, no walking. */
+         A reminder means the LATEST due occurrence. fireAt rises monotonically
+         with the occurrence, so that is the last one to have started by
+         `now + leadTime` — one previousOccurrence call, no walking.
+
+         TRAP: searching forward from `now - leadTime` looks equivalent and is
+         the v4.0.3 bug. nextOccurrence returns the FIRST match in the window,
+         i.e. the oldest pending one — the opposite of a reminder. It left
+         daily events permanently one lead behind, silenced any lead longer
+         than CATCHUP_DAYS outright (the form allows up to 69 days), and
+         stepped straight over genuinely missed occurrences. */
       function dueOccurrence(event, now) {
         if (!hasAlert(event)) return null;
         const limit = new Date(
@@ -10417,7 +11707,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           showStatus(
             `Maximum of ${MAX_WINDOWS} windows reached — close one first.`
           );
-          return;
+          return null; // see the note on the other cap guards
         }
         const calid = deskInstanceId("calendar", targetMode);
         if (document.getElementById(calid)) {
@@ -10471,7 +11761,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             <input type="text" class="cal-filter" data-lock-exempt="true" id="cal-filter-${calid}" placeholder="Search events..." aria-label="Search events by title or note">
             <button type="button" id="cal-add-${calid}" onclick="calOpenForm('${calid}')">Add event</button>
           </div>
-          <div class="cal-lower" id="cal-lower-${calid}"></div>
+          <!-- tabindex, and it is not optional: this is the calendar's one
+               scroller, and on a short screen (a phone on its side gives the
+               page ~293px) it really does overflow. A scrollable region with
+               no tab stop cannot be scrolled by keyboard at all — axe reports
+               it as scrollable-region-focusable, which is how it was found.
+               Focusable needs a name, hence the label. -->
+          <div
+            class="cal-lower"
+            id="cal-lower-${calid}"
+            tabindex="0"
+            role="group"
+            aria-label="Events"
+          ></div>
         </div>
       `;
         windowsContainer.appendChild(newWindow);
@@ -10832,8 +12134,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         part("cal-f-time").value = editing && editing.time ? editing.time : "09:00";
         part("cal-f-allday").checked = editing ? editing.allDay : false;
         part("cal-f-repeat").value = editing ? editing.repeat : "none";
-        const hasAlert = editing ? editing.alertMinutes !== null : true;
-        part("cal-f-alert-on").checked = hasAlert;
+        const alertOn = editing ? editing.alertMinutes !== null : true;
+        part("cal-f-alert-on").checked = alertOn;
         part("cal-f-alert").value =
           editing && editing.alertMinutes !== null ? editing.alertMinutes : 0;
         part("cal-f-note").value = editing ? editing.note : "";
@@ -10943,16 +12245,16 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         if (alertMinutes !== null && alertSoundOn) primeAlertAudio();
 
         /* You cannot be reminded of something you are typing in right now.
-           Adding "dentist at 2:30" at nine in the evening used to fire the alert
-           the instant it was saved, because the occurrence was genuinely overdue
-           and the catch-up pass is meant to notice exactly that. Stamp it as
-           announced instead; a repeating event still fires next time round.
+           Adding "dentist at 2:30" at nine in the evening would otherwise fire
+           the instant it was saved — the occurrence really is overdue, and the
+           catch-up pass is built to notice exactly that. Stamp it as announced
+           instead; a repeating event still fires next time round.
 
-           The test is the EVENT's start, not the alert's. An event twenty
-           seconds away with a one-minute lead has a fire time in the past and is
-           still worth announcing the moment it is saved — you asked to be told
-           before it, and "before" is now. Only an event whose own time has been
-           and gone is history. */
+           TRAP: testing the ALERT's fire time here instead of the EVENT's
+           start. An event twenty seconds away with a one-minute lead has a
+           fire time in the past and is still worth announcing on save — you
+           asked to be told before it, and "before" is now. Only an event whose
+           own time has been and gone is history. */
         const now = new Date();
         const alreadyPast = dueOccurrence(record, now);
         if (alreadyPast && occurrenceStart(record, alreadyPast) <= now) {
@@ -10993,6 +12295,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       let tooltipHideTimer = null;
 
       function showNavTooltip(target) {
+        // A hover tip is a mouse affordance. On touch the synthesised
+        // mouseenter arrives with the tap that already ran the button, so the
+        // tip pops up over the toolbar it was meant to explain, after the
+        // fact, with nothing to dismiss it.
+        if (mobileUI) return;
         const text = target.getAttribute("data-tooltip");
         if (!text) return;
         const type = target.getAttribute("data-tooltip-type");
@@ -11124,20 +12431,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         navTooltip.classList.remove("visible");
       }
 
-      /* Every toolbar button already carries a full description in data-tooltip,
-         but that is a custom div a screen reader never sees, and the visible
-         labels ("T2", "Calc") don't stand on their own. Derive the accessible
-         name from the tooltip instead of hand-writing 16 of them.
+      /* Accessible names for the toolbar, derived from data-tooltip rather
+         than hand-written 16 times. The tooltip is a custom div no screen
+         reader sees, and the visible labels ("T2", "Calc") don't stand alone.
 
-         The visible text has to survive into that name. Using the tooltip alone
-         gave "Tasks" the accessible name "New Task List", "Theme" the name
-         "Toggle Dark/Light Mode" and so on — which reads fine but breaks
-         speech control: "click Theme" finds nothing, because the name a user
-         can see is not in the name the browser exposes. (WCAG 2.5.3 Label in
-         Name; Lighthouse flags it as label-content-name-mismatch.) So the
-         visible word leads, and the description follows it. Buttons whose
-         tooltip already contains their label — "Calendar" in "Toggle
-         Calendar" — are left alone rather than made to stutter. */
+         INVARIANT: the visible word leads, then the description. WCAG 2.5.3
+         Label in Name — the name a user can see must be inside the name the
+         browser exposes.
+
+         TRAP: using the tooltip alone. It reads fine ("Tasks" becomes "New
+         Task List") and breaks speech control, because "click Theme" then
+         matches nothing. Lighthouse flags it as label-content-name-mismatch.
+         Buttons whose tooltip already contains their label ("Calendar" in
+         "Toggle Calendar") are left alone rather than made to stutter. */
       document.querySelectorAll(".nav-menu [data-tooltip]").forEach((el) => {
         const tip = el.getAttribute("data-tooltip") || "";
         const visible = (el.textContent || "").trim();
@@ -11165,6 +12471,41 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         if (tooltipHideTimer) clearTimeout(tooltipHideTimer);
       });
       navTooltip.addEventListener("mouseleave", hideNavTooltip);
+
+      /* --- Getting the mobile sheet back out of the way ---
+         Expanded, it covers most of the screen, so every ordinary way of
+         saying "done" has to close it. All three are no-ops on desktop, where
+         the toolbar is a bar and stays put.
+
+         Delegated on .nav-menu and bubbling, which means it runs AFTER the
+         button's own inline onclick — so the action has already happened by
+         the time the sheet folds, and a handler that opens a modal (Protect,
+         Import) is not racing a class change. */
+      (function wireMobileNav() {
+        const navMenu = document.querySelector(".nav-menu");
+        const scrim = document.getElementById("nav-scrim");
+        if (!navMenu) return;
+
+        navMenu.addEventListener("click", (e) => {
+          if (!mobileUI) return;
+          const btn = e.target.closest("button, a");
+          // The ☰ itself already toggled; folding again here would make it
+          // impossible to open.
+          if (!btn || btn.classList.contains("nav-toggle")) return;
+          if (!navMenu.contains(btn)) return;
+          setNavCollapsed(true);
+        });
+
+        if (scrim) {
+          scrim.addEventListener("click", () => setNavCollapsed(true));
+        }
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key !== "Escape" || !mobileUI) return;
+          if (navMenu.classList.contains("collapsed")) return;
+          setNavCollapsed(true);
+        });
+      })();
 
       // Minimizing used to hide a window with the only route back being an
       // undiscoverable hover tooltip. refreshChrome() puts a restore chip in
@@ -11312,8 +12653,49 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           }
         };
 
+        /* --- Two fingers ---
+           A fifth way in, and the only one a phone has: Ctrl+wheel is the
+           trackpad pinch, but a touchscreen pinch arrives as two pointers and
+           nothing else. Tracked here rather than with touch events so it uses
+           the same pointer stream as the pan it has to interrupt.
+
+           Registered for EVERY touch pointer, including ones that land on a
+           window — pinching over a note is the natural gesture, and requiring
+           bare background would make zoom unreachable on a busy canvas.
+           makeDraggable already ignores a second finger, so a drag in flight
+           simply stops moving while the pinch runs.
+
+           TRAP: the browser eats the second finger as a page zoom unless
+           touch-action is off the layer. That is set in the mobile section of
+           the stylesheet, and only there — a touchscreen desktop must keep
+           its normal scrolling over the canvas. */
+        const touches = new Map();
+        let pinch = null;
+
+        const pinchSpan = () => {
+          const [a, b] = Array.from(touches.values());
+          return {
+            dist: Math.hypot(a.x - b.x, a.y - b.y),
+            cx: (a.x + b.x) / 2,
+            cy: (a.y + b.y) / 2,
+          };
+        };
+
         layer.addEventListener("pointerdown", (e) => {
           if (!view.on) return;
+          if (e.pointerType === "touch") {
+            touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (touches.size === 2) {
+              // A pan may already be running on the first finger. Stand it
+              // down rather than letting the two gestures both write view.x.
+              endPan({ pointerId: panPointerId });
+              const span = pinchSpan();
+              pinch = { dist: span.dist, zoom: view.zoom };
+              e.preventDefault();
+              return;
+            }
+            if (touches.size > 2) return;
+          }
           const middle = e.button === 1;
           // Left-drag pans only on the bare surface. Starting one on a window
           // would fight that window's own drag handler.
@@ -11324,6 +12706,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         });
 
         layer.addEventListener("pointermove", (e) => {
+          if (pinch && touches.has(e.pointerId)) {
+            touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+            if (touches.size < 2) return;
+            const span = pinchSpan();
+            if (!span.dist || !pinch.dist) return;
+            e.preventDefault();
+            markInteracting();
+            // Anchored on the midpoint, exactly like Ctrl+wheel anchors on
+            // the pointer: the pixel between the fingers is the one that must
+            // not move, or the canvas slides out from under the gesture.
+            setZoom((pinch.dist ? span.dist / pinch.dist : 1) * pinch.zoom, span.cx, span.cy);
+            return;
+          }
           if (panPointerId === null || e.pointerId !== panPointerId) return;
           view.x = panStart.viewX + (e.clientX - panStart.x);
           view.y = panStart.viewY + (e.clientY - panStart.y);
@@ -11345,8 +12740,28 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           document.body.classList.remove("canvas-panning");
           saveSession();
         };
-        layer.addEventListener("pointerup", endPan);
-        layer.addEventListener("pointercancel", endPan);
+        /* Lifting one of two fingers must not silently re-arm the pinch off
+           the finger that is still down — the next pointerdown would compare
+           against a distance measured with a hand that has since moved. The
+           gesture ends when it stops being two fingers, full stop; a save is
+           owed because setZoom() changed the view and only endPan() would
+           otherwise have written it. */
+        const endTouch = (e) => {
+          if (!touches.delete(e.pointerId)) return;
+          if (pinch && touches.size < 2) {
+            pinch = null;
+            saveSession();
+          }
+        };
+
+        layer.addEventListener("pointerup", (e) => {
+          endTouch(e);
+          endPan(e);
+        });
+        layer.addEventListener("pointercancel", (e) => {
+          endTouch(e);
+          endPan(e);
+        });
 
         // Passive:false because both branches preventDefault — otherwise the
         // browser zooms the whole page on Ctrl+wheel and we fight it.
@@ -11474,9 +12889,29 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // The world is sized from the viewport, so a resize can grow it (it
           // never shrinks) and always invalidates the pan clamp.
           if (view.on) applyView();
-          // This desk only: clampWindowIntoView() ignores the other one anyway,
-          // but iterating it here would be claiming otherwise.
-          modeWindows().forEach((el) => clampWindowIntoView(el));
+          /* The map has TWO update paths and applyView() only drives one of
+             them. It repaints the viewport frame and re-sizes the map box, but
+             the window blocks inside are rebuilt on their own debounce, fired
+             by add / close / minimise / restore / drag / resize-of-a-window —
+             none of which a viewport resize is.
+
+             So the blocks kept the pixel positions they were given under the
+             OLD world while the map around them was rescaled to the new one:
+             rotate a phone and every block was in the wrong place, at the
+             wrong size, until you happened to touch a window. Latent on
+             desktop, where resizing the browser with the canvas open is rare;
+             unmissable on a phone, where rotating it is not. */
+          if (view.on) scheduleMapWindows();
+          /* Skipped in stack mode, where this fires every time the on-screen
+             keyboard opens. Nothing there is reachable-or-not by position —
+             every window is the whole screen — but clampWindowIntoView()
+             still writes dataset.x/y, so a few taps into a note would have
+             walked the desktop positions of every open window. */
+          if (!stackMode()) {
+            // This desk only: clampWindowIntoView() ignores the other one anyway,
+            // but iterating it here would be claiming otherwise.
+            modeWindows().forEach((el) => clampWindowIntoView(el));
+          }
           setMaxDimensions();
           debouncedSave(200);
         }, 150);

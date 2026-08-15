@@ -2,9 +2,9 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.1.1`  
-**Released:** August 5, 2026  
-**Size:** ~253 KB (single file)  
+**Version:** `v4.2.0`  
+**Released:** August 15, 2026  
+**Size:** ~518 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
@@ -39,15 +39,47 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 - **One-click HTML download** — Save a blank standalone `cbapp.html`; copies carry the program only, never your notes
 - **Dark & Light themes**, both meeting WCAG AA contrast
 - **Keyboard shortcuts** and full focus-ring support
-- **Touch and pen support** — works on tablets and phones
+- **Two layouts, chosen by the device** — the familiar windowed desktop, and a
+  phone layout where the toolbar is a bottom sheet and windows fill the screen
+  (see [Two shapes](#two-shapes))
+- **Touch and pen support** — drag, resize and pinch-zoom on tablets and phones
 - **T2 Template** — Quick support ticket template for enterprise workflows
 - Fully offline — no external dependencies after the initial load
 
 ---
 
+## Two shapes
+
+CB App lays itself out two different ways, chosen by the device rather than by
+you. Both are the same app and the same session — only the arrangement differs.
+
+**Desktop** is the original: a toolbar along the bottom, windows you drag and
+resize freely.
+
+**Phone** (new in v4.2.0):
+
+- the toolbar rests collapsed as a **☰ bottom sheet** that closes itself again
+  after any action, instead of twenty buttons wrapped into four rows
+- windows are **full-bleed and stacked** rather than floating, with a tab strip
+  along the top to switch between them
+- dragging and resizing are off — every window is already the whole screen
+- the canvas keeps its world, and gains **pinch-to-zoom** and a phone-sized
+  minimap
+
+The switch happens at `(max-width: 720px) and (pointer: coarse)`,
+`(max-height: 520px) and (pointer: coarse)`, or `(max-width: 560px)`. The
+pointer test earns its place: a desktop browser with devtools docked is often
+under 720px wide but still has a mouse, and it keeps the desktop layout. So
+does the height clause — a phone in landscape is *wider* than 720px.
+
+Nothing about the phone layout reaches a desktop, and the test suite has a
+block whose only job is to fail if it ever does.
+
+---
+
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.1.1)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.2.0)
 
 Simply save the file and open it in your browser.
 
@@ -63,11 +95,13 @@ No installation or server required.
 ### Table of Contents
 
 - [Features](#features)
+- [Two shapes](#two-shapes)
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v3.0](#whats-new-in-v30)
+- [What's New in v4.2.0](#whats-new-in-v420)
 - [What's New in v3.1](#whats-new-in-v31)
+- [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
 
 ---
@@ -81,6 +115,10 @@ No installation or server required.
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> | Search / replace |
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>W</kbd> | Close the active window |
 | <kbd>Esc</kbd> | Close search, or cancel a rename |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+arrows | Move the active window |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>=</kbd> / <kbd>-</kbd> | Zoom the canvas in / out |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>0</kbd> | Canvas back to 100% |
+| <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>9</kbd> | Fit all windows on the canvas |
 
 The window with the highlighted outline is the active one — Copy, Paste and
 Search all act on it.
@@ -91,7 +129,10 @@ Search all act on it.
 
 - Keep `cbapp.html` in your Documents folder or a dedicated location
 - Create a bookmark or desktop shortcut for quick access
-- Use the in-app **Download .html** button regularly to back up your work
+- Use the in-app **Backup** button regularly to back up your work — it writes an
+  encrypted `.json` file, and **Import** reads it back. This is the only way to
+  move notes off a browser. **Download CB App** is a different thing: it saves a
+  blank copy of the *program*, with none of your notes in it.
 - The app works best when opened from within an active Enterprise Browser session
 
 > **Note on pasting:** the asynchronous clipboard API is unavailable when a page
@@ -157,9 +198,51 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
+## What's New in v4.2.0
+
+**A phone layout** — see [Two shapes](#two-shapes). Until now the app was
+shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
+four rows and ate a quarter of the display, and the 557px windows underneath
+put their own close and minimise buttons past the right edge with no way to
+reach them.
+
+Building it turned up four bugs that were never phone-specific:
+
+- **Every note in the app clipped its own word count.** The height arithmetic
+  summed the window chrome from constants and omitted three 10px flex gaps, so
+  every note was 30px shorter than its own contents — invisible, because
+  windows are `overflow: hidden`, with no scrollbar to say so. It only became
+  *noticeable* on a phone, where the same 30px is a much larger share of the
+  window.
+- **A restored note was capped to the size of the screen instead of the
+  canvas**, hiding the bottom of it. A `ResizeObserver` usually raced in and
+  corrected it afterwards — which is why it looked intermittent, why resizing
+  the window appeared to fix it, and why it reproduced on a real phone and on
+  no emulator.
+- **The minimap's blocks stopped tracking the world after a viewport change.**
+  They kept their old pixel positions while the map around them was rescaled,
+  so rotating a phone put every block in the wrong place until you touched a
+  window.
+- **Reset wiped the layout** along with the theme.
+
+Also in this release: pinch-to-zoom on the canvas, a minimap sized for a phone,
+a keyboard-scrollable calendar list, and a lint pass that took the project from
+eleven standing warnings to zero — now gated, so the next one fails the check.
+
+Testing grew with it: both phone orientations are gates now rather than
+courtesy runs, alongside a layout suite that asserts no window ever hides its
+own contents, and pixel baselines for each shape.
+
+> **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
+> events ride Protect and Backup), Backup became always-encrypted, and the
+> corner lock button and first axe-core pass landed in v4.1. See
+> [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 ## Technical Notes
 
-- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~253KB` file.
+- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~518KB` file, with no build step.
 - **Persistence** — Uses `localStorage` under the key `notepadSession`.
 - **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
 - **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 (210,000 iteration) key, with a fresh salt and IV per file. There is no plaintext backup path.
@@ -172,7 +255,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.1.1)
+├── cbapp.html          # The complete application (v4.2.0)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -185,4 +268,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.1.1** — A self-contained productivity workspace that just works.
+**CB App v4.2.0** — A self-contained productivity workspace that just works.
