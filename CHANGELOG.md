@@ -7,6 +7,172 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.5.1] — 2026-08-16
+
+### Fixed — the history list belongs to one calculator at a time
+
+Reported within an hour of v4.5.0: `7:15 - 5:30 = 1:45 (1.75 h)` showing under
+the Energy Cost panel.
+
+v4.5.0 shipped a single unfiltered scrollback on the theory that a shift total,
+an energy cost and a conversion in one list was useful. On screen it is not.
+The list sits directly beneath the panel with nothing between them, so a row
+from the expression calculator reads as the Energy Cost fields' own answer —
+and there is no way for the reader to work out that it is not.
+
+Every row is stamped with the calculator that produced it, and the view is
+filtered to the one showing. The heading above the list names it
+("Energy Cost history"), because an empty list is otherwise ambiguous between
+"nothing yet" and "something broke". Switching type swaps the list; nothing is
+lost by switching away, and switching back brings it straight back.
+
+**Clear History clears what is on screen** — this calculator's rows and not the
+other four's. A button that wipes work you cannot see is worse than one that
+needs pressing twice.
+
+The stamp rides the session, so rows land back under the right calculator after
+a reload. Sessions written before this release carry no stamp; those rows can
+only have come from the expression calculator, which was the only one there
+was, so they are read as Standard rather than disappearing into a list nothing
+can reach.
+
+Also folded in: the Standard calculator pushed straight at the history array
+instead of going through `calcRecord`, which made it the one result that could
+outrun `MAX_HISTORY`. It goes through the same path as every other mode now.
+
+---
+
+## [4.5.0] — 2026-08-16
+
+### Added — the Calculator is five calculators now
+
+The Clock has a dropdown that changes what it shows. The Calculator gets the
+same control, for a better reason: the toolbar has no room for five more
+buttons, and the arithmetic this app kept being used as a staging post for is
+worth doing properly.
+
+Pick a **Type** at the top of the window:
+
+- **Standard** — the expression calculator, unchanged, times included (v4.4.0).
+- **Time Card** — a start, an end and a break in minutes. *Add shift* keeps a
+  running list with the total in both h:mm and decimal hours. An end before the
+  start is read as overnight, which is the case the panel exists for: 22:00 to
+  06:15 is 8:15, not a negative number. A break longer than the shift is
+  refused rather than added, because a negative row in a total someone gets
+  paid from is the worst failure this could have. The list is saved with the
+  session.
+- **Energy Cost** — watts, hours per day, days, rate per kWh. Returns the kWh
+  used, the cost, and what that comes to per day and per year. The `/1000` is
+  the step people get wrong by a factor of a thousand; it happens here.
+- **Ohm's Law** — fill in any two of volts, amps, ohms and watts, press Solve,
+  and the other two are worked out *and written into the empty boxes*, so the
+  panel reads as a finished circuit. All six pairs are written out rather than
+  derived — the square-root cases (R and P) do not fall out of a generic solver
+  and getting one wrong is silent.
+- **Liquid Volume** — US gallons, imperial gallons, litres, millilitres,
+  quarts, pints, cups, fluid ounces and cubic metres, any one to any other.
+  Both gallons are here and both are named: "gallon" alone is a 20% error
+  between the two systems.
+
+**They share one history and one Clear History button.** A shift total, a
+kilowatt-hour cost and a gallons-to-litres conversion in the same scrollback is
+the point — the window is a worksheet, not five tools that happen to overlap.
+
+**Enter submits whichever panel you are standing in**, so none of them is
+mouse-only.
+
+### The extension point is the registry
+
+`CALC_MODES` is a list of `{ id, label, panel }`. Adding an entry and a handler
+gets you the dropdown option, the panel, the show/hide, the saved-mode
+allowlist and the restore path with no further edits — the request that
+produced this release ended "and others", and the next one will too. The test
+suite asserts the registry rather than a hard-coded list of five, so a sixth
+calculator is covered the moment it is added.
+
+### Session
+
+The chosen type and the Time Card's rows ride the session, Protect and Backup.
+Field values do not: a half-typed voltage is not worth carrying across a
+reload, a week of logged shifts is. A saved type this build has never heard of
+opens on Standard rather than showing an empty window, and a shift row that
+does not parse is dropped rather than failing the whole import.
+
+---
+
+## [4.4.0] — 2026-08-16
+
+### Fixed — narrowing the browser no longer eats the layout
+
+Split a Chrome tab, snap the window to half the screen, or drag the tab edge
+in, and every open window slid toward the top-left and stayed there. Widening
+it again gave nothing back. It is the same symptom devtools produced before
+v4.2.0, arriving by a different route — and this time the cause is not the
+phone breakpoint at all.
+
+`clampWindowIntoView()` runs on every viewport resize and pulls anything
+hanging off the edge back into view, which is correct. What was wrong is that
+it wrote the result back to `dataset.x/y` — the *only* record of where the
+window was. A 640px viewport cannot hold a note at x=900, so the clamp moved
+it; the coordinate it moved was also the coordinate it would have needed to
+put it back. Each resize event overwrote the layout with a squeezed version of
+itself, and a save from a narrow window carried that into the session and into
+Backup.
+
+So position and *intent* are two fields now. `dataset.homeX/homeY` is where
+the user put a window — a drag, a keyboard nudge, a placement, a restore.
+`dataset.x/y` is where it currently is. The clamp reads home and never writes
+it, which makes it a projection rather than an edit: idempotent, and reversed
+the moment the width comes back. What goes into the session is home, for the
+same reason `measuredBox()` refuses to persist a phone's full-bleed size.
+
+### Added — the calculator does time
+
+The team using this app tracks time, and the calculator could not do the one
+piece of arithmetic that job is made of: `7:30 - 6:15` had to be converted to
+minutes by hand, subtracted, and converted back. Every one of those steps is a
+chance to be wrong about an hour someone gets paid for.
+
+Values now carry a unit as well as a number, and the operators mean what they
+should:
+
+```
+7:30 - 6:15   = 1:15 (1.25 h)      what a shift actually came to
+1:30 + 0:45   = 2:15 (2.25 h)
+1:30 * 3      = 4:30 (4.5 h)       three of them
+7:30 / 3      = 2:30 (2.5 h)       split three ways
+7:30 / 1:30   = 5                  how many fit
+```
+
+- **Both readings, always.** A time answer is shown as `1:15 (1.25 h)`.
+  Timesheets take decimal hours, clocks and stopwatches do not, and neither
+  conversion should need a second trip through the calculator.
+- **Both entry forms too.** `90m` and `1.5h` are durations, and `h:mm:ss` is
+  accepted so a stopwatch reading can be pasted in as it stands. Durations are
+  held in seconds internally, so `7:30 / 3` lands on 2:30 rather than on a
+  rounded remainder.
+- **The nonsense combinations are refused, not guessed.** `8:00 + 2` is two of
+  what? `0:30 * 0:30` is an area of hours. Each throws with a sentence naming
+  the fix, and the display shows that sentence instead of a bare "Error" —
+  which is a change to the error path generally: `5/0` now says "Division by
+  zero".
+- **The 0 key gave up its double width for a `:` key.** A colon is otherwise
+  unreachable on a touch keypad, and h:mm is the entry mode this calculator is
+  used in most. Tapping it into an empty field types `0:`, because `:30` is not
+  a time and `0:30` is.
+- **Plain arithmetic is byte-for-byte unchanged.** An expression with no time
+  literal and no unit suffix takes the path it always took: `2+3*4` is 14,
+  `10/4` is 2.5, `√9` is 3.
+
+### Tests
+
+Nine new assertions across five tests: the full operator table including every
+refusal, a shift worked end to end through the real window, the `:` key, and
+two geometry tests that narrow the viewport to 700px and assert both that the
+layout comes back and that the squeeze never reaches the session.
+
+---
+
 ## [4.3.0] — 2026-08-16
 
 ### Changed — the calendar window looks like the rest of the app now

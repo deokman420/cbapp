@@ -60,7 +60,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CB App" />
     <meta name="application-name" content="CB App" />
-    <!-- CB App v4.3.0 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.5.1 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -325,6 +325,110 @@
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 5px;
+      }
+
+      /* --- The calculator's type switcher and its panels (v4.5.0) ---
+
+         One window, several calculators. The switcher is a <select> for the
+         same reason the clock's 12/24 control is one: the list is meant to
+         GROW, and a row of buttons stops fitting a 350px window at about the
+         fourth. See CALC_MODES in the script — adding an entry there and a
+         panel builder is the whole cost of a new calculator.
+
+         Every panel except Standard is built from .calc-field rows, so they
+         all line up at the same label column and a new one inherits the
+         layout instead of inventing another. */
+      .calc-mode-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .calc-mode-row label {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        white-space: nowrap;
+      }
+      .calculator-mode {
+        flex: 1;
+        min-width: 0;
+        padding: 8px;
+        border-radius: 8px;
+        font-size: 14px;
+      }
+      /* [hidden] alone is display:none at a specificity of zero, which any
+         later display rule would win. Stated explicitly so a panel that is off
+         is off. */
+      .calc-panel[hidden] {
+        display: none;
+      }
+      .calc-field {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 8px;
+      }
+      /* A fixed label column, not `flex: 1` on both sides: the labels differ
+         wildly in length ("Volts (V)" against "Hours per day") and a shared
+         basis is the only thing that keeps the inputs on one edge. */
+      .calc-field label {
+        flex: 0 0 46%;
+        /* The cap is for the phone, where the window is full-bleed: 46% of
+           430px is a label column with 160px of empty space in it, and the
+           input pushed to the far edge reads as belonging to nothing. At the
+           350px desktop width 46% is already ~160, so this changes nothing
+           there. */
+        max-width: 160px;
+        font-size: 12px;
+        color: var(--text-dim);
+      }
+      .calc-field input,
+      .calc-field select {
+        flex: 1;
+        min-width: 0;
+        padding: 8px;
+        border-radius: 8px;
+        /* 16px, not smaller: iOS Safari zooms the whole page when a field
+           under 16px takes focus. That shipped once already, in v4.2.0. */
+        font-size: 16px;
+      }
+      .calc-actions {
+        display: flex;
+        gap: 6px;
+        margin: 10px 0;
+      }
+      .calc-actions button {
+        flex: 1;
+      }
+      .calc-out {
+        width: 100%;
+        padding: 10px;
+        border-radius: 8px;
+        font-size: 15px;
+        line-height: 1.5;
+        min-height: 44px;
+        box-sizing: border-box;
+        /* The answer can be three lines (Ohm's Law solves for two unknowns and
+           shows all four). Nothing here may clip it. */
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .calc-note {
+        font-size: 11px;
+        color: var(--text-dim);
+        margin: 6px 0 0;
+      }
+      /* Names the list below it. The history is filtered to the calculator
+         showing, and without a heading an empty one is ambiguous between
+         "nothing yet" and "something broke". */
+      .calc-history-head {
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+        margin: 12px 0 4px;
       }
       .calculator-buttons button,
       .log-input-container button {
@@ -1015,6 +1119,10 @@
       .task-input,
       .calculator-input,
       .calculator-display,
+      .calculator-mode,
+      .calc-field input,
+      .calc-field select,
+      .calc-out,
       .log-input,
       .cal-content input[type="text"],
       .cal-content input[type="date"],
@@ -1028,7 +1136,8 @@
         font-family: var(--mono);
       }
 
-      .calculator-display {
+      .calculator-display,
+      .calc-out {
         background: var(--bg-card-hover);
       }
 
@@ -1092,6 +1201,7 @@
 
       .nav-menu button:hover,
       .nav-menu a:hover,
+      .calc-actions button:hover,
       .calculator-buttons button:hover,
       .log-input-container button:hover,
       .note-log-button:hover,
@@ -1106,6 +1216,7 @@
       }
 
       .calculator-buttons .operation,
+      .calc-actions .operation,
       .log-input-container button,
       .note-log-button {
         background: var(--accent-dim);
@@ -1120,6 +1231,7 @@
          shared nav rules already style every toolbar button identically. */
 
       .calculator-buttons .special,
+      .calc-actions .special,
       .clear-note-button {
         background: color-mix(in srgb, var(--danger) 16%, transparent);
         color: var(--danger);
@@ -4863,7 +4975,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.3.0";
+      const CB_APP_VERSION = "4.5.1";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -5119,11 +5231,42 @@
             return {
               expression: String(h.expression ?? "").slice(0, 500),
               result: String(h.result ?? "").slice(0, 100),
+              // Which calculator produced the row. Absent in every session
+              // written before v4.5.1, and absent means the expression
+              // calculator, which was the only one there was.
+              calcMode: CALC_MODE_IDS.includes(h.calcMode) ? h.calcMode : "standard",
             };
           });
+          /* Time Card rows. Validated as hard as the history above and for the
+             same reason — this comes off disk, and a Backup file is something
+             a user can be handed. A row that does not parse is DROPPED rather
+             than failing the import: one bad shift must not cost someone the
+             rest of their week. */
+          const shifts = (Array.isArray(raw.shifts) ? raw.shifts : [])
+            .slice(0, MAX_HISTORY)
+            .map((s, i) => {
+              assertPlainObject(s, `${label}.shifts[${i}]`);
+              const clock = /^([01]\d|2[0-3]):[0-5]\d$/;
+              const start = String(s.start ?? "");
+              const end = String(s.end ?? "");
+              const brk = Number(s.brk);
+              if (!clock.test(start) || !clock.test(end)) return null;
+              return {
+                start,
+                end,
+                brk: Number.isFinite(brk) && brk >= 0 ? Math.min(brk, 1440) : 0,
+              };
+            })
+            .filter(Boolean);
           return {
             ...common,
             history,
+            shifts,
+            // Never coerced to "standard" silently on a typo'd id the app DOES
+            // know — the allowlist is CALC_MODES itself, so a session written
+            // by a build with more calculators than this one degrades to
+            // Standard instead of showing an empty window.
+            calcMode: CALC_MODE_IDS.includes(raw.calcMode) ? raw.calcMode : "standard",
             width: String(raw.width ?? "250").slice(0, 20),
           };
         }
@@ -5569,7 +5712,7 @@
         const record = {
           visible: true,
           mode: windowMode(el),
-          position: { left: el.dataset.x || "50", top: el.dataset.y || "50" },
+          position: savedPosition(el),
           locked: el.dataset.locked === "true",
           minimized: el.style.display === "none",
         };
@@ -5582,6 +5725,8 @@
         } else if (base === "calculator") {
           record.width = el.dataset.width || "250";
           record.history = stateFor(el.id).history;
+          record.shifts = stateFor(el.id).shifts;
+          record.calcMode = calculatorMode(el.id);
         } else if (base === "calendar") {
           record.width = el.dataset.width || "480";
           record.height = el.dataset.height || "640";
@@ -6999,6 +7144,11 @@
         if (!s) {
           s = {
             history: [],
+            // The Time Card's rows. Kept beside history rather than inside it
+            // because a shift is structured — start, end, break — and the
+            // running total has to be recomputed from the numbers, not parsed
+            // back out of a history line.
+            shifts: [],
             entries: [],
             stopwatch: { interval: null, start: null, elapsed: 0 },
             countdown: { interval: null, endTime: null, active: false },
@@ -7746,11 +7896,78 @@
           cascadeAnchor.x + offset,
           cascadeAnchor.y + offset
         );
-        element.style.left = `${spot.x}px`;
-        element.style.top = `${spot.y}px`;
-        element.dataset.x = spot.x;
-        element.dataset.y = spot.y;
+        moveWindowTo(element, spot.x, spot.y);
         return spot;
+      }
+
+      /* ==========================================================
+         HOME vs. CURRENT POSITION
+         ----------------------------------------------------------
+         dataset.x/y is where a window IS. dataset.homeX/homeY is where the
+         user PUT it. They are the same number right up until the viewport is
+         too small to honour the second one.
+
+         WHY the split exists: clampWindowIntoView() runs on every viewport
+         resize, and it used to write its result straight back to dataset.x/y
+         — the only record of the position. Narrow the browser (a split Chrome
+         tab, a snapped half-screen, devtools docked to the side) and every
+         window is squeezed toward the top-left corner and the layout the user
+         built is overwritten, one clamp per resize event. Widening the window
+         again gave nothing back, because there was nothing left to give: the
+         wide coordinates had already been destroyed. The result was the pile
+         of stacked windows this comment exists to explain.
+
+         So the clamp is now a projection, not an edit. It reads home, writes
+         the visible position, and never touches home. Every resize therefore
+         re-derives from the same original layout instead of from the last
+         squeeze — the operation is idempotent, and going back to a wide window
+         restores exactly what was there before.
+
+         INVARIANT: home is written ONLY where the user expressed an intent —
+         a drag, a keyboard nudge, a fresh placement, a restore from session.
+         Anything that merely reacts to the viewport (this clamp,
+         setMaxDimensions, the stack-mode CSS) must leave it alone. */
+      function setWindowHome(element, x, y) {
+        if (!element) return;
+        element.dataset.homeX = x;
+        element.dataset.homeY = y;
+      }
+
+      // The saved layout falls back to the live position, so a window that
+      // predates this split — one restored from a session written by an older
+      // build — is adopted rather than snapped to 0,0.
+      function windowHome(element) {
+        const hx = parseFloat(element.dataset.homeX);
+        const hy = parseFloat(element.dataset.homeY);
+        return {
+          x: Number.isFinite(hx) ? hx : parseFloat(element.dataset.x) || 0,
+          y: Number.isFinite(hy) ? hy : parseFloat(element.dataset.y) || 0,
+        };
+      }
+
+      /* What goes in the session — the home position, not the clamped one.
+
+         The same reasoning measuredBox() applies to size: saving what a narrow
+         viewport made of a window carries the squeeze into the next boot and
+         into Backup, and hands it to the wide desktop the layout was actually
+         built on. Save the intent; let the clamp re-derive the rest. */
+      function savedPosition(el) {
+        // "50" preserves the fallback the three call sites carried inline: a
+        // window with no recorded position at all lands somewhere visible
+        // rather than in the very corner.
+        if (!el.dataset.homeX && !el.dataset.x) return { left: "50", top: "50" };
+        const home = windowHome(el);
+        return { left: String(home.x), top: String(home.y) };
+      }
+
+      // Move a window and record that as its layout: style, live position and
+      // home in one write, so no caller can set two of the three.
+      function moveWindowTo(element, x, y) {
+        element.style.left = `${x}px`;
+        element.style.top = `${y}px`;
+        element.dataset.x = x;
+        element.dataset.y = y;
+        setWindowHome(element, x, y);
       }
 
       // Sessions saved on a large monitor used to restore off-screen on a small
@@ -7763,16 +7980,18 @@
            where it lives. It is also display:none, so offsetWidth/Height read
            0 and the clamp would compute against a zero-sized box. */
         if (!inCurrentMode(element)) return;
+        const home = windowHome(element);
         const spot = clampToCanvas(
           element.offsetWidth,
           element.offsetHeight,
-          parseFloat(element.dataset.x) || 0,
-          parseFloat(element.dataset.y) || 0
+          home.x,
+          home.y
         );
         element.style.left = `${spot.x}px`;
         element.style.top = `${spot.y}px`;
         element.dataset.x = spot.x;
         element.dataset.y = spot.y;
+        // Deliberately NOT setWindowHome(). See the block comment above.
       }
 
       // Raise + focus. Previously .active was set but never styled, so nothing
@@ -7858,10 +8077,9 @@
           parseFloat(element.dataset.y) || 0,
           canvasBounds()
         );
-        element.style.left = `${spot.x}px`;
-        element.style.top = `${spot.y}px`;
-        element.dataset.x = spot.x;
-        element.dataset.y = spot.y;
+        // Home too: this is where a brand-new window was decided to live, and
+        // the position it should come back to after any later squeeze.
+        moveWindowTo(element, spot.x, spot.y);
       }
 
       function wireWindowFocus(element) {
@@ -8171,10 +8389,7 @@
             session[windowId] = {
               ...(ownSize || {}),
               mode: windowMode(windowElement),
-              position: {
-                left: windowElement.dataset.x || "50",
-                top: windowElement.dataset.y || "50",
-              },
+              position: savedPosition(windowElement),
               width: box.width,
               height: box.height,
               zIndex: parseInt(windowElement.style.zIndex) || 0,
@@ -8264,10 +8479,7 @@
             session[windowId] = {
               locked: stickyNote.dataset.locked === "true",
               mode: windowMode(stickyNote),
-              position: {
-                left: stickyNote.dataset.x || "50",
-                top: stickyNote.dataset.y || "50",
-              },
+              position: savedPosition(stickyNote),
               width: stickyBox.width,
               height: stickyBox.height,
               zIndex: parseInt(stickyNote.style.zIndex) || 0,
@@ -8692,6 +8904,41 @@ Big canvas
   Calendar events are the exception - there is one set of events and both
   calendars show it, because appointments are not window state.
 
+Calculator
+- The Type dropdown at the top changes which calculator the window is.
+- Each type keeps its own history, named in the heading above the list,
+  and Clear History clears the one you are looking at. Switching type
+  swaps the list; nothing is lost by switching away.
+- Standard - expressions and times, below.
+- Time Card - a start, an end and a break in minutes. Add shift keeps a
+  running list with the total in h:mm and in decimal hours. An end before
+  the start is treated as overnight. The list is saved with the session.
+- Energy Cost - watts, hours per day, days and your rate per kWh. Gives
+  the kWh used, the total, and what that is per day and per year.
+- Ohm's Law - fill in any two of volts, amps, ohms and watts and press
+  Solve; the other two are worked out and written into the empty boxes.
+- Liquid Volume - gallons (US and imperial), litres, millilitres, quarts,
+  pints, cups, fluid ounces and cubic metres, any one to any other.
+- Enter submits whichever panel you are standing in.
+
+Standard
+- Type an expression and press Enter or =. × and ÷ are resolved before
+  + and -, so 2+3*4 is 14.
+- It also does time. Write hours and minutes as h:mm and it works in
+  durations rather than decimals:
+      7:30 - 6:15   = 1:15    what a shift actually came to
+      1:30 + 0:45   = 2:15
+      1:30 * 3      = 4:30    three of them
+      7:30 / 3      = 2:30    split three ways
+      7:30 / 1:30   = 5       how many fit
+- Every time answer comes with its decimal hours next to it - 1:15
+  (1.25 h) - so a timesheet field and a clock reading never need a
+  second calculation.
+- You can type either form as input too: 90m and 1.5h are both durations,
+  and h:mm:ss is accepted for stopwatch readings.
+- Adding a plain number to a time is refused rather than guessed at
+  (8:00 + 2 is two of what?). Write 2:00, 120m or 2h.
+
 Calendar
 - Calendar in the toolbar opens a month grid. Click a day to see what is
   on it; a dot under a date means it holds something.
@@ -8864,6 +9111,466 @@ Enterprise browser
         }
       }
 
+      /* ==========================================================
+         ONE WINDOW, SEVERAL CALCULATORS (v4.5.0)
+         ----------------------------------------------------------
+         The Calculator is a singleton per desk, and the toolbar has no room
+         for five more buttons — so the window changes what it IS, the way the
+         clock's dropdown changes what it shows. Standard is the one that was
+         always here; the rest are the arithmetic this app kept being used as a
+         staging post for, done properly.
+
+         CALC_MODES is the whole extension point. An entry is:
+
+           id     the value stored in the session; never rename one, a saved
+                  session carries it
+           label  what the dropdown says
+           panel  (cid) => the markup for this mode's fields
+
+         Add an entry, write a `calcX(cid)` handler, and the switcher, the
+         restore path, the validator's allowlist and the panel show/hide all
+         pick it up with no further edits. That is deliberate: the request that
+         produced this release ended "and others", and the next one will too.
+
+         WHAT THEY SHARE. One history list, one Clear History button. A shift
+         total, a kilowatt-hour cost and a gallons-to-litres conversion sitting
+         in the same scrollback is the point — the window is a worksheet, not
+         five separate tools that happen to overlap.
+
+         WHAT THEY DON'T. Field values are not persisted, only the chosen mode
+         and the Time Card's rows. A half-typed voltage is not worth carrying
+         across a reload; a week of logged shifts is.
+         ========================================================== */
+
+      // Rows are all the same shape, so no panel has to lay itself out.
+      function calcField(cid, key, label, attrs = "") {
+        return `
+              <div class="calc-field">
+                <label for="calc-${key}-${cid}">${label}</label>
+                <input id="calc-${key}-${cid}" ${attrs}>
+              </div>`;
+      }
+
+      function calcSelect(cid, key, label, options, selected) {
+        const opts = options
+          .map(
+            (o) =>
+              `<option value="${o.id}"${o.id === selected ? " selected" : ""}>${o.label}</option>`
+          )
+          .join("");
+        return `
+              <div class="calc-field">
+                <label for="calc-${key}-${cid}">${label}</label>
+                <select id="calc-${key}-${cid}">${opts}</select>
+              </div>`;
+      }
+
+      /* Every unit is a factor to LITRES, so any pair converts through the
+         base with one multiply and one divide and the table never needs an
+         n×n grid. US and imperial gallons are both here and both named,
+         because "gallon" alone is a 20% error between them.
+
+         Extending this is adding a row. */
+      const LIQUID_UNITS = [
+        { id: "ml", label: "Millilitres (mL)", litres: 0.001 },
+        { id: "l", label: "Litres (L)", litres: 1 },
+        { id: "floz", label: "Fluid ounces (US fl oz)", litres: 0.0295735295625 },
+        { id: "cup", label: "Cups (US)", litres: 0.2365882365 },
+        { id: "pt", label: "Pints (US)", litres: 0.473176473 },
+        { id: "qt", label: "Quarts (US)", litres: 0.946352946 },
+        { id: "gal", label: "Gallons (US)", litres: 3.785411784 },
+        { id: "impgal", label: "Gallons (imperial)", litres: 4.54609 },
+        { id: "m3", label: "Cubic metres (m³)", litres: 1000 },
+      ];
+
+      const CALC_MODES = [
+        { id: "standard", label: "Standard", panel: () => "" },
+        {
+          id: "time",
+          label: "Time Card",
+          panel: (cid) => `
+            <div class="calc-panel" data-panel="time" id="calc-panel-time-${cid}" hidden>
+              ${calcField(cid, "time-start", "Start", 'type="time" step="60"')}
+              ${calcField(cid, "time-end", "End", 'type="time" step="60"')}
+              ${calcField(cid, "time-break", "Break (minutes)", 'type="number" min="0" step="1" value="0" inputmode="numeric"')}
+              <div class="calc-actions">
+                <button class="operation" onclick="calcAddShift('${cid}')">Add shift</button>
+                <button class="special" onclick="calcClearShifts('${cid}')">Clear shifts</button>
+              </div>
+              <div class="calc-out" id="calc-time-out-${cid}" aria-live="polite">No shifts yet.</div>
+              <p class="calc-note">An end before the start is treated as overnight.</p>
+            </div>`,
+        },
+        {
+          id: "energy",
+          label: "Energy Cost",
+          panel: (cid) => `
+            <div class="calc-panel" data-panel="energy" id="calc-panel-energy-${cid}" hidden>
+              ${calcField(cid, "energy-watts", "Power (watts)", 'type="number" min="0" step="any" inputmode="decimal" placeholder="1500"')}
+              ${calcField(cid, "energy-hours", "Hours per day", 'type="number" min="0" step="any" inputmode="decimal" placeholder="8"')}
+              ${calcField(cid, "energy-days", "Days", 'type="number" min="0" step="any" inputmode="decimal" value="30"')}
+              ${calcField(cid, "energy-rate", "Rate per kWh", 'type="number" min="0" step="any" inputmode="decimal" value="0.12"')}
+              <div class="calc-actions">
+                <button class="operation" onclick="calcEnergy('${cid}')">Calculate</button>
+              </div>
+              <div class="calc-out" id="calc-energy-out-${cid}" aria-live="polite">Enter a wattage.</div>
+              <p class="calc-note">Rate is whatever your bill is in — the answer comes back in the same currency.</p>
+            </div>`,
+        },
+        {
+          id: "ohms",
+          label: "Ohm's Law",
+          panel: (cid) => `
+            <div class="calc-panel" data-panel="ohms" id="calc-panel-ohms-${cid}" hidden>
+              ${calcField(cid, "ohms-v", "Volts (V)", 'type="number" step="any" inputmode="decimal"')}
+              ${calcField(cid, "ohms-i", "Amps (I)", 'type="number" step="any" inputmode="decimal"')}
+              ${calcField(cid, "ohms-r", "Ohms (R)", 'type="number" step="any" inputmode="decimal"')}
+              ${calcField(cid, "ohms-p", "Watts (P)", 'type="number" step="any" inputmode="decimal"')}
+              <div class="calc-actions">
+                <button class="operation" onclick="calcOhms('${cid}')">Solve</button>
+                <button class="special" onclick="calcClearOhms('${cid}')">Clear</button>
+              </div>
+              <div class="calc-out" id="calc-ohms-out-${cid}" aria-live="polite">Fill in any two.</div>
+            </div>`,
+        },
+        {
+          id: "liquid",
+          label: "Liquid Volume",
+          panel: (cid) => `
+            <div class="calc-panel" data-panel="liquid" id="calc-panel-liquid-${cid}" hidden>
+              ${calcField(cid, "liquid-value", "Amount", 'type="number" step="any" inputmode="decimal" value="1"')}
+              ${calcSelect(cid, "liquid-from", "From", LIQUID_UNITS, "gal")}
+              ${calcSelect(cid, "liquid-to", "To", LIQUID_UNITS, "l")}
+              <div class="calc-actions">
+                <button class="operation" onclick="calcLiquid('${cid}')">Convert</button>
+                <button class="operation" onclick="calcSwapLiquid('${cid}')">Swap</button>
+              </div>
+              <div class="calc-out" id="calc-liquid-out-${cid}" aria-live="polite">1 gal (US) = 3.785 L</div>
+            </div>`,
+        },
+      ];
+
+      const CALC_MODE_IDS = CALC_MODES.map((m) => m.id);
+
+      function calcModeOptions() {
+        return CALC_MODES.map(
+          (m) => `<option value="${m.id}">${m.label}</option>`
+        ).join("");
+      }
+
+      function calculatorMode(windowId) {
+        const el = document.getElementById(windowId);
+        const stored = el && el.dataset.calcMode;
+        return CALC_MODE_IDS.includes(stored) ? stored : "standard";
+      }
+
+      /* The one write. Panels are shown by data-panel rather than by a list of
+         ids, so a mode added to CALC_MODES needs no edit here. */
+      function setCalculatorMode(windowId, modeId, options = {}) {
+        const el = document.getElementById(windowId);
+        if (!el) return;
+        const next = CALC_MODE_IDS.includes(modeId) ? modeId : "standard";
+        el.dataset.calcMode = next;
+        el.querySelectorAll(".calc-panel").forEach((panel) => {
+          panel.hidden = panel.dataset.panel !== next;
+        });
+        const select = instancePart(windowId, "calculator-mode");
+        if (select && select.value !== next) select.value = next;
+        // The scrollback is per-calculator, so switching type changes which
+        // rows belong on screen. This is the only thing that repaints it on a
+        // switch — without it the Energy Cost panel keeps showing the
+        // expression calculator's last answer, which is the bug that produced
+        // this function's second parameter.
+        updateCalculatorHistory(windowId);
+        /* Nothing resizes the window here, deliberately. The calculator is
+           absolutely positioned with a width and NO height, so its box already
+           shrink-wraps whatever panel is showing — the four-field Ohm's Law
+           panel is simply a shorter window than the keypad. Writing a measured
+           height would pin it and break that for every later switch.
+
+           `silent` is for the two callers that are mid-build — creation and
+           restore — where a saveSession() would either be redundant or would
+           write a half-restored session back over the good one. */
+        if (!options.silent) saveSession();
+      }
+
+      /* Read a field as a finite number. Blank is null rather than 0 — Ohm's
+         Law has to tell "not given" from "given as zero", and NaN from an
+         empty box would otherwise read as a value. */
+      function calcNumber(cid, key) {
+        const input = document.getElementById(`calc-${key}-${cid}`);
+        if (!input) return null;
+        const text = input.value.trim();
+        if (text === "") return null;
+        const n = parseFloat(text);
+        return Number.isFinite(n) ? n : null;
+      }
+
+      function calcSetOut(cid, key, text) {
+        const out = document.getElementById(`calc-${key}-out-${cid}`);
+        if (out) out.textContent = text;
+      }
+
+      /* Every mode lands here, so one place decides what a result looks like
+         in the scrollback and one place caps the list. */
+      /* Every mode lands here, so one place decides what a result looks like
+         in the scrollback, one place caps the list, and one place stamps which
+         calculator produced it.
+
+         THE STAMP IS THE POINT. v4.5.0 shipped a single unfiltered list on the
+         theory that a shift total, an energy cost and a conversion in the same
+         scrollback was useful. On screen it is not: the list sits directly
+         under the panel with nothing between them, so `7:15 - 5:30 = 1:45`
+         under the Energy Cost fields reads as Energy Cost's own answer, wrong
+         by a factor of nothing anyone could work out. Rows are tagged and the
+         view is filtered to the calculator you are looking at. */
+      function calcRecord(windowId, expression, result, calcMode) {
+        const history = stateFor(windowId).history;
+        history.push({
+          expression,
+          result,
+          calcMode: calcMode || calculatorMode(windowId),
+        });
+        if (history.length > MAX_HISTORY) history.shift();
+        updateCalculatorHistory(windowId);
+        saveSession();
+      }
+
+      // Trim a float to at most `places` decimals without leaving "3.7850000".
+      function calcRound(value, places = 3) {
+        const factor = Math.pow(10, places);
+        return String(Math.round(value * factor) / factor);
+      }
+
+      function calcMoney(value) {
+        return value.toFixed(2);
+      }
+
+      // --- Time Card ------------------------------------------------------
+
+      function calcShiftSeconds(shift) {
+        const [sh, sm] = shift.start.split(":").map(Number);
+        const [eh, em] = shift.end.split(":").map(Number);
+        let seconds = (eh * 60 + em - (sh * 60 + sm)) * 60;
+        // A shift that ends "before" it started is one that crossed midnight.
+        // Refusing it would be wrong for exactly the people this is for.
+        if (seconds < 0) seconds += 24 * 3600;
+        return seconds - shift.brk * 60;
+      }
+
+      function renderShifts(windowId) {
+        const shifts = stateFor(windowId).shifts;
+        if (!shifts.length) {
+          calcSetOut(windowId, "time", "No shifts yet.");
+          return;
+        }
+        const total = shifts.reduce((sum, s) => sum + calcShiftSeconds(s), 0);
+        const lines = shifts.map((s, i) => {
+          const worked = calcShiftSeconds(s);
+          const brk = s.brk ? `, −${s.brk}m break` : "";
+          return `${i + 1}. ${s.start}–${s.end}${brk}  ${formatDuration(worked, false)}`;
+        });
+        lines.push(
+          `Total  ${formatDuration(total, false)}  (${decimalHours(total)} h)`
+        );
+        calcSetOut(windowId, "time", lines.join("\n"));
+      }
+
+      function calcAddShift(windowId) {
+        const start = document.getElementById(`calc-time-start-${windowId}`);
+        const end = document.getElementById(`calc-time-end-${windowId}`);
+        if (!start || !end) return;
+        if (!start.value || !end.value) {
+          calcSetOut(windowId, "time", "Enter both a start and an end.");
+          return;
+        }
+        const brk = Math.max(0, calcNumber(windowId, "time-break") || 0);
+        const shift = { start: start.value, end: end.value, brk };
+        const worked = calcShiftSeconds(shift);
+        // A break longer than the shift is a typo, and adding it would put a
+        // negative row into a total someone gets paid from.
+        if (worked < 0) {
+          calcSetOut(windowId, "time", "That break is longer than the shift.");
+          return;
+        }
+        stateFor(windowId).shifts.push(shift);
+        renderShifts(windowId);
+        calcRecord(
+          windowId,
+          `${start.value}–${end.value}${brk ? ` −${brk}m` : ""}`,
+          `${formatDuration(worked, false)} (${decimalHours(worked)} h)`
+        );
+      }
+
+      function calcClearShifts(windowId) {
+        stateFor(windowId).shifts = [];
+        renderShifts(windowId);
+        saveSession();
+      }
+
+      // --- Energy Cost ----------------------------------------------------
+
+      function calcEnergy(windowId) {
+        const watts = calcNumber(windowId, "energy-watts");
+        const hours = calcNumber(windowId, "energy-hours");
+        const days = calcNumber(windowId, "energy-days");
+        const rate = calcNumber(windowId, "energy-rate");
+        if (watts === null || hours === null || days === null || rate === null) {
+          calcSetOut(windowId, "energy", "Fill in all four fields.");
+          return;
+        }
+        if (watts < 0 || hours < 0 || days < 0 || rate < 0) {
+          calcSetOut(windowId, "energy", "Negative values don't mean anything here.");
+          return;
+        }
+        // Watts to kilowatt-hours: the /1000 is the whole conversion, and it
+        // is the step people get wrong by a factor of a thousand.
+        const kwhPerDay = (watts / 1000) * hours;
+        const kwh = kwhPerDay * days;
+        const perDay = kwhPerDay * rate;
+        const total = kwh * rate;
+        const expression = `${calcRound(watts)}W × ${calcRound(hours)}h × ${calcRound(days)}d @ ${calcRound(rate, 4)}/kWh`;
+        const result = `${calcMoney(total)} (${calcRound(kwh)} kWh)`;
+        calcSetOut(
+          windowId,
+          "energy",
+          `${calcRound(kwh)} kWh over ${calcRound(days)} days\n` +
+            `Cost ${calcMoney(total)}\n` +
+            `${calcMoney(perDay)} a day · ${calcMoney(perDay * 365)} a year at this rate of use`
+        );
+        calcRecord(windowId, expression, result);
+      }
+
+      // --- Ohm's Law ------------------------------------------------------
+
+      /* Any two of V, I, R, P give the other two — six pairs, and all six are
+         written out rather than derived, because the square-root cases (R,P
+         and the P-from-R ones) do not fall out of a generic solver and getting
+         one wrong is silent.
+
+         Zero is a legitimate input for I and P and a fatal one as a divisor,
+         which is why the guards below test the specific divisor of each
+         formula rather than rejecting zero on the way in. */
+      function solveOhms({ v, i, r, p }) {
+        const has = (x) => x !== null;
+        if (has(v) && has(i)) {
+          if (i === 0) throw new Error("0 amps");
+          return { v, i, r: v / i, p: v * i };
+        }
+        if (has(v) && has(r)) {
+          if (r === 0) throw new Error("0 ohms");
+          return { v, i: v / r, r, p: (v * v) / r };
+        }
+        if (has(v) && has(p)) {
+          if (v === 0) throw new Error("0 volts");
+          if (p === 0) throw new Error("0 watts");
+          return { v, i: p / v, r: (v * v) / p, p };
+        }
+        if (has(i) && has(r)) {
+          return { v: i * r, i, r, p: i * i * r };
+        }
+        if (has(i) && has(p)) {
+          if (i === 0) throw new Error("0 amps");
+          return { v: p / i, i, r: p / (i * i), p };
+        }
+        if (has(r) && has(p)) {
+          if (r < 0 || p < 0) throw new Error("negative");
+          return { v: Math.sqrt(p * r), i: Math.sqrt(p / r), r, p };
+        }
+        return null;
+      }
+
+      function calcOhms(windowId) {
+        const given = {
+          v: calcNumber(windowId, "ohms-v"),
+          i: calcNumber(windowId, "ohms-i"),
+          r: calcNumber(windowId, "ohms-r"),
+          p: calcNumber(windowId, "ohms-p"),
+        };
+        const filled = Object.keys(given).filter((k) => given[k] !== null);
+        if (filled.length !== 2) {
+          calcSetOut(
+            windowId,
+            "ohms",
+            `Fill in exactly two — you gave ${filled.length}.`
+          );
+          return;
+        }
+        let solved;
+        try {
+          solved = solveOhms(given);
+        } catch {
+          calcSetOut(windowId, "ohms", "That pair divides by zero.");
+          return;
+        }
+        if (!solved || !Object.values(solved).every((n) => Number.isFinite(n))) {
+          calcSetOut(windowId, "ohms", "That pair has no finite answer.");
+          return;
+        }
+        // The solved values go back into the fields, so the panel reads as a
+        // completed circuit rather than as two inputs and a paragraph.
+        ["v", "i", "r", "p"].forEach((k) => {
+          const input = document.getElementById(`calc-ohms-${k}-${windowId}`);
+          if (input) input.value = calcRound(solved[k], 4);
+        });
+        const text =
+          `${calcRound(solved.v, 4)} V · ${calcRound(solved.i, 4)} A\n` +
+          `${calcRound(solved.r, 4)} Ω · ${calcRound(solved.p, 4)} W`;
+        calcSetOut(windowId, "ohms", text);
+        const from = filled
+          .map((k) => `${k.toUpperCase()}=${calcRound(given[k], 4)}`)
+          .join(", ");
+        calcRecord(windowId, `Ohm's law from ${from}`, text.replace("\n", " · "));
+      }
+
+      function calcClearOhms(windowId) {
+        ["v", "i", "r", "p"].forEach((k) => {
+          const input = document.getElementById(`calc-ohms-${k}-${windowId}`);
+          if (input) input.value = "";
+        });
+        calcSetOut(windowId, "ohms", "Fill in any two.");
+      }
+
+      // --- Liquid volume ---------------------------------------------------
+
+      function liquidUnit(id) {
+        return LIQUID_UNITS.find((u) => u.id === id) || LIQUID_UNITS[0];
+      }
+
+      function calcLiquid(windowId) {
+        const value = calcNumber(windowId, "liquid-value");
+        const fromSel = document.getElementById(`calc-liquid-from-${windowId}`);
+        const toSel = document.getElementById(`calc-liquid-to-${windowId}`);
+        if (value === null || !fromSel || !toSel) {
+          calcSetOut(windowId, "liquid", "Enter an amount.");
+          return;
+        }
+        const from = liquidUnit(fromSel.value);
+        const to = liquidUnit(toSel.value);
+        // Through litres, which is why the table has one number per unit
+        // instead of a conversion for every pair.
+        const result = (value * from.litres) / to.litres;
+        // 4 places, not 3: 1 mL is 0.0338 fl oz, and three would round the
+        // small end of this table to something useless.
+        const text = `${calcRound(value, 4)} ${from.label} = ${calcRound(result, 4)} ${to.label}`;
+        calcSetOut(windowId, "liquid", text);
+        calcRecord(
+          windowId,
+          `${calcRound(value, 4)} ${from.id} → ${to.id}`,
+          calcRound(result, 4)
+        );
+      }
+
+      function calcSwapLiquid(windowId) {
+        const fromSel = document.getElementById(`calc-liquid-from-${windowId}`);
+        const toSel = document.getElementById(`calc-liquid-to-${windowId}`);
+        if (!fromSel || !toSel) return;
+        const held = fromSel.value;
+        fromSel.value = toSel.value;
+        toSel.value = held;
+        calcLiquid(windowId);
+      }
+
       function addCalculator(targetMode) {
         // addClock and addCalculator had no cap guard at all, so the "maximum"
         // could be walked past two windows at a time.
@@ -8897,7 +9604,12 @@ Enterprise browser
             </div>
         </div>
         <div class="calculator-content">
-            <input type="text" class="calculator-input" id="calculator-input-${cid}" placeholder="Enter expression...">
+            <div class="calc-mode-row">
+                <label for="calculator-mode-${cid}">Type</label>
+                <select class="calculator-mode" id="calculator-mode-${cid}" onchange="setCalculatorMode('${cid}', this.value)">${calcModeOptions()}</select>
+            </div>
+            <div class="calc-panel" data-panel="standard" id="calc-panel-standard-${cid}">
+            <input type="text" class="calculator-input" id="calculator-input-${cid}" placeholder="2+3*4  or  7:30 - 6:15" title="Numbers, or times as h:mm — 7:30 - 6:15, 1:30 * 3, 90m + 0.5h">
             <input type="text" class="calculator-display" id="calculator-display-${cid}" readonly value="0" aria-label="Result" aria-live="polite">
             <div class="calculator-buttons">
                 <button class="special" onclick="clearCalculator('${cid}')">C</button>
@@ -8916,10 +9628,19 @@ Enterprise browser
                 <button class="number" onclick="appendToDisplay('${cid}','2')">2</button>
                 <button class="number" onclick="appendToDisplay('${cid}','3')">3</button>
                 <button class="operation" onclick="appendToDisplay('${cid}','+')">+</button>
-                <button class="number" onclick="appendToDisplay('${cid}','0')" style="grid-column: span 2;">0</button>
+                <button class="number" onclick="appendToDisplay('${cid}','0')">0</button>
                 <button class="number" onclick="appendToDisplay('${cid}','.')">.</button>
+                <!-- The 0 key gave up its double width for this. A colon is
+                     unreachable on a touch keypad otherwise, and h:mm is the
+                     entry mode this calculator is used in most. -->
+                <button class="number" onclick="appendToDisplay('${cid}',':')" title="Time separator — enter hours and minutes as h:mm" aria-label="Time separator, colon">:</button>
                 <button class="operation" onclick="calculate('${cid}')">=</button>
             </div>
+            </div>
+            ${CALC_MODES.filter((m) => m.id !== "standard")
+              .map((m) => m.panel(cid))
+              .join("")}
+            <p class="calc-history-head" id="calculator-history-head-${cid}">Standard history</p>
             <div class="calculator-history" id="calculator-history-${cid}"></div>
             <div style="display: flex; gap: 5px; margin-top: 5px;">
                 <button class="special" onclick="clearHistory('${cid}')" style="flex: 1;">Clear History</button>
@@ -8934,6 +9655,10 @@ Enterprise browser
         setActiveWindow(cid);
         refreshChrome();
         updateCalculatorHistory(cid);
+        // Standard, with every other panel hidden. silent: the window has just
+        // been placed at its default box and nothing has been restored into it
+        // yet, so there is nothing to re-fit and nothing worth saving twice.
+        setCalculatorMode(cid, "standard", { silent: true });
         const input = instancePart(cid, "calculator-input");
         if (input) {
           input.addEventListener("keydown", (e) => {
@@ -8943,6 +9668,26 @@ Enterprise browser
             }
           });
         }
+        /* Enter submits the panel you are standing in. Without this every
+           other mode is mouse-only — you fill four number fields and then have
+           to go and find the button, which is exactly the friction the
+           dropdown was added to remove. */
+        const SUBMIT_ON_ENTER = {
+          time: calcAddShift,
+          energy: calcEnergy,
+          ohms: calcOhms,
+          liquid: calcLiquid,
+        };
+        calculator.querySelectorAll(".calc-panel[data-panel] input").forEach((field) => {
+          field.addEventListener("keydown", (e) => {
+            if (e.key !== "Enter") return;
+            const panel = field.closest(".calc-panel");
+            const handler = panel && SUBMIT_ON_ENTER[panel.dataset.panel];
+            if (!handler) return;
+            e.preventDefault();
+            handler(cid);
+          });
+        });
         saveSession();
         return calculator;
       }
@@ -8971,6 +9716,10 @@ Enterprise browser
         if (input) {
           if (input.value === "" && value === ".") {
             input.value = "0.";
+          } else if (input.value === "" && value === ":") {
+            // A bare ":30" is not a time literal — h:mm needs the h. Half an
+            // hour typed by tapping : first becomes 0:30, which is.
+            input.value = "0:";
           } else {
             input.value += value;
           }
@@ -8984,26 +9733,50 @@ Enterprise browser
         if (display) display.value = "0";
       }
 
+      /* Clears what is ON SCREEN, which is this calculator's rows and not the
+         other four's. A button that wipes work you cannot see is worse than
+         one that needs pressing twice. */
       function clearHistory(windowId) {
-        stateFor(windowId).history = [];
+        const mode = calculatorMode(windowId);
+        stateFor(windowId).history = stateFor(windowId).history.filter(
+          (entry) => calcEntryMode(entry) !== mode
+        );
         updateCalculatorHistory(windowId);
         saveSession();
+      }
+
+      // Rows written before v4.5.1 carry no stamp. They can only have come
+      // from the expression calculator, which was the only one that existed.
+      function calcEntryMode(entry) {
+        return CALC_MODE_IDS.includes(entry.calcMode) ? entry.calcMode : "standard";
       }
 
       function updateCalculatorHistory(windowId) {
         const historyDiv = instancePart(windowId, "calculator-history");
         if (!historyDiv) return;
+        const mode = calculatorMode(windowId);
         // textContent, not innerHTML: the expression is whatever was typed into
         // the calculator, it is stored verbatim on the error path too, and it is
         // replayed on every restore. Interpolated into markup it was a script
         // sink that survived a reload and rode along inside Backup — i.e.
         // it executed in the recipient's origin.
         historyDiv.textContent = "";
-        stateFor(windowId).history.forEach((entry) => {
-          const row = document.createElement("p");
-          row.textContent = `${entry.expression} = ${entry.result}`;
-          historyDiv.appendChild(row);
-        });
+        stateFor(windowId)
+          .history.filter((entry) => calcEntryMode(entry) === mode)
+          .forEach((entry) => {
+            const row = document.createElement("p");
+            row.textContent = `${entry.expression} = ${entry.result}`;
+            historyDiv.appendChild(row);
+          });
+        /* The other modes' rows are still in the session, just not on screen —
+           so the heading says whose list this is. Without it an empty panel is
+           ambiguous between "nothing here yet" and "the history broke". */
+        const head = instancePart(windowId, "calculator-history-head");
+        if (head) {
+          const label =
+            (CALC_MODES.find((m) => m.id === mode) || {}).label || "Standard";
+          head.textContent = `${label} history`;
+        }
       }
 
       function calculate(windowId) {
@@ -9015,18 +9788,140 @@ Enterprise browser
             display.value = "0";
             return;
           }
-          const history = stateFor(windowId).history;
           try {
             const result = evaluateExpression(expression);
-            display.value = isFinite(result) ? result : "Error";
-            history.push({ expression, result: display.value });
-          } catch {
-            display.value = "Error";
-            history.push({ expression, result: "Error" });
+            display.value = formatResult(result);
+          } catch (err) {
+            /* The message, when there is one worth reading. Every throw in the
+               time engine below explains a mistake the user can actually
+               correct — "8:00 + 2" is not a typo, it is a unit error — and a
+               bare "Error" made the calculator look broken instead. The
+               fallback stays "Error" for the arithmetic throws that predate
+               this and for anything that is not an Error at all. */
+            display.value = err && err.calcMessage ? err.calcMessage : "Error";
           }
-          updateCalculatorHistory(windowId);
-          saveSession();
+          // Through calcRecord like every other mode, so this row is stamped
+          // "standard" and the cap and the repaint are applied in one place.
+          // It used to push straight at the array and was the one result that
+          // could outrun MAX_HISTORY.
+          calcRecord(windowId, expression, display.value, "standard");
         }
+      }
+
+      /* ==========================================================
+         THE CALCULATOR IS UNIT-AWARE (v4.4.0)
+         ----------------------------------------------------------
+         Time tracking is the job this calculator gets used for, and until now
+         it could not do it: `7:30 - 6:15` is not a subtraction a decimal
+         calculator can perform, so the answer was reached by hand, in minutes,
+         and converted back. Every one of those steps is a chance to be wrong
+         about an hour someone gets paid for.
+
+         So a value now carries a TYPE as well as a number:
+
+           { t: "time", v: <seconds> }   a duration — 1:30, 90m, 1.5h
+           { t: "num",  v: <number> }    a plain number — 3, 0.25, 12
+
+         Durations are held in SECONDS rather than minutes. h:mm:ss is accepted
+         because a stopwatch produces it, and `7:30 / 3` has to land on 2:30
+         rather than on 2 hours and a rounded remainder — thirds of an hour do
+         not divide into whole minutes, and the rounding has to happen once, at
+         the display, not at every intermediate step.
+
+         WHAT THE OPERATORS MEAN (the table is the whole design):
+
+           time + time -> time      1:30 + 0:45   = 2:15
+           time - time -> time      7:30 - 6:15   = 1:15
+           time * num  -> time      1:30 * 3      = 4:30    (three of them)
+           time / num  -> time      7:30 / 3      = 2:30    (split three ways)
+           time / time -> num       7:30 / 1:30   = 5       (how many fit)
+           num  ∘ num  -> num       unchanged, to the digit
+
+         The four combinations left out are not oversights, they are the ones
+         with no meaning: time + num (an hour plus three of what?), time * time
+         (an area of hours), num / time, and √ of a duration. Each throws with
+         a sentence saying so — see calcError.
+
+         DECIMAL HOURS. Timesheets are filled in decimal ("6.75"), stopwatches
+         and shift boundaries are not ("6:45"). Both directions are here: a
+         plain number can be given a unit — `6.75h`, `90m` — and every time
+         result is displayed with its decimal-hours equivalent alongside it, so
+         reading one out of the other never needs a second calculation.
+
+         BACK-COMPAT: an expression with no time literal and no unit suffix in
+         it takes the same path it always did and returns the same digits.
+         `2+3*4` is still 14; `10/4` is still 2.5.
+         ========================================================== */
+
+      // Throw with a sentence the display can show. A plain Error still means
+      // "Error", which is what the pre-existing arithmetic throws want.
+      function calcError(message) {
+        const err = new Error(message);
+        err.calcMessage = message;
+        return err;
+      }
+
+      const TIME_LITERAL = /^\d+:\d{1,2}(?::\d{1,2})?$/;
+      const UNIT_LITERAL = /^(\d*\.?\d+)\s*([hm])$/i;
+
+      function isTime(value) {
+        return value.t === "time";
+      }
+
+      /* h:mm or h:mm:ss -> seconds.
+
+         The minutes and seconds fields are capped at 59 rather than allowed to
+         carry: `1:75` is a typo for 1:15 or for 2:15 and there is no way to
+         know which, so it is refused instead of silently becoming one of them.
+         The HOURS field is deliberately uncapped — a 40:00 week is a normal
+         thing to type into this. */
+      function parseTimeLiteral(text) {
+        const parts = text.split(":").map((p) => parseInt(p, 10));
+        const [h, m, s = 0] = parts;
+        if (m > 59 || s > 59) {
+          throw calcError(`${text} is not a time — minutes and seconds go up to 59`);
+        }
+        return {
+          t: "time",
+          v: h * 3600 + m * 60 + s,
+          // Remembered so the answer is shown in the shape the question was
+          // asked in: nobody who typed 1:30 wants to read 1:30:00 back.
+          hasSeconds: parts.length === 3,
+        };
+      }
+
+      function applyOperator(operator, left, right) {
+        const bothTime = isTime(left) && isTime(right);
+        const eitherTime = isTime(left) || isTime(right);
+        const hasSeconds = Boolean(left.hasSeconds || right.hasSeconds);
+        if (operator === "+" || operator === "-") {
+          if (eitherTime && !bothTime) {
+            const verb = operator === "+" ? "Add" : "Subtract";
+            throw calcError(
+              `${verb} times, not a time and a plain number — write 0:30, 30m or 0.5h`
+            );
+          }
+          const v = operator === "+" ? left.v + right.v : left.v - right.v;
+          return { t: left.t, v, hasSeconds };
+        }
+        if (operator === "*") {
+          if (bothTime) throw calcError("Can't multiply two times together");
+          return { t: eitherTime ? "time" : "num", v: left.v * right.v, hasSeconds };
+        }
+        // Division. Zero is refused for the same reason it always was, but the
+        // message now names which side was zero-length.
+        if (right.v === 0) {
+          throw calcError(isTime(right) ? "Can't divide by 0:00" : "Division by zero");
+        }
+        if (bothTime) {
+          // The one operation that CONSUMES the unit: two durations divide to a
+          // count of how many of the second fit in the first.
+          return { t: "num", v: left.v / right.v, hasSeconds: false };
+        }
+        if (isTime(right)) {
+          throw calcError("Can't divide a plain number by a time");
+        }
+        return { t: left.t, v: left.v / right.v, hasSeconds };
       }
 
       function evaluateExpression(expression) {
@@ -9039,41 +9934,107 @@ Enterprise browser
             number += expression[i];
             i++;
           }
+          // √1:30 would otherwise take the root of the 1, leave ":30" behind
+          // and fail further down with a message about nothing.
+          if (expression[i] === ":") {
+            throw calcError("Can't take the square root of a time");
+          }
           const sqrtValue = Math.sqrt(parseFloat(number));
           expression =
             expression.substring(0, sqrtIndex) +
             sqrtValue +
             expression.substring(i);
         }
-        const tokens = expression.match(/(\d*\.?\d+|[+\-*/])/g);
+        /* Longest match first: h:mm:ss before h:mm before a bare number, and
+           the unit suffixes before the number they are attached to. Get this
+           order wrong and "1:30" tokenises as 1, then 30. */
+        const tokens = expression.match(
+          /(\d+:\d{1,2}(?::\d{1,2})?|\d*\.?\d+\s*[hm](?![\w.])|\d*\.?\d+|[+\-*/])/gi
+        );
         if (!tokens) throw new Error("Invalid expression");
+
+        const readValue = (token) => {
+          if (token === undefined) throw new Error("Invalid number");
+          const text = String(token).trim();
+          if (TIME_LITERAL.test(text)) return parseTimeLiteral(text);
+          const unit = text.match(UNIT_LITERAL);
+          if (unit) {
+            const amount = parseFloat(unit[1]);
+            if (isNaN(amount)) throw new Error("Invalid number");
+            // 90m and 1.5h are the same duration typed two ways. Rounded to
+            // whole seconds here so 0.1h does not carry a float tail through
+            // every later addition.
+            const seconds =
+              unit[2].toLowerCase() === "h" ? amount * 3600 : amount * 60;
+            return { t: "time", v: Math.round(seconds), hasSeconds: false };
+          }
+          const number = parseFloat(text);
+          if (isNaN(number)) throw new Error("Invalid number");
+          return { t: "num", v: number, hasSeconds: false };
+        };
 
         // This used to fold strictly left-to-right, so 2+3*4 gave 20 instead of
         // 14. Resolve × and ÷ in a first pass, then + and - in a second.
-        const terms = [parseFloat(tokens[0])];
+        const terms = [readValue(tokens[0])];
         const ops = [];
-        if (isNaN(terms[0])) throw new Error("Invalid number");
         for (let i = 1; i < tokens.length; i += 2) {
           const operator = tokens[i];
-          const nextNumber = parseFloat(tokens[i + 1]);
-          if (isNaN(nextNumber)) throw new Error("Invalid number");
+          const next = readValue(tokens[i + 1]);
           if (operator === "*" || operator === "/") {
-            const left = terms.pop();
-            if (operator === "/" && nextNumber === 0) {
-              throw new Error("Division by zero");
-            }
-            terms.push(operator === "*" ? left * nextNumber : left / nextNumber);
+            terms.push(applyOperator(operator, terms.pop(), next));
           } else {
             ops.push(operator);
-            terms.push(nextNumber);
+            terms.push(next);
           }
         }
 
         let result = terms[0];
         for (let i = 0; i < ops.length; i++) {
-          result = ops[i] === "+" ? result + terms[i + 1] : result - terms[i + 1];
+          result = applyOperator(ops[i], result, terms[i + 1]);
         }
         return result;
+      }
+
+      /* Seconds -> "h:mm", or "h:mm:ss" when the seconds are not zero or the
+         question was asked with them.
+
+         Rounded to the nearest second FIRST, once, so a division that landed
+         on 2:29:59.9999 is reported as 2:30:00 rather than as 2:29:59. The
+         sign is pulled out and re-attached rather than carried through the
+         modulo arithmetic, which would produce "-1:-15" for a negative
+         variance — and a negative result is the normal reading of "logged
+         minus target", not an edge case. */
+      function formatDuration(seconds, showSeconds) {
+        const total = Math.round(Math.abs(seconds));
+        const sign = seconds < 0 ? "-" : "";
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        const mm = String(m).padStart(2, "0");
+        if (showSeconds || s) {
+          return `${sign}${h}:${mm}:${String(s).padStart(2, "0")}`;
+        }
+        return `${sign}${h}:${mm}`;
+      }
+
+      // Decimal hours to two places, with the trailing zeros dropped: 6.75,
+      // 6.5, 6 — a timesheet field, not a float dump.
+      function decimalHours(seconds) {
+        return String(Math.round((seconds / 3600) * 100) / 100);
+      }
+
+      function formatResult(result) {
+        if (!isFinite(result.v)) return "Error";
+        if (!isTime(result)) {
+          // Plain arithmetic prints exactly what it printed before this
+          // release — no rounding, no suffix, same digits.
+          return String(result.v);
+        }
+        // Both readings, always. The whole point is that neither conversion
+        // should need a second trip through the calculator.
+        return `${formatDuration(result.v, result.hasSeconds)} (${decimalHours(
+          result.v
+        )} h)`;
       }
 
       function addClock(targetMode) {
@@ -9475,10 +10436,10 @@ Enterprise browser
 
         const el = document.getElementById(id);
         if (!el) return;
-        el.style.left = `${record.position.left}px`;
-        el.style.top = `${record.position.top}px`;
-        el.dataset.x = record.position.left;
-        el.dataset.y = record.position.top;
+        // The saved position IS the user's layout, so it seeds home as well —
+        // otherwise the first viewport resize after a restore would adopt
+        // whatever the clamp had already made of it.
+        moveWindowTo(el, record.position.left, record.position.top);
 
         if (kind.base === "clock") {
           const format = instancePart(id, "clock-format");
@@ -9508,7 +10469,12 @@ Enterprise browser
           renderCalendar(id);
         } else if (kind.base === "calculator") {
           stateFor(id).history = record.history || [];
+          stateFor(id).shifts = record.shifts || [];
           updateCalculatorHistory(id);
+          renderShifts(id);
+          // silent: restore is still mid-flight, and saving here would write a
+          // half-rebuilt session over the one being read.
+          setCalculatorMode(id, record.calcMode, { silent: true });
         } else if (kind.base === "log") {
           stateFor(id).entries = record.logs || [];
           restoreLogEntries(id);
@@ -9737,6 +10703,14 @@ Enterprise browser
           }
           element.style.left = `${element.dataset.x}px`;
           element.style.top = `${element.dataset.y}px`;
+          // Where the user dropped it is the layout from here on. Written on
+          // drop rather than on every move: home is intent, and a drag is one
+          // intent no matter how many pointermove events carried it.
+          setWindowHome(
+            element,
+            parseFloat(element.dataset.x) || 0,
+            parseFloat(element.dataset.y) || 0
+          );
           if (view.on) scheduleMapWindows();
           header.removeEventListener("pointermove", onPointerMove);
           header.removeEventListener("pointerup", endDrag);
@@ -10753,6 +11727,13 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             if (windowData.width) windowElement.style.width = `${windowData.width}px`;
             if (windowData.height)
               windowElement.style.height = `${windowData.height}px`;
+            // Home as well as position — the saved layout is the one to come
+            // back to when a narrow viewport widens again.
+            setWindowHome(
+              windowElement,
+              windowData.position.left,
+              windowData.position.top
+            );
             windowElement.dataset.x = windowData.position.left;
             windowElement.dataset.y = windowData.position.top;
             windowElement.dataset.width = windowData.width;
@@ -10823,6 +11804,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               stickyNoteElement.style.width = `${stickyNoteData.width}px`;
             if (stickyNoteData.height)
               stickyNoteElement.style.height = `${stickyNoteData.height}px`;
+            setWindowHome(
+              stickyNoteElement,
+              stickyNoteData.position.left,
+              stickyNoteData.position.top
+            );
             stickyNoteElement.dataset.x = stickyNoteData.position.left;
             stickyNoteElement.dataset.y = stickyNoteData.position.top;
             if (stickyNoteData.zIndex)
@@ -13361,10 +14347,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             const x = (parseFloat(el.dataset.x) || 0) + dx * STEP;
             const y = (parseFloat(el.dataset.y) || 0) + dy * STEP;
             const spot = clampToCanvas(el.offsetWidth, el.offsetHeight, x, y);
-            el.style.left = `${spot.x}px`;
-            el.style.top = `${spot.y}px`;
-            el.dataset.x = spot.x;
-            el.dataset.y = spot.y;
+            // A keyboard nudge is a move like any other, so it sets home.
+            moveWindowTo(el, spot.x, spot.y);
             if (view.on) scheduleMapWindows();
           } else if (e.altKey && !e.shiftKey) {
             // Size the element the grip sizes, so the window stays derived from
@@ -13692,10 +14676,16 @@ Tip: Use the Download button inside the app to preserve your open windows and no
              unmissable on a phone, where rotating it is not. */
           if (view.on) scheduleMapWindows();
           /* Skipped in stack mode, where this fires every time the on-screen
-             keyboard opens. Nothing there is reachable-or-not by position —
-             every window is the whole screen — but clampWindowIntoView()
-             still writes dataset.x/y, so a few taps into a note would have
-             walked the desktop positions of every open window. */
+             keyboard opens and nothing is reachable-or-not by position —
+             every window is the whole screen.
+
+             The clamp is a projection from dataset.homeX/homeY now, so it can
+             no longer destroy a layout by running (see setWindowHome); this
+             skip is left in place because on a phone it is pure work for no
+             visible effect. The reverse case is the one that matters and it is
+             NOT skipped: narrowing a desktop window squeezes the layout, and
+             widening it again re-derives every position from home, which is
+             what puts the windows back where they were. */
           if (!stackMode()) {
             // This desk only: clampWindowIntoView() ignores the other one anyway,
             // but iterating it here would be claiming otherwise.

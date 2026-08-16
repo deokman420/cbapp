@@ -2,9 +2,9 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.3.0`  
+**Version:** `v4.5.1`  
 **Released:** August 16, 2026  
-**Size:** ~525 KB (single file)  
+**Size:** ~656 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
@@ -24,7 +24,9 @@ It was originally built to work inside highly restricted **Enterprise Browser** 
 - **Notes** with line numbers, word/character counts, case conversion, and per-note logging
 - **Task Lists** with checkboxes, per-task deletion, and completion tracking
 - **Sticky Notes** with customizable colors
-- **Built-in Calculator** with history, correct operator precedence, and square root
+- **Five built-in calculators** behind one Type dropdown — Standard
+  (expressions, operator precedence, square root, and `h:mm` time arithmetic),
+  Time Card, Energy Cost, Ohm's Law and Liquid Volume — each with its own history
 - **Clock** with multiple timezones, stopwatch, and a countdown timer that ends
   in an in-app alert card and a soft synthesised chime (mutable) — no OS
   notifications, no permission prompts
@@ -79,7 +81,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.3.0)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.5.1)
 
 Simply save the file and open it in your browser.
 
@@ -99,7 +101,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.3.0](#whats-new-in-v420--v430)
+- [What's New in v4.2.0 – v4.5.1](#whats-new-in-v420--v451)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -198,7 +200,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.3.0
+## What's New in v4.2.0 – v4.5.1
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -312,6 +314,63 @@ been measured for a finger: cells and controls are 42px on a phone, and on a
 landscape phone, where a month grid and an agenda cannot both fit in 309px, the
 cells drop to 32px and the month bar sticks to the top of the scroll.
 
+**v4.4.0** fixes a layout that a narrow browser window used to eat, and teaches
+the calculator to do time.
+
+Split a Chrome tab, snap the window to half the screen, or drag its edge in, and
+every open window slid toward the top-left corner and stayed there — widening it
+again gave nothing back. The clamp that pulls windows into view on a resize is
+correct; what was wrong is that it wrote its result into the only record of
+where the window was, so each resize overwrote the layout with a squeezed copy
+of itself. Position and intent are separate fields now: the clamp reads the
+user's position and never writes it, which makes it a projection rather than an
+edit — idempotent, and reversed the moment the width comes back.
+
+The calculator works in durations as well as numbers, because `7:30 - 6:15` was
+being done by hand in minutes and converted back. Values carry a unit:
+`time ± time` is a time, `time × num` and `time ÷ num` are times, `time ÷ time`
+is a plain count, and the four combinations with no meaning (`8:00 + 2`,
+`0:30 × 0:30`, `3 ÷ 0:30`, `√1:30`) are refused with a sentence rather than
+guessed at. Answers come with both readings — `1:15 (1.25 h)` — so a timesheet
+field and a clock reading never need a second calculation. `90m` and `1.5h` are
+accepted as input, and `h:mm:ss` because a stopwatch produces it. The `0` key
+gave up its double width for a `:` key, which is otherwise unreachable on a
+touch keypad. Expressions with no time in them are unchanged to the digit.
+
+**v4.5.0** turns the Calculator into five calculators, picked from a **Type**
+dropdown at the top of the window — the same control the Clock uses, for a
+better reason: the toolbar has no room for five more buttons.
+
+- **Standard** — the expression calculator, times included.
+- **Time Card** — a start, an end and a break in minutes, with a running list
+  and a total in both `h:mm` and decimal hours. An end before the start is read
+  as overnight, so 22:00–06:15 is 8:15 and not a negative number; a break longer
+  than the shift is refused rather than added, because a negative row in a total
+  someone gets paid from is the worst thing it could do.
+- **Energy Cost** — watts, hours per day, days and rate per kWh, returning the
+  kWh used, the cost, and what that is per day and per year.
+- **Ohm's Law** — fill in any two of V, I, R and P and the other two are solved
+  *and written into the empty boxes*. All six pairs are written out rather than
+  derived; the square-root cases do not fall out of a generic solver and getting
+  one wrong is silent.
+- **Liquid Volume** — US and imperial gallons, litres, millilitres, quarts,
+  pints, cups, fluid ounces and cubic metres, any one to any other. Both gallons
+  are named: "gallon" alone is a 20% error between the two systems.
+
+Enter submits whichever panel you are standing in. The chosen type and the Time
+Card's rows ride the session, Protect and Backup; field values do not. A saved
+type this build has never heard of opens on Standard rather than showing an
+empty window.
+
+**v4.5.1** gives each of those calculators its own history list. v4.5.0 shipped
+one shared scrollback on the theory that a shift total, an energy cost and a
+conversion in the same list was useful — and it is not, because the list sits
+directly beneath the panel with nothing between them, so a row from the
+expression calculator reads as the Energy Cost fields' own answer. Rows are
+stamped with the calculator that produced them, the view is filtered to the one
+showing, and the heading above the list names it. Clear History clears what is
+on screen rather than the four lists you cannot see.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -334,7 +393,7 @@ cells drop to 32px and the month bar sticks to the top of the scroll.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.3.0)
+├── cbapp.html          # The complete application (v4.5.1)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -347,4 +406,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.3.0** — A self-contained productivity workspace that just works.
+**CB App v4.5.1** — A self-contained productivity workspace that just works.
