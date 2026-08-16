@@ -35,7 +35,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.2.0 — 2026-08-15. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.2.1 — 2026-08-15. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -114,12 +114,18 @@
         npx playwright test tests/cbapp.spec.ts tests/cbapp-a11y.spec.ts --project=desktop
         Cross-browser: --project=firefox --project=webkit. A fresh clone needs
         `npx playwright install firefox webkit` before those two will run.
-        --project=mobile AND --project=mobile-landscape are real gates since
-        v4.2.0, not courtesy runs: they are the only projects that exercise the
-        phone shape, and landscape is not a formality — a phone on its side is
-        802x293, wider than any width-only breakpoint calls narrow and shorter
-        than anything else this app runs on. Portrait alone missed both.
-        `npm run test:cbapp:mobile` runs the pair.
+        --project=mobile, --project=mobile-landscape and --project=iphone are
+        real gates since v4.2.0, not courtesy runs: they are the only projects
+        that exercise the phone shape, and landscape is not a formality — a
+        phone on its side is 802x293, wider than any width-only breakpoint
+        calls narrow and shorter than anything else this app runs on. Portrait
+        alone missed both. `npm run test:cbapp:mobile` runs all three.
+        `iphone` is WebKit, and it is there because Chromium cannot see
+        Safari-only behaviour: v4.2.0 shipped with every text field under 16px,
+        which makes iOS zoom the whole page on the first tap into one, and both
+        Pixel projects passed throughout. Note it inherits the same
+        long-standing .minimize-window contrast failure as the other WebKit
+        projects, so keep the a11y run off it.
         Pixel baselines: `npm run test:cbapp:visual`, refreshed with
         `-- --update-snapshots`. They are per-platform and not part of the gate;
         the geometry assertions in the `CB App — layout` block are.
@@ -3628,6 +3634,57 @@
         display: block;
       }
 
+      /* The search panel and the toolbar both live at the bottom of a phone,
+         and #search-replace sits at z-index 2400 — above the sheet AND above
+         its scrim. Open search, then reach for the toolbar, and the sheet
+         opened underneath the panel with its lower buttons unclickable
+         (Protect and Theme, in practice).
+
+         On a desktop the two never meet: search is top-centre there and the
+         toolbar is bottom-centre. This is the cost of moving both to the same
+         edge. While the sheet is open the panel goes behind the scrim with
+         everything else, which is what the scrim is for. */
+      body.mobile-ui .nav-menu:not(.collapsed) ~ #search-replace {
+        z-index: 1002;
+      }
+
+      /* --- iOS zooms the page when you tap a small field ---
+         Safari on iOS zooms the whole page whenever a focused text field's
+         computed font-size is under 16px, and the zoom STAYS after the field
+         is dismissed. Every text field in this app was 12-14px, so the first
+         tap into the passphrase box left the entire app rendered wider than
+         the screen with its right-hand edge off it — including that modal's
+         own Unlock button, which is a hard place to be stuck.
+
+         16px is the entire fix. `user-scalable=no` also stops it and is not on
+         the table: pinch-zoom is an accessibility right, and the viewport meta
+         at the top of this file says so.
+
+         INVARIANT: .line-numbers must carry the SAME font-size and line-height
+         as the textarea it numbers, or the gutter drifts a little further out
+         of step with every line down the note. Both are 14px/1.5 by default;
+         both become 16px/1.5 here. Change one, change the other. */
+      body.mobile-ui input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
+      body.mobile-ui textarea,
+      body.mobile-ui select {
+        font-size: 16px;
+      }
+
+      body.mobile-ui .line-numbers {
+        font-size: 16px;
+        line-height: 1.5;
+        /* 30px held two digits at 14px and would hold fewer at 16. */
+        width: 34px;
+      }
+
+      /* The search panel's fields are styled through `#search-replace input`,
+         and one id out-specifies any number of classes — so the rule above,
+         which has no id in it, loses to it and left these two at 12px. They
+         are the pair most likely to be tapped after the passphrase box. */
+      body.mobile-ui #search-replace input {
+        font-size: 16px;
+      }
+
       /* Hover tooltips are a mouse affordance. On touch the "hover" arrives
          with the tap that already ran the button, so the tip appears over the
          thing it was describing after the fact. showNavTooltip() refuses on
@@ -4318,7 +4375,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.2.0";
+      const CB_APP_VERSION = "4.2.1";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import

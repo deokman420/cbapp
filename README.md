@@ -2,9 +2,9 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.2.0`  
+**Version:** `v4.2.1`  
 **Released:** August 15, 2026  
-**Size:** ~518 KB (single file)  
+**Size:** ~521 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
@@ -79,7 +79,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.2.0)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.2.1)
 
 Simply save the file and open it in your browser.
 
@@ -99,7 +99,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0](#whats-new-in-v420)
+- [What's New in v4.2.0 – v4.2.1](#whats-new-in-v420--v421)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -198,7 +198,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0
+## What's New in v4.2.0 – v4.2.1
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -233,6 +233,20 @@ Testing grew with it: both phone orientations are gates now rather than
 courtesy runs, alongside a layout suite that asserts no window ever hides its
 own contents, and pixel baselines for each shape.
 
+**v4.2.1** fixes the one thing none of that caught. Safari on iOS zooms the
+whole page whenever a focused text field's computed font-size is under 16px,
+and the zoom stays after the field is dismissed — so the first tap into the
+passphrase box left the app rendered wider than the screen with its right-hand
+edge, and that modal's own Unlock button, off it. Every field is 16px in the
+phone shape now (`user-scalable=no` was not on the table; pinch-zoom is an
+accessibility right), and the line-number gutter moved with the textarea it
+numbers. It also stops the search panel covering the toolbar sheet, which both
+now share the bottom edge.
+
+Chromium does not zoom, so the entire suite passed while a real iPhone was
+unusable. There is an `iphone` project on WebKit now, and it found the
+search-panel collision on its first run.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -242,7 +256,7 @@ own contents, and pixel baselines for each shape.
 
 ## Technical Notes
 
-- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~518KB` file, with no build step.
+- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~521KB` file, with no build step.
 - **Persistence** — Uses `localStorage` under the key `notepadSession`.
 - **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
 - **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 (210,000 iteration) key, with a fresh salt and IV per file. There is no plaintext backup path.
@@ -255,7 +269,7 @@ own contents, and pixel baselines for each shape.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.2.0)
+├── cbapp.html          # The complete application (v4.2.1)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -268,4 +282,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.2.0** — A self-contained productivity workspace that just works.
+**CB App v4.2.1** — A self-contained productivity workspace that just works.

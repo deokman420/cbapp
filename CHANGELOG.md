@@ -7,6 +7,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.2.1] — 2026-08-15
+
+### Fixed
+
+- **iOS zoomed the whole page the first time you tapped a text field, and
+  stayed zoomed.** Safari on iOS zooms in whenever a focused field's computed
+  font-size is under 16px — and the zoom persists after the field is dismissed.
+  Every text field in this app was 12–14px, so the first tap into the
+  passphrase box left the app rendered wider than the screen with its
+  right-hand edge off it, including that modal's own Unlock button. Every field
+  is 16px in the phone shape now; `user-scalable=no` would also have stopped it
+  and is not on the table, because pinch-zoom is an accessibility right.
+
+  The line-number gutter moved with the textarea it numbers — same size, same
+  line-height — or it would have drifted a little further out of step with
+  every line down the note.
+
+  This was invisible to the whole test suite. Chromium does not do it, so both
+  Pixel projects passed while a real iPhone was unusable, and it is invisible
+  to a layout assertion too: the DOM lays out correctly at 428px and reports no
+  overflow at all. Playwright now has an `iphone` project (WebKit, iPhone 12
+  Pro Max) and a test that asserts no field is under 16px.
+
+- **The search panel covered the toolbar sheet on a phone.** Both moved to the
+  bottom edge in v4.2.0 and `#search-replace` sits at z-index 2400 — above the
+  sheet *and* above its scrim — so opening search and then reaching for the
+  toolbar left the sheet's lower buttons unclickable. It goes behind the scrim
+  with everything else while the sheet is open. Found by the new iPhone project
+  on its first run.
+
+---
+
 ## [4.2.0] — 2026-08-15
 
 CB App has always been shaped for one screen: a wide desktop in the Island
