@@ -7,6 +7,43 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.5.2] — 2026-08-16
+
+### Fixed — the Time Card's clock reads like a clock
+
+`09:00  AM` with gutters in it. The Time Card's start and end are
+`input[type="time"]`, which Chrome draws as separate hour, minute and AM/PM
+segments with a literal space between the last two — and every calc field
+inherited the app's monospace face, where each of those advances is the widest
+the font has. The native picker popup inherits the input's font too, so its
+columns of numbers were spaced the same way.
+
+The two time fields render in the UI font now. Everything else in a calculator
+panel stays monospace: those are fields the app draws text into, and columns of
+digits that line up are the reason the mono face is there at all. A time input
+draws its own text, in segments, and never lines up with anything.
+
+### Fixed — two console warnings on every open
+
+`Manifest: property 'start_url' ignored, URL is invalid`, and the same for
+`scope`. The manifest is assembled at runtime and handed over as a blob: URL,
+because this app is a single file with nothing serving alongside it — and a
+relative URL inside a manifest resolves against *the manifest's* URL, not the
+document's. There is no directory to walk up from `blob:…`, so `"."` was
+silently dropped both times.
+
+Both are absolute now, taken from `location`: start_url is the page, scope is
+the directory holding it.
+
+From `file://` the manifest is not installed at all. A blob from a file://
+document has the opaque origin `blob:null/…`, which makes every URL in it
+cross-origin no matter how it is written — and an install prompt needs a secure
+origin, which `file://` is not. It was announcing a failure to do something it
+could never have done. The hosted copy at phbeks.com/cbapp.html is unaffected
+and still installs.
+
+---
+
 ## [4.5.1] — 2026-08-16
 
 ### Fixed — the history list belongs to one calculator at a time

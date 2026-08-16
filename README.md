@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.5.1`  
+**Version:** `v4.5.2`  
 **Released:** August 16, 2026  
 **Size:** ~656 KB (single file)  
 **License:** Provided as-is
@@ -81,7 +81,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.5.1)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.5.2)
 
 Simply save the file and open it in your browser.
 
@@ -101,7 +101,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.5.1](#whats-new-in-v420--v451)
+- [What's New in v4.2.0 – v4.5.2](#whats-new-in-v420--v452)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -200,7 +200,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.5.1
+## What's New in v4.2.0 – v4.5.2
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -371,6 +371,18 @@ stamped with the calculator that produced them, the view is filtered to the one
 showing, and the heading above the list names it. Clear History clears what is
 on screen rather than the four lists you cannot see.
 
+**v4.5.2** fixes what the Time Card's clock looked like. The start and end are
+`input[type="time"]`, which Chrome draws as hour / minute / AM-PM segments with
+a literal space before the meridiem — and in the app's monospace face every one
+of those advances is the widest the font has, so it read as `09:00  AM` with
+gutters in it, native picker included. Those two fields render in the UI font
+now; everything else in a calculator panel stays monospace. The same release
+stops the runtime web manifest logging two warnings on every open: its URLs are
+absolute rather than relative (a relative URL in a manifest resolves against the
+manifest's own `blob:` URL, where there is no directory to walk up from), and
+from `file://` the manifest is not installed at all, since an install prompt
+needs a secure origin that `file://` can never be.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -393,7 +405,7 @@ on screen rather than the four lists you cannot see.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.5.1)
+├── cbapp.html          # The complete application (v4.5.2)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -406,4 +418,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.5.1** — A self-contained productivity workspace that just works.
+**CB App v4.5.2** — A self-contained productivity workspace that just works.
