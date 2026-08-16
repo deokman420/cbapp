@@ -7,6 +7,71 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.2.4] — 2026-08-16
+
+### Fixed
+
+- **The on-screen keyboard covered the bottom of the note you were typing
+  into, on iOS only.** A full-bleed window keeps its own controls along its
+  bottom edge — the format row and the word count on a note, the Log button,
+  the calculator's last row. Tapping into the textarea raised the keyboard
+  over exactly those, and nothing moved out of the way.
+
+  Android was never affected, and the reason is the whole shape of the bug:
+  `interactive-widget=resizes-content` in the viewport meta makes the keyboard
+  shrink the layout viewport there, so `window.innerHeight` drops and the
+  existing CSS already had the right number. iOS Safari ignores that hint
+  entirely — the keyboard is an overlay, `innerHeight` never moves, and the
+  app had no idea the bottom third of the screen was gone.
+
+  The difference between the two viewports *is* the overlay:
+  `innerHeight - visualViewport.height - offsetTop`. That resolves to ~0 on
+  Android, where both shrank together, and to the keyboard's height on iOS —
+  one formula, no platform branch, no user-agent sniff. It is published as a
+  third screen-dividing variable, `--keyboard-inset`, alongside the
+  `--stack-top` and `--stack-bottom` that already existed, so the windows and
+  the bottom chrome each subtract it in one place instead of doing the
+  arithmetic twice.
+
+  Two traps are handled explicitly. Pinch-zoom also shrinks the visual
+  viewport, and this app deliberately permits zoom — v4.2.1 fixed the tap-zoom
+  bug by raising the font size rather than by locking the page down, because
+  locking it down is the inaccessible fix — so anything but scale 1 is
+  ignored. And iOS reports its own bottom browser toolbar in the same gap, a
+  standing ~50px that is not a keyboard; a 100px floor keeps that from
+  shrinking every window forever.
+
+### Testing
+
+- Playwright cannot raise a real keyboard on any project, so three new tests
+  reproduce iOS's *shape* instead: redefine `innerHeight` taller than the
+  visual viewport and fire the `visualViewport` resize the app listens for.
+  That tests the handler rather than the platform — it cannot prove iOS
+  reports what we think it does, only that the layout responds correctly when
+  it does.
+
+  **Confirmed on a real iPhone against the shipped build**, which is the half
+  the suite structurally cannot reach: the formula assumes iOS leaves
+  `innerHeight` alone while the keyboard is up, and no emulator here can
+  falsify that. This is the same boundary that let the v4.2.1 tap-zoom and
+  v4.2.3 invisible-glyph bugs ship — a device pass is the last step of an iOS
+  fix, not an optional extra.
+
+- New `iphone-se` project at 375x667 — both the narrowest and the shortest
+  portrait shape in the matrix, where everything else is 393px or wider and
+  727px or taller. It found no new failures, which is itself worth recording.
+  Note it is the 3rd-gen descriptor: Playwright's plain `iPhone SE` is the
+  2016 original at 320x568, below the app's own 560px CSS floor.
+
+- Two axe states that no scan reached before: the mobile toolbar sheet while
+  it is open, and the window switcher strip. Every other a11y test goes
+  through a helper that opens the sheet, clicks, and lets the auto-collapse
+  fold it again before the scan runs, so the expanded sheet had never been
+  looked at; the switcher only renders at two or more windows, and no test
+  opened two. Both were clean — the point is that they stay that way.
+
+---
+
 ## [4.2.3] — 2026-08-16
 
 ### Fixed

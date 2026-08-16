@@ -35,7 +35,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.2.3 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.2.4 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -3443,6 +3443,23 @@
         --stack-bottom: 0px;
       }
 
+      /* THE THIRD VARIABLE: the on-screen keyboard.
+         Declared on plain body so it always resolves — every consumer is
+         mobile-gated, but a var() that falls back to nothing computes the
+         whole calc() to `invalid at computed-value time` and takes the
+         height with it. syncKeyboardInset() writes the real number.
+
+         Why this is not covered by the two above: --stack-top and
+         --stack-bottom are chrome THIS app draws and can measure. The
+         keyboard is drawn by the OS, and on iOS it does not shrink the
+         layout viewport at all — window.innerHeight is unchanged while the
+         keyboard covers the bottom 300px of it. Android is already handled
+         by `interactive-widget=resizes-content` in the viewport meta, which
+         iOS Safari ignores. See syncKeyboardInset(). */
+      body {
+        --keyboard-inset: 0px;
+      }
+
       body.mobile-ui:not(.canvas-on) {
         --stack-bottom: calc(56px + env(safe-area-inset-bottom));
       }
@@ -3487,7 +3504,7 @@
          most, and the thumb does not travel to the top of a phone. */
       body.mobile-ui .nav-menu {
         top: auto;
-        bottom: max(8px, env(safe-area-inset-bottom));
+        bottom: calc(max(8px, env(safe-area-inset-bottom)) + var(--keyboard-inset));
         left: max(8px, env(safe-area-inset-left));
         right: auto;
         transform: none;
@@ -3738,7 +3755,14 @@
         left: 0 !important;
         top: var(--stack-top) !important;
         width: 100% !important;
-        height: calc(100% - var(--stack-top) - var(--stack-bottom)) !important;
+        /* The keyboard is subtracted here and not anywhere else: a full-bleed
+           window's own controls live along its BOTTOM edge — the format row
+           and the word count on a note, the Log button, the calculator's last
+           row — so a window sized to the full viewport puts exactly those
+           behind the keyboard the moment you tap into it to type. */
+        height: calc(
+          100% - var(--stack-top) - var(--stack-bottom) - var(--keyboard-inset)
+        ) !important;
         min-width: 0 !important;
         min-height: 0 !important;
         max-width: none !important;
@@ -3943,7 +3967,7 @@
 
       /* The Download chip, once placeDownloadChip() has moved it into the
          sheet. Full width on its own row: the label carries the version and
-         "Download CB App v4.2.3" does not fit a 88px grid cell. */
+         "Download CB App v4.2.4" does not fit a 88px grid cell. */
       body.mobile-ui .nav-menu .download-app-link {
         position: static;
         grid-column: 1 / -1;
@@ -3967,7 +3991,7 @@
          therefore not a number this can be positioned against. */
       body.mobile-ui #session-lock {
         left: calc(max(8px, env(safe-area-inset-left)) + 54px);
-        bottom: max(12px, env(safe-area-inset-bottom));
+        bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--keyboard-inset));
       }
 
       /* The 720px block above put these just above the screen edge, back when
@@ -3991,12 +4015,12 @@
       body.mobile-ui #status,
       body.mobile-ui #search-replace {
         top: auto;
-        bottom: calc(70px + env(safe-area-inset-bottom));
+        bottom: calc(70px + env(safe-area-inset-bottom) + var(--keyboard-inset));
       }
 
       body.mobile-ui #search-replace.active ~ #status {
         top: auto;
-        bottom: calc(148px + env(safe-area-inset-bottom));
+        bottom: calc(148px + env(safe-area-inset-bottom) + var(--keyboard-inset));
       }
 
       body.mobile-ui #empty-state {
@@ -4424,7 +4448,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.2.3";
+      const CB_APP_VERSION = "4.2.4";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -6230,6 +6254,10 @@
         // Crossing the breakpoint changes whether the switcher exists and
         // whether windows are full-bleed, and refreshChrome() owns both.
         refreshChrome();
+        // The inset is gated on mobileUI, so crossing either way changes the
+        // answer: leaving the phone shape has to clear a keyboard reservation
+        // that no longer has a keyboard behind it.
+        syncKeyboardInset();
         // Coming back to desktop, the sizes frozen above have to be applied
         // to the real layout again — the notes are still carrying whatever
         // inline box they had before the phone-shaped detour.
@@ -6237,6 +6265,58 @@
       }
 
       MOBILE_MQ.addEventListener("change", () => syncMobileUI());
+
+      /* ==========================================================
+         THE ON-SCREEN KEYBOARD
+         ----------------------------------------------------------
+         Android is already handled declaratively: `interactive-widget=
+         resizes-content` in the viewport meta makes the keyboard shrink the
+         layout viewport, so window.innerHeight drops and the CSS above needs
+         no help. iOS Safari ignores that hint entirely — the keyboard is an
+         overlay, innerHeight does not move, and a full-bleed note keeps its
+         full height with its format row and word count underneath the keys.
+
+         The difference between the two viewports IS the overlay:
+
+             inset = innerHeight - visualViewport.height - offsetTop
+
+         which falls out to ~0 on Android (both shrank together) and to the
+         keyboard's height on iOS. One formula, no branch on the platform, and
+         no user-agent sniff.
+
+         TRAP: pinch-zoom shrinks visualViewport.height too, and this app
+         deliberately permits zoom — v4.2.1 fixed the tap-zoom bug by raising
+         the font size to 16px rather than by locking the page down, because
+         locking it down is the inaccessible fix. A zoomed page would read as
+         a permanently open keyboard, so anything but scale 1 is ignored.
+
+         THRESHOLD: iOS reports its own bottom browser toolbar in this gap as
+         well — a standing ~50px that is not a keyboard and must not shrink
+         every window forever. 100px is comfortably above that bar and far
+         below any keyboard, including a landscape one (~160px).
+         ========================================================== */
+      const KEYBOARD_MIN_INSET = 100;
+
+      function syncKeyboardInset() {
+        const vv = window.visualViewport;
+        if (!vv) return;
+        let inset = 0;
+        // Not on desktop, where there is no OS keyboard to make room for, and
+        // not while zoomed — see the trap above.
+        if (mobileUI && Math.abs(vv.scale - 1) < 0.01) {
+          const gap = window.innerHeight - vv.height - vv.offsetTop;
+          if (gap >= KEYBOARD_MIN_INSET) inset = Math.round(gap);
+        }
+        document.body.style.setProperty("--keyboard-inset", `${inset}px`);
+      }
+
+      if (window.visualViewport) {
+        // resize fires when the keyboard opens or closes; scroll fires when
+        // iOS pans the visual viewport to keep the caret above the keys, which
+        // moves offsetTop and therefore the answer.
+        window.visualViewport.addEventListener("resize", syncKeyboardInset);
+        window.visualViewport.addEventListener("scroll", syncKeyboardInset);
+      }
 
       /* Full-bleed windows are opaque and cover each other completely, so the
          z-order is not a subtlety here — it is the only thing that decides
@@ -10851,6 +10931,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               "mobile-ui",
               "has-switcher"
             );
+          // Same reasoning one level down: syncKeyboardInset() writes this as
+          // an INLINE style on body, so it is device state that would travel
+          // in the markup rather than being recomputed. A copy taken with the
+          // keyboard up would otherwise open with a permanent gap.
+          clone.querySelector("body")?.style.removeProperty("--keyboard-inset");
           // Its tabs are generated from the live windows, which do not travel.
           const switcherClone = clone.querySelector("#stack-tabs");
           if (switcherClone) {

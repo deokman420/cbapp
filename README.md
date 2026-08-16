@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.2.3`  
+**Version:** `v4.2.4`  
 **Released:** August 16, 2026  
 **Size:** ~525 KB (single file)  
 **License:** Provided as-is
@@ -79,7 +79,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.2.3)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.2.4)
 
 Simply save the file and open it in your browser.
 
@@ -99,7 +99,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.2.3](#whats-new-in-v420--v423)
+- [What's New in v4.2.0 – v4.2.4](#whats-new-in-v420--v424)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -198,7 +198,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.2.3
+## What's New in v4.2.0 – v4.2.4
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -268,6 +268,22 @@ that went on working perfectly. Invisible and fully functional is the hardest
 kind of missing. It is `−` (U+2212) now, which every platform can draw and
 which pairs with the `×` already used for close.
 
+**v4.2.4** gets the on-screen keyboard off the note you are typing into. A
+full-bleed window keeps its controls along its bottom edge — the format row and
+word count on a note, the Log button, the calculator's last row — and on iOS
+the keyboard landed on exactly those. Android was never affected, which is the
+whole shape of the bug: `interactive-widget=resizes-content` makes the keyboard
+shrink the layout viewport there, so the existing CSS already had the right
+number. iOS Safari ignores that hint — the keyboard is an overlay and
+`window.innerHeight` never moves.
+
+The difference between the two viewports *is* the overlay
+(`innerHeight - visualViewport.height - offsetTop`): ~0 on Android, the
+keyboard's height on iOS, one formula with no platform branch. Pinch-zoom
+shrinks the visual viewport too, so anything but scale 1 is ignored — this app
+permits zoom on purpose, since v4.2.1 fixed tap-zoom by raising the font size
+rather than by locking the page down.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -290,7 +306,7 @@ which pairs with the `×` already used for close.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.2.3)
+├── cbapp.html          # The complete application (v4.2.4)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -303,4 +319,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.2.3** — A self-contained productivity workspace that just works.
+**CB App v4.2.4** — A self-contained productivity workspace that just works.
