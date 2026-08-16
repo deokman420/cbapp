@@ -2,9 +2,9 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.2.1`  
+**Version:** `v4.2.2`  
 **Released:** August 15, 2026  
-**Size:** ~521 KB (single file)  
+**Size:** ~524 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
@@ -79,7 +79,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.2.1)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.2.2)
 
 Simply save the file and open it in your browser.
 
@@ -99,7 +99,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.2.1](#whats-new-in-v420--v421)
+- [What's New in v4.2.0 – v4.2.2](#whats-new-in-v420--v422)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -198,7 +198,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.2.1
+## What's New in v4.2.0 – v4.2.2
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -247,6 +247,20 @@ Chromium does not zoom, so the entire suite passed while a real iPhone was
 unusable. There is an `iphone` project on WebKit now, and it found the
 search-panel collision on its first run.
 
+**v4.2.2** moves the Download chip into the toolbar sheet on a phone, as a
+full-width row at the bottom of *Session* — the bottom edge had the sheet, the
+lock button and the chip all competing for it, and the chip is the least urgent
+of the three. It also shows the version there, legibly, instead of as a 10px
+suffix in a corner.
+
+It also fixes the window title-bar controls — rename, minimise, freeze and
+close — which failed WCAG AA contrast. They used a dim token measuring 4.52:1
+on the dark title bar: over the 4.5 line by two hundredths, close enough that
+axe passed it on Chromium and failed it on every WebKit build. In light mode it
+was far worse, and nothing was catching that because the accessibility suite
+only ever scanned dark. They are full-contrast now and that suite runs on every
+project again — 72 checks across six, where it had been 12 on one.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -256,7 +270,7 @@ search-panel collision on its first run.
 
 ## Technical Notes
 
-- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~521KB` file, with no build step.
+- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~524KB` file, with no build step.
 - **Persistence** — Uses `localStorage` under the key `notepadSession`.
 - **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
 - **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 (210,000 iteration) key, with a fresh salt and IV per file. There is no plaintext backup path.
@@ -269,7 +283,7 @@ search-panel collision on its first run.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.2.1)
+├── cbapp.html          # The complete application (v4.2.2)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -282,4 +296,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.2.1** — A self-contained productivity workspace that just works.
+**CB App v4.2.2** — A self-contained productivity workspace that just works.

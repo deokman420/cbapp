@@ -7,6 +7,44 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.2.2] — 2026-08-15
+
+### Changed
+
+- **The Download chip moved into the toolbar sheet on a phone, version and
+  all.** The bottom edge of a phone had the sheet, the lock button and the
+  download chip all competing for it, and the chip is the least urgent of the
+  three — it saves a blank copy of the program, not your notes. In the sheet it
+  is a full-width row at the bottom of *Session*, which also makes the version
+  legible instead of a 10px suffix in a corner.
+
+  It is moved, not duplicated: it carries `#download-app-version`, and two
+  nodes with one id is not a thing. It is restored against a placeholder rather
+  than a remembered parent, because a copy downloaded *from* a phone has the
+  chip inside the nav in its saved markup, and a remembered parent would
+  faithfully put it back there on a desktop. The download itself also writes
+  the chip back to its canonical spot, so a saved file does not record which
+  device exported it.
+
+### Fixed
+
+- **The window title-bar controls failed WCAG AA contrast — badly in light
+  mode.** The rename, minimise, freeze and close glyphs used `--text-dim`,
+  which measured **4.52:1** on the dark title bar: over the 4.5 line by two
+  hundredths, close enough that engines disagreed about it. axe passed it on
+  Chromium and failed it on every WebKit build, and that disagreement is the
+  "long-standing `.minimize-window` contrast failure" that kept the
+  accessibility suite pinned to a single project for months. In **light** mode
+  the same token was far worse — and nothing was catching that at all, because
+  the suite only ever scanned dark.
+
+  They use `--text` now, and the accessibility suite runs on every project
+  again: **72 checks across desktop, both phone orientations, iPhone, Firefox
+  and WebKit**, where it had been 12 on desktop alone. These are the controls
+  that close and freeze a window; they are worth being able to see.
+
+---
+
 ## [4.2.1] — 2026-08-15
 
 ### Fixed

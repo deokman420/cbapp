@@ -35,7 +35,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.2.1 — 2026-08-15. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.2.2 — 2026-08-15. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -123,14 +123,15 @@
         `iphone` is WebKit, and it is there because Chromium cannot see
         Safari-only behaviour: v4.2.0 shipped with every text field under 16px,
         which makes iOS zoom the whole page on the first tap into one, and both
-        Pixel projects passed throughout. Note it inherits the same
-        long-standing .minimize-window contrast failure as the other WebKit
-        projects, so keep the a11y run off it.
+        Pixel projects passed throughout.
         Pixel baselines: `npm run test:cbapp:visual`, refreshed with
         `-- --update-snapshots`. They are per-platform and not part of the gate;
         the geometry assertions in the `CB App — layout` block are.
-        (cbapp-a11y on firefox/webkit has a long-standing .minimize-window
-        contrast failure — that is why its script pins --project=desktop.)
+        cbapp-a11y runs on every project as of v4.2.2. It was pinned to
+        --project=desktop for a long time because .minimize-window failed
+        contrast on the WebKit engines; that was a real failure sitting at
+        4.52:1 in dark and far worse in light, not an engine quirk, and it is
+        fixed. If you ever pin it again, say which project and why.
         Deploy is `npm run deploy` from phbeks-site/ — plain `vercel deploy
         --prod` fails the build gate by design.
     -->
@@ -1673,7 +1674,19 @@
 
       /* --- Header control glyphs ---
          --text-muted on --bg-card is ~2.4:1, well under WCAG AA, and the
-         glyphs are buttons so they need a pointer, not the default arrow. */
+         glyphs are buttons so they need a pointer, not the default arrow.
+
+         --text, not --text-dim, and the margin is the point. --text-dim
+         measured 4.52:1 here in dark mode — over the 4.5 line by two
+         hundredths, close enough that engines disagreed about it: axe passed
+         it on Chromium and failed it on every WebKit build, which is the
+         "long-standing .minimize-window contrast failure" that kept the a11y
+         run pinned to one project. In LIGHT mode the same token measured
+         2.58:1, a real failure that nothing was catching because the suite
+         only ever scanned dark.
+
+         These are the controls that close and freeze a window. They are worth
+         being able to see. */
       .minimize-window,
       .edit-window,
       .close-window,
@@ -1685,7 +1698,7 @@
       .close-calendar,
       .lock-window,
       .sticky-lock-window {
-        color: var(--text-dim);
+        color: var(--text);
         cursor: pointer;
         width: 22px;
         height: 22px;
@@ -3914,6 +3927,22 @@
         border-style: dashed;
       }
 
+      /* The Download chip, once placeDownloadChip() has moved it into the
+         sheet. Full width on its own row: the label carries the version and
+         "Download CB App v4.2.2" does not fit a 88px grid cell. */
+      body.mobile-ui .nav-menu .download-app-link {
+        position: static;
+        grid-column: 1 / -1;
+        width: 100%;
+        height: 44px;
+        justify-content: center;
+        border-radius: 8px;
+        padding: 0 10px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+
       /* --- The standing bottom chrome ---
          The lock owned the bottom-left corner and the toolbar pill now wants
          it, so the lock steps right to sit beside it — inside the 56px band
@@ -4293,6 +4322,12 @@
       >
         <span aria-hidden="true">🔒</span>
       </button>
+      <!-- Where the download chip lives on a desktop. On a phone
+           syncMobileUI() moves the chip into the toolbar sheet and this
+           placeholder is how it finds its way back — including in a copy that
+           was downloaded from a phone, where the chip is inside the nav in the
+           saved markup. -->
+      <span id="download-app-home" hidden></span>
       <a
         href="#"
         class="download-app-link"
@@ -4375,7 +4410,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.2.1";
+      const CB_APP_VERSION = "4.2.2";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -6143,11 +6178,40 @@
         );
       }
 
+      /* The Download chip is a fixed corner chip on a desktop and a row in the
+         toolbar sheet on a phone — the same element either way, moved rather
+         than duplicated, because it carries #download-app-version and two
+         nodes with one id is not a thing.
+
+         On a phone the corner it used to occupy is a scarce one: the sheet,
+         the lock and the chip were all competing for the bottom edge, and the
+         chip is the least urgent of the three. In the sheet it also gets to
+         show the version, which is what people actually open it to read.
+
+         Restores against #download-app-home rather than a remembered parent:
+         a copy downloaded FROM a phone has the chip inside the nav in its
+         saved markup, and a remembered parent would faithfully put it back
+         there on a desktop. */
+      function placeDownloadChip(intoSheet) {
+        const chip = document.querySelector(".download-app-link");
+        const home = document.getElementById("download-app-home");
+        if (!chip || !home) return;
+        const session = document.querySelector(
+          '.nav-menu .nav-group[data-label="Session"]'
+        );
+        if (intoSheet && session) {
+          if (chip.parentElement !== session) session.appendChild(chip);
+          return;
+        }
+        if (chip.previousElementSibling !== home) home.after(chip);
+      }
+
       function syncMobileUI(initial = false) {
         const on = MOBILE_MQ.matches;
         if (!initial && on === mobileUI) return;
         mobileUI = on;
         document.body.classList.toggle("mobile-ui", on);
+        placeDownloadChip(on);
         setNavCollapsed(on);
         // Crossing the breakpoint changes whether the switcher exists and
         // whether windows are full-bleed, and refreshChrome() owns both.
@@ -10779,6 +10843,15 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             switcherClone.innerHTML = "";
             switcherClone.setAttribute("hidden", "");
           }
+          /* On a phone the chip is living inside the toolbar sheet, and the
+             clone captures it there. Boot would move it back on a desktop
+             anyway — placeDownloadChip() restores against the placeholder, not
+             a remembered parent, exactly so that works — but the saved markup
+             should read the way the file was written rather than recording
+             which device happened to export it. */
+          const chipClone = clone.querySelector(".download-app-link");
+          const homeClone = clone.querySelector("#download-app-home");
+          if (chipClone && homeClone) homeClone.after(chipClone);
           // Created by script at load; leaving it in yields two same-id nodes.
           clone.querySelector("#nav-tooltip")?.remove();
           clone.querySelector("#empty-state")?.removeAttribute("hidden");
