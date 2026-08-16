@@ -7,6 +7,71 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.6.2] — 2026-08-16
+
+### Fixed — pinching the canvas on an iPad zoomed the whole page
+
+Reported on an iPad (7th generation, iPadOS 18.7.5): two fingers on the canvas
+scaled the page instead of the world.
+
+Pinch-to-zoom on the canvas is two halves. The app's own handler tracks two
+touch pointers and drives `view.zoom` — that half was never phone-only and ran
+correctly on the iPad. The other half is `touch-action: none` on the canvas
+layer, which is what stops the *browser* acting on the same two fingers first,
+and it was keyed on `body.mobile-ui`.
+
+`body.mobile-ui` answers "is this laid out as a phone". The question here is
+"can a finger reach this", and those have different answers. **An iPad is 810px
+wide in portrait and takes the desktop layout by design** — free, draggable
+windows, toolbar along the bottom — so it never matched the rule. Both zooms
+ran: the app scaled the world while Safari scaled the page on top of it.
+
+The gate is `any-pointer: coarse` now, which is true whenever a touch input
+exists at all, including a touchscreen laptop being driven with a mouse. Still
+only on the canvas desk, which does not scroll — the windowed desk is
+untouched, so pinch-zooming the page itself, which is an accessibility right
+and the reason there is no `user-scalable=no` in the viewport meta, works
+exactly where it did before.
+
+**iOS Safari needed both halves separately.** `touch-action` stops the layer's
+gestures becoming a scroll, but Safari also raises its non-standard
+`gesturestart` / `gesturechange` / `gestureend` events for a pinch and will
+still scale the page from them. Those are refused on the canvas layer, and only
+while the canvas is on. No other engine fires them and loses nothing by the
+listeners existing.
+
+The `touch-action: pan-y` give-back — the exemption that keeps a note on the
+canvas scrollable with a finger — moved with the rule it undoes, into the same
+block. A layer at `touch-action: none` with nothing exempted is a canvas whose
+notes cannot be scrolled, so those two must never drift apart again.
+
+### Fixed — the iPad project was red, and two releases said otherwise
+
+Found while running this release's suite. The `ipad` project added in v4.6.0
+had ten failures from the moment it existed, and v4.6.0 and v4.6.1 were both
+reported green. They were not.
+
+The cause is the same confusion as the bug above, one level up. Ten tests in
+the phone-layout suites gate on Playwright's `isMobile` fixture as a stand-in
+for "this project gets the phone shape" — which held for exactly as long as
+every touch project in the config was a phone. **Playwright calls an iPad
+`isMobile`; the app does not.** So phone-layout assertions ran against a
+tablet's desktop layout and failed on every one of them.
+
+The gate is now `phoneShaped(isMobile, viewport)`, a single helper restating
+all three clauses of the app's own breakpoint, with `isMobile` used for the one
+thing it does answer — whether the pointer is coarse. The desktop-half block
+uses the same predicate inverted, so no shape can fall between them and go
+uncovered. One test in that block genuinely needs a *mouse* rather than a
+desktop layout — it narrows the window to 700px and asserts the app stays
+desktop, which is false for a finger — and says so explicitly now.
+
+The six desktop pixel baselines were also stale, from the toolbar moving to
+`bottom: 56px` in v4.6.0. Re-recorded, and verified by running twice. The phone
+baselines are untouched, which is the right answer: that change was desktop-side.
+
+---
+
 ## [4.6.1] — 2026-08-16
 
 ### Fixed — the top of the app was behind the clock

@@ -60,7 +60,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CB App" />
     <meta name="application-name" content="CB App" />
-    <!-- CB App v4.6.1 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.6.2 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -4680,7 +4680,7 @@
         display: inline;
       }
 
-      /* --- Canvas on a phone ---
+      /* --- Canvas with a finger ---
          The canvas desk keeps its world, so the only thing that changes is
          how you move around it: one finger on the background pans (that
          already worked — a touch pointer reports button 0), and two fingers
@@ -4688,11 +4688,44 @@
          layer or the browser consumes the second finger as a page zoom before
          either handler sees it.
 
-         Scoped to mobile: on desktop #windows must keep its default
-         touch-action so a touchscreen laptop still scrolls the page normally
-         over the canvas. */
-      body.mobile-ui.canvas-on #windows {
-        touch-action: none;
+         KEYED ON THE INPUT, NOT ON THE SHAPE (v4.6.2). This was
+         `body.mobile-ui.canvas-on` — the phone layout — on the reasoning that
+         a touchscreen desktop should keep its normal scrolling over the
+         canvas. But `body.mobile-ui` answers "is this laid out as a phone",
+         and the question here is "can a finger reach this", which is a
+         different question with different answers. An iPad is 810px wide in
+         portrait and gets the DESKTOP layout by design, so it never matched:
+         the app's own pinch handler ran, Safari's page zoom ran on top of it,
+         and pinching the canvas zoomed the whole page. Reported on an iPad
+         (7th gen, iPadOS 18).
+
+         `any-pointer: coarse` is true whenever a touch input exists at all,
+         including a touchscreen laptop being driven with a mouse — which is
+         correct. The gesture is only claimed on the canvas desk, and the
+         canvas does not scroll the page; the windowed desk is untouched, so
+         pinch-zooming the page itself, which is an accessibility right, still
+         works everywhere it did before. */
+      @media (any-pointer: coarse) {
+        body.canvas-on #windows {
+          touch-action: none;
+        }
+
+        /* The map is a drag target — drag it and the view follows — so the
+           browser must not claim that gesture either. It sits outside
+           #windows and needs saying separately. */
+        body.canvas-on #canvas-map {
+          touch-action: none;
+        }
+
+        /* Given back to the things that legitimately scroll inside a window,
+           or a note on the canvas becomes unscrollable with a finger. */
+        body.canvas-on textarea,
+        body.canvas-on .task-list,
+        body.canvas-on .log-list,
+        body.canvas-on .help-content,
+        body.canvas-on .cal-content {
+          touch-action: pan-y;
+        }
       }
 
       /* --- The minimap on a phone ---
@@ -4704,14 +4737,12 @@
 
          52px on desktop clears the zoom widget above it. Here that widget is
          at the bottom, so the map takes the corner itself. */
+      /* Position only. Its `touch-action` moved up into the
+         `any-pointer: coarse` block in v4.6.2 — where the map is a drag target
+         is a phone question, whether the browser may steal the drag is not. */
       body.mobile-ui.canvas-on #canvas-map {
         top: max(12px, env(safe-area-inset-top));
         right: max(12px, env(safe-area-inset-right));
-        /* The map is a drag target — drag it and the view follows — so the
-           browser must not claim the gesture as a scroll or a page zoom first.
-           #windows gets the same treatment a few rules up; the map is outside
-           it and needs its own. */
-        touch-action: none;
       }
 
       /* The zoom widget takes the remaining free corner, top-left.
@@ -4733,15 +4764,10 @@
         bottom: auto;
       }
 
-      /* Given back to the things that legitimately scroll inside a window,
-         or a note on the canvas becomes unscrollable with a finger. */
-      body.mobile-ui.canvas-on textarea,
-      body.mobile-ui.canvas-on .task-list,
-      body.mobile-ui.canvas-on .log-list,
-      body.mobile-ui.canvas-on .help-content,
-      body.mobile-ui.canvas-on .cal-content {
-        touch-action: pan-y;
-      }
+      /* The scroll give-back for the things inside a window moved up into the
+         `any-pointer: coarse` block in v4.6.2, alongside the rule it exists to
+         undo. The two must stay together: a layer with touch-action:none and
+         no give-back is a canvas whose notes cannot be scrolled. */
     </style>
   </head>
   <body class="dark-mode">
@@ -5084,7 +5110,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.6.1";
+      const CB_APP_VERSION = "4.6.2";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -14567,11 +14593,34 @@ Tip: Use the Download button inside the app to preserve your open windows and no
            simply stops moving while the pinch runs.
 
            TRAP: the browser eats the second finger as a page zoom unless
-           touch-action is off the layer. That is set in the mobile section of
-           the stylesheet, and only there — a touchscreen desktop must keep
-           its normal scrolling over the canvas. */
+           touch-action is off the layer. That is set in the stylesheet, in the
+           `any-pointer: coarse` block — keyed on whether a finger exists, NOT
+           on whether the app is laid out as a phone. An iPad gets the desktop
+           layout at 810px and a finger anyway, which is how v4.6.2 came to be
+           reported. */
         const touches = new Map();
         let pinch = null;
+
+        /* iOS SAFARI NEEDS BOTH. `touch-action: none` stops the layer's own
+           gestures being turned into a scroll, but Safari also raises its
+           non-standard `gesture*` events for a two-finger pinch and will still
+           scale the page from them. They are the only reliable way to refuse
+           that, they exist nowhere else, and an engine that does not fire them
+           loses nothing by the listeners being registered.
+
+           Bound to the canvas layer, not the document: pinch-zooming the page
+           on the windowed desk is an accessibility right and stays untouched —
+           the same reason there is no `user-scalable=no` in the viewport meta.
+           `view.on` is checked because the layer exists on both desks. */
+        for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
+          layer.addEventListener(
+            type,
+            (e) => {
+              if (view.on) e.preventDefault();
+            },
+            { passive: false }
+          );
+        }
 
         const pinchSpan = () => {
           const [a, b] = Array.from(touches.values());

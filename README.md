@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.6.1`  
+**Version:** `v4.6.2`  
 **Released:** August 16, 2026  
 **Size:** ~656 KB (single file)  
 **License:** Provided as-is
@@ -90,7 +90,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.1)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.2)
 
 Simply save the file and open it in your browser.
 
@@ -110,7 +110,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.6.1](#whats-new-in-v420--v461)
+- [What's New in v4.2.0 – v4.6.2](#whats-new-in-v420--v462)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -209,7 +209,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.6.1
+## What's New in v4.2.0 – v4.6.2
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -418,6 +418,19 @@ insets are named in custom properties so the test suite can fake a notch —
 nothing emulates one, which is why this was only ever findable on a real
 phone.
 
+**v4.6.2** gives the canvas its pinch back on an iPad. Pinch-to-zoom is two
+halves: the app's handler, which tracks two touch pointers and was never
+phone-only, and `touch-action: none` on the canvas layer, which stops the
+BROWSER acting on the same two fingers first. The second half was keyed on
+the phone LAYOUT — and an iPad is 810px wide in portrait and takes the
+desktop layout by design, so it never matched: the app scaled the world while
+Safari scaled the page on top of it. The gate is `any-pointer: coarse` now,
+which asks whether a finger exists rather than whether this is a phone. iOS
+Safari needed both halves separately — it raises non-standard `gesture*`
+events for a pinch and will scale the page from those too — so those are
+refused on the canvas layer, and only while the canvas is on. Pinch-zooming
+the page itself, on the windowed desk, is untouched.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -440,7 +453,7 @@ phone.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.6.1)
+├── cbapp.html          # The complete application (v4.6.2)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -453,4 +466,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.6.1** — A self-contained productivity workspace that just works.
+**CB App v4.6.2** — A self-contained productivity workspace that just works.
