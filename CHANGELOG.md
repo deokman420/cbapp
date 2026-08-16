@@ -7,6 +7,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.2.3] — 2026-08-16
+
+### Fixed
+
+- **The minimise button was invisible on every iPhone, in every window and
+  every mode — and still worked when tapped.** The glyph was U+1F5D5, a bare
+  astral symbol with *text* presentation rather than emoji presentation. iOS
+  ships no font covering it, so it rendered as empty space over a button whose
+  touch target went on working perfectly. Invisible and fully functional is the
+  hardest kind of missing: nothing looks broken, there is just nothing there.
+
+  It is `−` (U+2212) now, which every platform can draw and which pairs with
+  the `×` already used for close. The other three controls were never at risk —
+  `×` is BMP, and `✏️` and `🔓` carry emoji presentation.
+
+  Nothing in the suite could have caught this by rendering: this machine's
+  WebKit resolves U+1F5D5 out of a Windows font, so it drew correctly here and
+  vanished on the device. The guard is an allowlist instead — every window
+  control glyph must be a BMP symbol or carry emoji presentation, and adding to
+  that list is meant to be a decision made with an iPhone in hand.
+
+---
+
 ## [4.2.2] — 2026-08-15
 
 ### Changed

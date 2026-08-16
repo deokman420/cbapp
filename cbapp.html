@@ -35,7 +35,7 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.2.2 — 2026-08-15. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.2.3 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -1673,6 +1673,20 @@
       }
 
       /* --- Header control glyphs ---
+         TRAP: these glyphs are characters, so they exist only if the platform
+         has a font covering them. Minimise used U+1F5D5 (−'s shadowed
+         cousin) until v4.2.3, and iOS ships no glyph for it: the button
+         rendered as empty space on every iPhone, in every window and every
+         mode, while its 32px touch target went on working — invisible and
+         fully functional, which is the hardest kind of missing.
+
+         The rule the four survivors follow: BMP symbols (× close,
+         − minimise) or characters with EMOJI presentation by default or
+         forced with U+FE0F (✏️ rename, 🔓 freeze). A bare
+         astral symbol with TEXT presentation — which is what U+1F5D5 is — has
+         no such guarantee anywhere. The glyph allowlist test in cbapp.spec.ts
+         is what keeps the next one out; add to it only after checking iOS.
+
          --text-muted on --bg-card is ~2.4:1, well under WCAG AA, and the
          glyphs are buttons so they need a pointer, not the default arrow.
 
@@ -3929,7 +3943,7 @@
 
       /* The Download chip, once placeDownloadChip() has moved it into the
          sheet. Full width on its own row: the label carries the version and
-         "Download CB App v4.2.2" does not fit a 88px grid cell. */
+         "Download CB App v4.2.3" does not fit a 88px grid cell. */
       body.mobile-ui .nav-menu .download-app-link {
         position: static;
         grid-column: 1 / -1;
@@ -4410,7 +4424,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.2.2";
+      const CB_APP_VERSION = "4.2.3";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -7553,7 +7567,7 @@
         <span class="sticky-note-title">${stickyLabel}</span>
         <div class="sticky-note-controls">
             <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
-            <span class="minimize-window" onclick="minimizeStickyNote('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
+            <span class="minimize-window" onclick="minimizeStickyNote('${windowId}')" title="Minimize" role="button" tabindex="0">−</span>
             <span class="sticky-lock-window" onclick="toggleWindowLock('${windowId}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0">🔓</span>
             <span class="close-sticky-note" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
         </div>
@@ -7859,7 +7873,7 @@
             <span class="window-title">${noteLabel}</span>
                 <div class="window-controls">
         <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
-        <span class="minimize-window" onclick="minimizeWindow('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
+        <span class="minimize-window" onclick="minimizeWindow('${windowId}')" title="Minimize" role="button" tabindex="0">−</span>
         <span class="lock-window" onclick="toggleWindowLock('${windowId}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0">🔓</span>
         <span class="close-window" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
     </div>
@@ -7951,7 +7965,7 @@
             <span class="task-title">${taskLabel}</span>
             <div class="task-controls">
                 <span class="edit-window" onclick="startRename('${windowId}')" title="Rename" role="button" tabindex="0">✏️</span>
-                <span class="minimize-window" onclick="minimizeWindow('${windowId}')" title="Minimize" role="button" tabindex="0">🗕</span>
+                <span class="minimize-window" onclick="minimizeWindow('${windowId}')" title="Minimize" role="button" tabindex="0">−</span>
                 <span class="lock-window" onclick="toggleWindowLock('${windowId}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
                 <span class="close-task" onclick="closeWindow('${windowId}')" title="Close" role="button" tabindex="0">×</span>
             </div>
@@ -8138,7 +8152,7 @@ Windows
 - Drag by the title bar. Drag the bottom-right corner to resize.
 - The window with the teal outline is the active one. Copy, Paste and
   Search all act on it.
-- 🗕 minimizes to the chip bar in the bottom-left corner; click a chip to
+- − minimizes to the chip bar in the bottom-left corner; click a chip to
   bring the window back. 🔓 freezes a window against editing, dragging
   and resizing (layout only — not encryption). ✏️ renames it.
 
@@ -8246,7 +8260,7 @@ Enterprise browser
           <div class="help-header">
             <span class="help-title">CB App Instructions</span>
             <div class="help-controls">
-              <span class="minimize-window" onclick="minimizeWindow('${helpid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+              <span class="minimize-window" onclick="minimizeWindow('${helpid}')" title="Minimize" role="button" tabindex="0">−</span>
               <span class="lock-window" onclick="toggleWindowLock('${helpid}')" title="Freeze dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
               <span class="close-window" onclick="closeWindow('${helpid}')" title="Close" role="button" tabindex="0">×</span>
             </div>
@@ -8371,7 +8385,7 @@ Enterprise browser
         <div class="calculator-header">
           <span class="calculator-title">${calculatorLabel}</span>
             <div class="calculator-controls">
-                <span class="minimize-window" onclick="minimizeWindow('${cid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+                <span class="minimize-window" onclick="minimizeWindow('${cid}')" title="Minimize" role="button" tabindex="0">−</span>
                 <span class="lock-window" onclick="toggleWindowLock('${cid}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
                 <span class="close-calculator" onclick="closeWindow('${cid}')" title="Close" role="button" tabindex="0">×</span>
             </div>
@@ -8592,7 +8606,7 @@ Enterprise browser
         <div class="clock-header">
           <span class="clock-title">${clockLabel}</span>
             <div class="clock-controls">
-                <span class="minimize-window" onclick="minimizeWindow('${clkid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+                <span class="minimize-window" onclick="minimizeWindow('${clkid}')" title="Minimize" role="button" tabindex="0">−</span>
                 <span class="lock-window" onclick="toggleWindowLock('${clkid}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
                 <span class="close-clock" onclick="closeWindow('${clkid}')" title="Close" role="button" tabindex="0">×</span>
             </div>
@@ -8821,7 +8835,7 @@ Enterprise browser
                     <span class="log-title">Log</span>
                     <div class="log-controls">
                         <span class="edit-window" onclick="startRename('${logid}')" title="Rename" role="button" tabindex="0">✏️</span>
-                        <span class="minimize-window" onclick="minimizeWindow('${logid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+                        <span class="minimize-window" onclick="minimizeWindow('${logid}')" title="Minimize" role="button" tabindex="0">−</span>
                         <span class="lock-window" onclick="toggleWindowLock('${logid}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
                         <span class="close-log" onclick="closeWindow('${logid}')" title="Close" role="button" tabindex="0">×</span>
                     </div>
@@ -11868,7 +11882,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           <span class="calendar-title">Calendar</span>
           <div class="calendar-controls">
             <span class="edit-window" onclick="startRename('${calid}')" title="Rename" role="button" tabindex="0">✏️</span>
-            <span class="minimize-window" onclick="minimizeWindow('${calid}')" title="Minimize" role="button" tabindex="0">🗕</span>
+            <span class="minimize-window" onclick="minimizeWindow('${calid}')" title="Minimize" role="button" tabindex="0">−</span>
             <span class="lock-window" onclick="toggleWindowLock('${calid}')" title="Freeze editing, dragging and resizing (not encryption)" role="button" tabindex="0" aria-pressed="false">🔓</span>
             <span class="close-calendar" onclick="closeWindow('${calid}')" title="Close" role="button" tabindex="0">×</span>
           </div>
