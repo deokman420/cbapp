@@ -17,7 +17,10 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="description" content="CB App - A browser-based notepad and productivity tool">
-    <meta name="theme-color" content="#007bff">
+    <!-- Matches --bg for the default (dark) theme; setThemeClass() rewrites
+         it on every theme change, because the theme here is a body class the
+         user picks, not prefers-color-scheme. -->
+    <meta name="theme-color" content="#0c0f16">
     <!--
       CSP (meta): split by directive so data: cannot load scripts; unused CDN
       allowlists removed; fonts are system-only (no third-party network).
@@ -27,7 +30,7 @@
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; manifest-src 'self';"
+      content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; manifest-src 'self' blob:;"
     />
     <title>CB App</title>
     <link
@@ -35,7 +38,29 @@
       type="image/svg+xml"
       href="data:image/svg+xml;base64,PHN2ZyB4bWxucyA9ICJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgdmlld0JveCA9ICIwIDAgMjQgMjQiPjxwYXRoIGZpbGw9IiMwMDAwMDAiIGQ9Ik0yMC43MSw3LjA0QzIxLjEsNi42NSAyMS4xLDYgMjAuNzEsNS42M0wxOC4zNywzLjI5QzE4LDIuOSAxNy4zNSwyLjkgMTYuOTYsMy4yOUwxNS4xMiw1LjEyTDE4Ljg3LDguODdNMywxNy4yNVYyMUg2Ljc1TDE3LjgxLDkuOTNMMTQuMDYsNi4xOEwzLDE3LjI1WiIvPjwvc3ZnPg=="
     />
-    <!-- CB App v4.2.4 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- HOME-SCREEN ICONS — base64 PNGs, and they have to be. This file is
+         opened from file:// on a machine that will not serve a sibling
+         icons/ directory, so href="icon-180.png" resolves to nothing and iOS
+         puts a screenshot of the page on the home screen instead. The art is
+         generated, not hand-written: edit scripts/make-cbapp-icons.mjs and
+         re-run it, never these strings.
+
+         rel="apple-touch-icon" is one token, so link[rel~='icon'] does not
+         match it — the countdown favicon swap and the theme favicon swap both
+         use that selector and must keep finding the SVG above, not a PNG. -->
+    <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,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" />
+    <link rel="apple-touch-icon" sizes="152x152" href="data:image/png;base64,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" />
+    <link rel="apple-touch-icon" sizes="120x120" href="data:image/png;base64,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" />
+    <!-- Android reads these from the manifest, which is built at runtime from
+         the same two strings — see buildWebManifest(). Declaring them here as
+         well is what makes "Add to home screen" work when the manifest is
+         blocked (file:// in some builds) and it costs nothing at parse time. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CB App" />
+    <meta name="application-name" content="CB App" />
+    <!-- CB App v4.3.0 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -1395,6 +1420,7 @@
       .task-list,
       .log-list,
       .calculator-history,
+      .cal-lower,
       .t2-window .textarea-container,
       .nav-tooltip-list {
         scrollbar-width: thin;
@@ -1408,6 +1434,7 @@
       .sticky-note-content::-webkit-scrollbar,
       .task-list::-webkit-scrollbar,
       .log-list::-webkit-scrollbar,
+      .cal-lower::-webkit-scrollbar,
       .calculator-history::-webkit-scrollbar,
       .t2-window .textarea-container::-webkit-scrollbar,
       .nav-tooltip-list::-webkit-scrollbar {
@@ -1421,6 +1448,7 @@
       .sticky-note-content::-webkit-scrollbar-track,
       .task-list::-webkit-scrollbar-track,
       .log-list::-webkit-scrollbar-track,
+      .cal-lower::-webkit-scrollbar-track,
       .calculator-history::-webkit-scrollbar-track,
       .t2-window .textarea-container::-webkit-scrollbar-track,
       .nav-tooltip-list::-webkit-scrollbar-track {
@@ -1435,6 +1463,7 @@
       .sticky-note-content::-webkit-scrollbar-thumb,
       .task-list::-webkit-scrollbar-thumb,
       .log-list::-webkit-scrollbar-thumb,
+      .cal-lower::-webkit-scrollbar-thumb,
       .calculator-history::-webkit-scrollbar-thumb,
       .t2-window .textarea-container::-webkit-scrollbar-thumb,
       .nav-tooltip-list::-webkit-scrollbar-thumb {
@@ -1450,6 +1479,7 @@
       .sticky-note-content::-webkit-scrollbar-thumb:hover,
       .task-list::-webkit-scrollbar-thumb:hover,
       .log-list::-webkit-scrollbar-thumb:hover,
+      .cal-lower::-webkit-scrollbar-thumb:hover,
       .calculator-history::-webkit-scrollbar-thumb:hover,
       .t2-window .textarea-container::-webkit-scrollbar-thumb:hover,
       .nav-tooltip-list::-webkit-scrollbar-thumb:hover {
@@ -2278,10 +2308,19 @@
         flex-direction: column;
       }
 
-      /* --- Calendar (v4.0.0) ---
+      /* --- Calendar (v4.0.0, resurfaced in v4.3.0) ---
          Column layout with exactly one scroller (.cal-lower): the month grid is
          fixed chrome and must never be the thing that scrolls away, which is the
-         mistake the clock's countdown row made before v3.2.x. */
+         mistake the clock's countdown row made before v3.2.x.
+
+         v4.3.0 changed the surface, not the engine. This window had quietly
+         grown its own dialect: 8px boxes where every other button in the app is
+         a pill, no :hover rule anywhere in a window with nine buttons in it,
+         emoji parked in bordered boxes as row actions, one heading class doing
+         double duty as the search toolbar, and the only scrolling region in the
+         file that never got the shared accent scrollbar. Every rule below that
+         looks like decoration is one of those, put back in step with the window
+         sitting next to it on the desk. */
       .calendar-window {
         display: flex;
         flex-direction: column;
@@ -2292,10 +2331,15 @@
         min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: 8px;
-        padding: 10px;
+        gap: 10px;
+        padding: 12px;
       }
 
+      /* --- Month bar ---
+         Reading order is now ‹ month › then Today, which is the order the
+         controls are used in. Today used to sit between the label and the next
+         arrow, splitting one control into two halves with an unrelated button
+         wedged between them. */
       .cal-monthbar {
         display: flex;
         align-items: center;
@@ -2309,13 +2353,31 @@
         font-family: var(--mono);
         font-size: 13px;
         font-weight: 600;
+        letter-spacing: 0.04em;
+        color: var(--text);
       }
 
+      /* A circle rather than a wide pill: the shared pill rule below gives it
+         the 999px radius, and these two override the padding so the button is
+         the hit area (30px) rather than 30px of glyph plus padding. */
+      .cal-nav-btn {
+        width: 30px;
+        min-width: 30px;
+        height: 30px;
+        padding: 0;
+        font-size: 15px;
+        line-height: 1;
+      }
+
+      /* --- The month grid ---
+         Fixed row height rather than square cells: at 480px wide a 1:1 cell is
+         ~62px, so six rows ate the window and left the day's events squeezed
+         into a sliver. The grid is a date picker, not the content. */
       .cal-grid {
         flex: 0 0 auto;
         display: grid;
         grid-template-columns: repeat(7, 1fr);
-        gap: 2px;
+        gap: 3px;
       }
 
       .cal-dayname {
@@ -2324,12 +2386,9 @@
         font-size: 10px;
         letter-spacing: 0.06em;
         color: var(--text-dim);
-        padding: 2px 0;
+        padding: 2px 0 4px;
       }
 
-      /* Fixed row height rather than square cells: at 480px wide a 1:1 cell is
-         ~62px, so six rows ate the window and left the day's events squeezed
-         into a sliver. The grid is a date picker, not the content. */
       .cal-day {
         position: relative;
         height: 34px;
@@ -2338,17 +2397,26 @@
         justify-content: center;
         font-family: var(--mono);
         font-size: 12px;
+        font-weight: 500;
         border: 1px solid transparent;
         border-radius: 8px;
         background: var(--bg-card-hover);
         color: var(--text);
         cursor: pointer;
         padding: 0;
+        transition: background 0.15s ease, border-color 0.15s ease,
+          color 0.15s ease;
       }
 
-      /* :not(.cal-empty) — the leading pad cells carry .cal-day too, so they lit
-         up on hover while their own cursor said "not clickable". */
+      /* Hover tints the cell instead of only ringing it, which is the
+         distinction .log-item:hover already draws in the window next door:
+         a tint means "you are pointing at this", a solid fill means "this is
+         selected". A ring alone read as a weak second selection.
+
+         :not(.cal-empty) — the leading pad cells carry .cal-day too, so they
+         lit up on hover while their own cursor said "not clickable". */
       .cal-day:not(.cal-empty):hover {
+        background: var(--accent-dim);
         border-color: var(--accent);
       }
 
@@ -2357,15 +2425,29 @@
         cursor: default;
       }
 
+      /* Today is a ring AND the number in --orange: the ring alone is one
+         hairline against six rows of identical cards, and it disappeared
+         outright once a cell next to it was hovered. */
       .cal-day.cal-today {
         border-color: var(--orange);
+        color: var(--orange);
         font-weight: 700;
       }
 
       .cal-day.cal-selected {
         background: var(--accent);
+        border-color: var(--accent);
         color: var(--bg);
         font-weight: 700;
+      }
+
+      /* Today AND selected: keep the orange ring so "today" survives being
+         selected, but the fill decides the text colour. Ordered after both
+         single-state rules on purpose — it is resolving a conflict between
+         them, not adding a third state. */
+      .cal-day.cal-today.cal-selected {
+        border-color: var(--orange);
+        color: var(--bg);
       }
 
       /* The dot says "something is here" without needing room for the title. */
@@ -2377,6 +2459,10 @@
         height: 4px;
         border-radius: 50%;
         background: var(--accent);
+      }
+
+      .cal-day.cal-today:not(.cal-selected).cal-has-events::after {
+        background: var(--orange);
       }
 
       .cal-day.cal-selected.cal-has-events::after {
@@ -2399,25 +2485,77 @@
         padding: 4px;
       }
 
+      /* --- Section headings ---
+         Headings ONLY. Until v4.3.0 the search + Add row was also a
+         .cal-section-head, so the toolbar inherited 11px uppercase dim heading
+         type and every change to one silently moved the other. */
       .cal-section-head {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
         font-family: var(--mono);
         font-size: 11px;
         letter-spacing: 0.04em;
         color: var(--text-dim);
         text-transform: uppercase;
+        padding: 2px 2px 0;
       }
 
+      /* --text-dim, not --text-muted: at 10px this is small text and needs
+         the full 4.5:1. --text-muted measured 2.36:1 on the card. */
+      .cal-section-head .cal-count {
+        margin-left: auto;
+        color: var(--text-dim);
+        font-size: 10px;
+      }
+
+      /* --- Search + Add --- */
+      .cal-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 0 0 auto;
+      }
+
+      .cal-filter {
+        flex: 1;
+        min-width: 0;
+      }
+
+      /* The window's one primary action, wearing the same accent-dim fill the
+         Log window's Add button wears. */
+      .cal-primary {
+        background: var(--accent-dim);
+        color: var(--accent);
+        border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+      }
+
+      /* --- Event rows ---
+         The left rail is the one piece of pure decoration here, and it earns
+         its place: a column of cards with no anchor down the side reads as a
+         wall, and the rail is what makes the agenda scannable as a list. */
       .cal-event {
         display: flex;
-        align-items: baseline;
-        gap: 8px;
-        padding: 6px 8px;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 8px 10px;
         border: 1px solid var(--border);
+        border-left: 3px solid var(--accent);
         border-radius: 8px;
         background: var(--bg-card-hover);
+        transition: border-color 0.15s ease, background 0.15s ease;
+      }
+
+      .cal-event:hover {
+        border-color: var(--text-muted);
+        border-left-color: var(--accent);
+      }
+
+      /* An all-day event has no time to anchor it, so the rail carries the
+         difference instead of the row looking like a timed event whose time
+         went missing. */
+      .cal-event--allday {
+        border-left-color: var(--text-muted);
       }
 
       .cal-event-when {
@@ -2425,11 +2563,20 @@
         font-size: 11px;
         color: var(--accent);
         white-space: nowrap;
+        padding-top: 2px;
+        min-width: 58px;
+      }
+
+      .cal-event--allday .cal-event-when {
+        color: var(--text-dim);
       }
 
       .cal-event-main {
         flex: 1;
         min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
       }
 
       .cal-event-title {
@@ -2444,43 +2591,152 @@
         white-space: pre-wrap;
       }
 
+      /* Repeat and reminder used to be a mono string of "⟳ weekly  ⏰ -10m"
+         pinned to the right edge, which on a narrow window sat on top of the
+         actions. They are chips under the title now, on the same line as the
+         text they describe, and they wrap. */
       .cal-event-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 1px;
+      }
+
+      .cal-chip {
         font-family: var(--mono);
         font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
         color: var(--text-dim);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 1px 8px;
         white-space: nowrap;
       }
 
+      /* --accent, not --orange. --orange is the "today" colour and it is
+         legible on the dark card, but at #f59e0b on the light theme's card it
+         measures under 2:1 — and this is 10px text. --accent is the one accent
+         in this palette that was picked to clear AA as a foreground in BOTH
+         themes (see the light-mode override). */
+      .cal-chip--alert {
+        color: var(--accent);
+        border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+      }
+
+      /* --- Row actions ---
+         The log window's pattern, minus its one flaw. There, delete is
+         invisible until the row is hovered — which on a touch screen is a
+         control with no way to discover it. Here they are always present at
+         --text-dim (4.5:1 in both themes) and only take colour on hover, so
+         nothing is hidden from a finger and nothing shouts on a mouse. */
+      .cal-event-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+      }
+
+      .cal-row-btn {
+        background: transparent;
+        border: 0;
+        padding: 3px 6px;
+        font-size: 14px;
+        line-height: 1;
+        color: var(--text-dim);
+        cursor: pointer;
+        border-radius: 6px;
+        transition: color 0.15s ease, background 0.15s ease;
+      }
+
+      .cal-row-btn:hover {
+        color: var(--accent);
+        background: var(--accent-dim);
+      }
+
+      /* × is a lighter mark than ✏️ at the same type size and read as the
+         weaker of the two next to it. */
+      .cal-row-btn--danger {
+        font-size: 17px;
+      }
+
+      .cal-row-btn--danger:hover {
+        color: var(--danger);
+        background: color-mix(in srgb, var(--danger) 16%, transparent);
+      }
+
+      /* Matches .log-list:empty::before, which is the same sentence in the same
+         place one window over. It was italic and left-aligned here, the only
+         italic text in the app. */
       .cal-empty-note {
         font-size: 12px;
         color: var(--text-dim);
-        font-style: italic;
+        text-align: center;
+        padding: 18px 6px;
       }
 
+      /* --- The add / edit form ---
+         Captioned blocks, not label-then-control on one line. The inline form
+         wrapped mid-pair at any width the window can actually be dragged to:
+         "min before" ended up on the row below the number box it belongs to,
+         and Date's label sat above its own field while Time's sat beside it. */
       .cal-form {
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 8px;
       }
 
       .cal-form-row {
         display: flex;
-        gap: 6px;
-        align-items: center;
+        gap: 10px;
+        align-items: flex-end;
         flex-wrap: wrap;
       }
 
-      /* gap 10px, not 4px: the same 4px focus ring sat straight on top of the
-         text after each field, which is what made "min before" read as squashed
-         against the number box. */
-      .cal-form label {
+      .cal-field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 0;
+      }
+
+      .cal-field-label {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-dim);
+      }
+
+      /* All day disables Time, and Remind me disables the lead field. Only
+         the control dims — a --text-muted caption to go with it measured
+         2.36:1, and a caption is not itself an inactive control, so the
+         exemption that covers the greyed input does not cover its label. */
+      .cal-content input:disabled,
+      .cal-content select:disabled {
+        color: var(--text-muted);
+        cursor: not-allowed;
+      }
+
+      /* A checkbox and its words are one control and must never wrap apart;
+         the 28px matches the field height next to it so a row of mixed
+         controls sits on one baseline. */
+      .cal-check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 28px;
         font-family: var(--mono);
         font-size: 11px;
         color: var(--text-dim);
-        display: flex;
-        align-items: center;
-        gap: 10px;
         white-space: nowrap;
+      }
+
+      .cal-form input[type="checkbox"] {
+        width: 16px;
+        height: 16px;
+        accent-color: var(--accent);
+        flex: 0 0 auto;
       }
 
       /* Wide enough for three digits AND the spinner, which is ~17px of the
@@ -2497,7 +2753,7 @@
       }
 
       .cal-form textarea {
-        min-height: 62px;
+        min-height: 54px;
         min-width: 0;
         font-family: var(--font);
         font-size: 12px;
@@ -2508,9 +2764,23 @@
         color: var(--text);
       }
 
-      .cal-filter {
-        flex: 1;
-        min-width: 0;
+      /* Sticky, because the form is taller than the pane it opens in: with the
+         note box on screen, Add sat below the fold of the only scroller in the
+         window and nothing said so. -4px cancels .cal-lower's padding so the
+         row lands flush on the bottom edge.
+
+         This only works because addCalendar() now clamps the window into the
+         band above the toolbar. Pinned to the bottom of a window whose bottom
+         was UNDER the floating toolbar, the toolbar swallowed every click on
+         Save — the two changes are one fix, do not undo either alone. */
+      .cal-form-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        position: sticky;
+        bottom: -4px;
+        background: var(--bg-card);
+        padding: 6px 0 4px;
       }
 
       /* The shared input rule above only carries colour and font; the log and
@@ -2528,6 +2798,41 @@
         border-radius: 8px;
       }
 
+      /* Pills with a hover, like every other button in the app. The two
+         exclusions are the ones that are not chrome: a day cell is a grid
+         square and a row action is a bare glyph. */
+      .cal-content button:not(.cal-day):not(.cal-row-btn) {
+        border-radius: 999px;
+        padding: 5px 12px;
+        font-family: var(--mono);
+      }
+
+      /* After the rule above, or its padding wins on source order and the two
+         arrows come out as ovals. */
+      .cal-content .cal-nav-btn {
+        padding: 0;
+      }
+
+      .cal-content button:not(.cal-day):not(.cal-row-btn):hover {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--bg-card-hover);
+      }
+
+      .cal-primary:hover {
+        background: var(--accent-dim);
+      }
+
+      /* A disabled control that still lights up on hover is a lie, and every
+         control in this window can be disabled — that is what freezing does. */
+      .cal-content button:disabled,
+      .cal-content button:disabled:hover {
+        border-color: var(--border);
+        color: var(--text-muted);
+        background: var(--bg-card);
+        cursor: not-allowed;
+      }
+
       .cal-form input:not([type="checkbox"]),
       .cal-form select,
       .cal-form button {
@@ -2536,11 +2841,6 @@
 
       .cal-content input[type="checkbox"] {
         padding: 0;
-      }
-
-      .cal-monthbar button,
-      .cal-section-head button {
-        font-family: var(--mono);
       }
 
       .log-content {
@@ -3729,6 +4029,121 @@
         font-size: 16px;
       }
 
+      /* --- The calendar on a phone ---
+         34px cells and 26px buttons are a mouse's measurements. Nothing in
+         this window was ever resized for a finger, so on the iPhone SE floor
+         a day cell was a third of the 44px target and the two month arrows
+         were 30px squares 6px apart. The grid gets the space because the
+         window is full-bleed here: seven 42px cells fit inside 375px with
+         room over. */
+      body.mobile-ui .cal-day {
+        height: 42px;
+        font-size: 14px;
+      }
+
+      body.mobile-ui .cal-nav-btn {
+        width: 42px;
+        min-width: 42px;
+        height: 42px;
+        font-size: 18px;
+      }
+
+      body.mobile-ui .cal-content button:not(.cal-day):not(.cal-row-btn) {
+        min-height: 42px;
+      }
+
+      body.mobile-ui .cal-row-btn {
+        min-width: 42px;
+        min-height: 42px;
+        font-size: 17px;
+      }
+
+      /* 28px was pinned against the native date/time widgets on desktop; on a
+         phone those widgets are 16px-typed (see the iOS zoom rule above) and
+         do not fit in it. */
+      body.mobile-ui .cal-form input:not([type="checkbox"]),
+      body.mobile-ui .cal-form select,
+      body.mobile-ui .cal-form button {
+        height: 42px;
+      }
+
+      body.mobile-ui .cal-check {
+        height: 42px;
+        font-size: 13px;
+      }
+
+      body.mobile-ui .cal-form input[type="checkbox"] {
+        width: 22px;
+        height: 22px;
+      }
+
+      /* The mobile layout hands scrolling to .cal-content (see the scroller
+         rule above), so a row pinned to the bottom of .cal-lower is pinned to
+         the bottom of a box that is itself being scrolled — it rides over the
+         fields instead of sitting under them, and on a landscape phone it
+         covered the All day checkbox outright. Sticky is a desktop trick here. */
+      body.mobile-ui .cal-form-actions {
+        position: static;
+        padding: 2px 0 0;
+      }
+
+      /* Same reasoning as the block above that shrinks the toolbar: a phone on
+         its side is ~390px tall and six rows of 42px cells plus a month bar
+         plus a search row is more than all of it, which pushed the agenda —
+         the part you came for — off the bottom of its own window. The cells
+         give the height back; they are still a comfortable target at 32px
+         because they are 7 across a full-bleed window, i.e. ~52px wide. */
+      @media (max-height: 520px) {
+        body.mobile-ui .cal-day {
+          height: 32px;
+          font-size: 13px;
+        }
+
+        body.mobile-ui .cal-nav-btn {
+          width: 38px;
+          min-width: 38px;
+          height: 38px;
+        }
+
+        body.mobile-ui .cal-content button:not(.cal-day):not(.cal-row-btn),
+        body.mobile-ui .cal-form input:not([type="checkbox"]),
+        body.mobile-ui .cal-form select,
+        body.mobile-ui .cal-form button {
+          min-height: 38px;
+          height: auto;
+        }
+
+        body.mobile-ui .cal-content {
+          gap: 8px;
+          padding: 8px 10px;
+        }
+
+        /* A month grid and an agenda do not both fit in 309px of window, so
+           on this shape .cal-content scrolls (see the mobile scroller rule
+           above) and the grid goes off the top as you read the day. Pinning
+           the month bar keeps the answer to "which month am I looking at" on
+           screen while it does.
+
+           Sticky works here because the scroller IS this element's parent —
+           the trap is an ANCESTOR with overflow-x:hidden, which silently kills
+           position:sticky and is why the page uses overflow-x:clip. */
+        body.mobile-ui .cal-monthbar {
+          position: sticky;
+          /* -8px, matching .cal-content's own top padding, and it has to be the
+             offset rather than a negative margin: sticky pins the MARGIN box,
+             so a -8px margin just moves the whole thing up with the gap intact
+             and the first row of cells still scrolled through the strip above
+             the bar in slices. A negative offset parks 8px of the bar out of
+             sight instead, and the padding below puts the label back where it
+             was. */
+          top: -8px;
+          z-index: 2;
+          background: var(--bg-card);
+          padding: 8px 0 6px;
+          border-bottom: 1px solid var(--border);
+        }
+      }
+
       /* Hover tooltips are a mouse affordance. On touch the "hover" arrives
          with the tap that already ran the button, so the tip appears over the
          thing it was describing after the fact. showNavTooltip() refuses on
@@ -4448,7 +4863,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.2.4";
+      const CB_APP_VERSION = "4.3.0";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -6195,6 +6610,17 @@
       function setThemeClass(theme) {
         document.body.classList.remove("light-mode", "dark-mode");
         document.body.classList.add(theme);
+        /* The browser UI colour on a phone, and the splash background of an
+           installed copy. It has to be written here rather than left to a
+           prefers-color-scheme media attribute, because the theme is a class
+           the user chooses — the OS setting does not decide it. */
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) {
+          meta.setAttribute(
+            "content",
+            theme === "light-mode" ? "#f4f6fb" : "#0c0f16"
+          );
+        }
       }
 
       function setNavCollapsed(collapsed) {
@@ -9927,8 +10353,7 @@ Enterprise browser
            grab cursor with it. view.on stayed true, so panning and zooming kept
            working with none of their chrome, and the next applyView() put it
            all back, which made it look intermittent rather than broken. */
-        body.classList.remove("light-mode", "dark-mode");
-        body.classList.add(newMode);
+        setThemeClass(newMode);
 
         let link = document.querySelector("link[rel~='icon']");
         if (!link) {
@@ -10609,6 +11034,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
            returns early when the media query already agrees with mobileUI,
            which on a desktop it does. */
         syncMobileUI(true);
+
+        // Home-screen install metadata. Nothing else waits on it.
+        installWebManifest();
 
         /* One-time purge of the retired calendar feature's stale storage key.
            Not related to v4.0.0's `session.events`, which lives inside the
@@ -11413,6 +11841,71 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       }
 
       /* ==========================================================
+         WEB APP MANIFEST — built at runtime, on purpose
+         ----------------------------------------------------------
+         A manifest is normally a second file, and a second file is the one
+         thing this app cannot have: it is opened from file:// with nothing
+         serving alongside it. So the JSON is assembled here, turned into a
+         blob: URL and linked from <head> — which is why the CSP up top says
+         manifest-src 'self' blob: rather than just 'self'.
+
+         The icons are the same base64 PNGs as the apple-touch-icon links,
+         regenerated by scripts/make-cbapp-icons.mjs. "maskable" is not
+         decoration: Android crops a plain icon to whatever shape the launcher
+         uses, and without a maskable entry the pencil loses its nib on a
+         circle mask. The maskable art is the same drawing at 60%.
+
+         Failure here must never be fatal. Some file:// builds refuse blob
+         URLs in <link>, and an install prompt is the least important thing
+         this file does — the try/catch is deliberate.
+         ========================================================== */
+      const ICON_192 =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADACAIAAADdvvtQAAAQAElEQVR4nOxdC2wc1bn+z+ys14/1K06cOEnzILFDAnFsnjdNqa54lKIrykNCtL26vYl43QuoRSqtqhZUSlsoFBX1EVK1pSUtfSGqQtWCeIS2oQWkUhLiUBxT0yQkhMQxidd2Ht7Nns6cc2b22Pua2Zlz1uv9P6Gfb76MX///+Z8z5xzPmHMWdBFCIAuUUtRRL6qbOVULqKPuRTcsawHzFzuUOOqoe9BJ+8IVgECUCoNKzsKI0W9kHchi9hXOOiZUjJVsjjrqRXXWgQhhbhKqy1FHvahudaCuLHshR+6VG9xGTCXIkfvlkXhTGztkzuLGQo7cMzcyKgHkyP1y0YE4nEtbJqKOemHd6kCUcNV2Fs10J9RR96ATazEVcvkLOXIv3ADhJu4v5Mj9cdGBGPh1DTlyH1ysxjNPEeTI/XKrA3WyA9aTJkVAHfWiusH+iXtqSkQd9eK624EmX9pkoI56ft1wLme2mTIcCOqoe9FZB5I9hRy5H25kLmcAyJH75VIHciOHrKCOeh6d70h0PcU4SBx11AvqZM78TspnhxjsExx/oY56UZ2txlvjauCeoiTjL9RRL65HGhrbuLMwYiwhGpljQpAj98utDjSLDYzsY355c/wFqKNeVDdo5gwinU1QR92LLjqQ4ylAjtwXN9hQGtjgmggOEkcd9YI6mT1/Ob+45QDqqBfT7f1AfEbI8ZcUUUe9mB6pb5olnOX6y+Woo15MN+3lDTatKJ63UCZ+xpln9qzpXrFiRWdXpxVhhmJ8fGzgrX8O7No1sGvgpZdfOXTwIJ0e+S+Z8zEQP+Y/o8Ntf+nQG+Px22//7OUfuxyqDMeOH/v2g999/DeP03S6jPkPqEfq463cTc4ljrg9SYP+wQ+ufeihjb1n9UL1IRqNXnDBh6wMbNu2feTo0bLkP7hOZncsz3WJ0xHXrj1/40MboeoxMjJyzTXXHh4aKksVAsZIXWMrcTzFVzf08HhjfNOmTQ0N9VD1qK2t/cDCBc88+5zO/IfF7Zlo9lPYx0T8RDr4V+7+Snf3akAwLFm6dPe//jU4OMiOdNciCLfXwringK136OHNzS2XXHIxICSs37C+LLUIyA3bTZR7imrjvWf1GIYBCAmdnZ2tLS36axGQsw4E/NaMaOPnnH02ICbD+o1auWoVaK9FQG6442nuLD18NY5+cqF79Zn6axGQ8/1AbH8rAF9lFVyZbs1/dHV1ASILZ59ztob8h6ubwk2E7RgiElemJ5PJWCwGiFzQkP9wdfvvwribdEZA5IL7W15B0QS2NsbdpI0DIg/01yIgt59QxtdXCfv29XBA5IH+WgTkogNpjoDIA/21CBhFB9IcAZEH+msRMJogXC/Gtno4Ih/01yIgt9cTmJuAj22Jc4umVkfkgab8h6c7HWhyhCwlZB2RB5ryH56eWdGUh7aqOaIwdNYiIDfdA7k1qOaIwtBZi4DcMhB156ldXVIU6T5w8NDw8NFEMpmCSkNdXW17W0tLcyP4g4b8h6abzrF8gSFZUYXuCc9v/du77w1BJaN39YrVK5f5+Ygw80xrzBNXXzBxbtep5R2Rwfeif9tV99u/khPJsD6/SamzvxWIRu4J7x48XOnusfBG/9undy6OmmbxU6n7v3DynFy1ZPTOT9I5zfzzprqXWv+duGpd49d/aW4fDKWmhsuA35vp4l4wMjIGlY+JZHJ09JinU1nLCCvPyVWLE9+83nWPCzqrMXHvhlTv8lC+FntKKxDp3kwTR+SAnZhw8szccwPEorm/UE00cc/6ZM/y4F9LdCB2b0Y1ck9obW2CyocZiTQ1NXg6VWQJAuY5dUZB93AwD6V6lwX8Wm4HAsdTergnzJsza2XXEqhwrD13teUhT6eKLEGQ3BbpPTJsD21w+lCJX9ckbEXDcZY27hXn9qw6bfHCZKry7uE54vV18YY6r2cHzq2n3iOD9aGmL/7E3DZY2te17sKAHbuRj7FBqQ5+0DYjLmSeECzPvt3DwfpQ0xcfMbf9s4Sva2T9W86zQ9YRuREgzyW6h8MZD5XwdY3JZ2jiiNzIW7kiPJB7OFgfSq1e4remBh8NOXXVxBH5UEI+Q3APR0109Gvr0y2Nvr4HQ+/YWXBA5IHffFo9I3Hf9SG4h4HG68Zvu9LX92BI92b6IiDywFcmrZUK2z11NRAekuvOSBs+XGGAWIBxnCVxdTog8sB7Pq3eM3p/aL0nA8M4tbjde335Ch/NzA5luEIdEHngMZ/2Kul9CtzDYNgrd17ry/ZES7s9JK5UR+SGl3ymLPc8cIMi95Cx45GhhPf6sj3R4PpLG0fkRtEcWisV6txjofbRLb5qakBmVEuk4hLFOqIwcuct2bNs9IEb1bkn+uLOuse2+qqvCdL4SBqcUMU6ojBy5C255rTRe6+DGg8b00pC9JU343c/6re+htSWRKRZihIdkQc582a75xvXK3VPwx2bSTrtt46m25acoRKbKaagVveDattUn523ZI9y98Tv3ExouoT6OnuimaqPe0aVbaqnIki50uCehjsesecES6qpQUAw4H+16nKlujfMmE31nvczTc2bjt5zx2bDcU8J9bXf2sw9NTUq1b2h6jbVw6S86eo96SD1NZmzKHuPoehLrqJQR+RGJm+pNcvU955HSJqK9xaUWl/egQj/LJLXiFrdG6puUz24vWeZvVKhftwTvL7sOdEZf+ni3lB1m+pZfvT0HiOdDqWmpj0YEs+7y/hLNff+01bXpnprnatnmY5xT5qGVXfTcROw98hr4r5QPZvqd9YmNbjH7j38FiqMmjpPqmdrrdo4IhsvJ9//6rwxXe4JraZ8NZ4fU20cMQWWe/5n5O8pZalxrlzp0GvK9wMBdRbI9HCEDO6eCWWt2XbPl+zeAwpqKjoQOAsMejjChWr3mO5sITsMvaaGaAjcWbo4gkND74l/6Sd8jV1RTQ1wV8gAnD9rc7kqHQH6eg9VWl9DVFR4irp/OqZcr268ODGstve8uNPpPWrraMp/TKsvVjcs9/xv4rWUSvc03LXZvttWX032fKBc/6ZWr2Jodo/q+ppiTOTW1eFq9WqFJvfwWy4NdRRPqpffwqSHVyU0uKee9x7QV1M2ce76SxuvPqh3T1/DXT8VvQf01ZStxrOpGWd9VQf3hXJtqo9GzbaWprntbRAYWnrPTyevsWuqqcn7AXeTUCHTJ1TpnlH2TfUd82Zf8uHzIAB09h7ddWQ7Em24kUhcqe4F02FT/YH3Dh8aeh9KhQb3uL0HylFHw3WW2xs0cI+YJpvqh48koCTo6T0Gv3IxRXMdqfOkenB3CenhUAXYktj/qaOvqu09X94sdsVrrN0Ubj+pnjEixkdauMccTZNN9SVsiXx+ZN8N/c+nDxwGtokidPArF/uLCN21m8INsctV2imtgXtM03TYVH9655L2ObN8fYjlnht3bUmn0+T4BDkwDGHPe/HeY1+5ylG7KZy0zllEnVGR2C8tRUX66307vOfLGoKUa1N9jWnO8tl+njvyzk1vvZCWGg+tj9GOtrDm31nvsa5coLNeBXTxt/Gao6+UVdCmets9A1vSk39AcuwkHBgOxUOi91AoS9VyRsPe1cGPgWrjMBOR0z0cloeCX8tE76FUf70KcPv5QM7cItHGYcahgHs4AnrIGfdAWepVgIsOpDnOMBR1D0fJHhJ37Kz3lKVeBaLhTisSAhInSvWZhD8c2ePFPRwleCj6wjbuHg11KUFn2znYcWYynIiZInX6jIHlnlsH/pj2YwhfHrLdc/ej9jqXlrqUoLMn1bNbe1HXDFepzwhsObrv5oEXShjSefRQ9PnXGu7+GdFZF/+6wYwETgSJq9QrH0NjI7e/9WdS6u9CUQ/ZvedrP9ddF/+6QV3BPtTFKxzj4+Ob3v77kVMTEAAFPBR99tV6q/fYVG9d/HP2jETgFzTQxysZlnv279+3KzkKgSE8NBl277nnl+Wpi3/OOxCfpQadvEJBTg6l3nnaGvcchXBWV2wPHczsN4o+I3pPueril4sOpD1WKmrffWLpns/PTe9YGqmHkEBGj3MPrRuL1t/7izJVpMTovDeee0ofr1TUHHiSnDp52t4v3GKGuVXS8tBHxutuO9RAylCLQJy9N57tDLI9pY/7wCvJ93emRkdpaAvyNcTojDR8ONpWS7w+upAjcmy3eXSbRSwPrdt/153tn/7qyWYIAxe2fuCHiz706qFXy1GLQJy/N56vrILE5Ri+Dp7xqcRrf5o4DArQbsS2tK5rJj6eCFZz4Pcutzz0uUPfOTD7xh8l50IwWO55uOsilhkQ+2wU5z9E3RBuEqrD5ahA94gXk8OK3GPhUPrk5uN7fX1I7N0n5UPLQ986/IProwchAFz32J9QV/5D1A3qTjASoNJko1LdIwZS46ASO1I+dstHxt6KjP5jisg99EnzCJQE2T0A+vIfom5kPMVv7N0zVOqViNiB3+XULQ9tGt5UgoemuId9Lk35D1E3nKsau7JIXKnuMcWrTH8vSvKLbtPHXseaydcvGcapY349lMM9oC//IeoGH7uxezPQxr0lGdZGW6+rWwRqcI7Z4v2TRxJvRMYHC5zgy0O53QNQlloE5NN9T/SXG06/OjZ/jJ6CUGHdvp8XbfV+fmzfY0XP4R6Ctv//RarQZ87nHgD5t5xUSjQz80KTIijVwQ9Wm2XfVE9j+a9fMop6qIB7GDTlP0TdYPNC0vw05/YPqFCHikL0/ZeNCa/zztxD19XkuL+7qm3pj1dcTArdRGjKf4i6vSORX1OkWWqYFBXolYUab+3HheWhB4c2fqMuvThSX0cicRJZYcbvmXvWg53/WexDNeU/RJ3PwwpPOdeXyX9FpkCHysHIkeGxN55e7PN2kJwav/m9+z6y6IEhY411GI/HFyxY6OHjNOU/RN1wvm/37tp1mUK9gvDnJ79/9YPH3hn2/YGWh5bvvX1OesCzezh05D9EnRuITCprhqvWKwBPPfX7fUeMKzfW+fcQSbX0zGtK+nEPg778h6CbgsoDOyKdolaf7hhLHH2pz1qMI9xDv7rpROfc4vZPtfROzL/iRMcVNNYOJUBf/kPQp/t748uLP/7m26m0yJntoe/VPXHr8XweSsVPt3xzcv6V6fpgk5+aaxGMmy6zoJNXBP7w1NPy4eExku2hU/WLJjqusKyTalwJwVGOWgThFfB0jnJh+OCel3YOT/E799Cvbzq+atmckx0fs33TchaEiIqbieZuYpFKHNTqlYCtT2xyr18uohHa3TV3oP3ajgtvce5hQ4We/IenYwfKi2efe8HlEYOuO6P1o5deeuE1tzW1hPDk6LyovA7k7KG0nQUgcZX6tMfw/l1/feOI9Y3+x8qmyy698JJrPtM82+fdeEnQlP/wdJMCdqAc2Nv/8p23/tfFV93SOr8TNGLadpoCHYi5SW+c/ui9aH3vRaAf+msRMErvjSdkalSmI/JBT/5D1KX3xjvrqxmuTEfkhWvSegAAAvBJREFUg578h6g77413pjvkqT51+o7XXwdEFnbs2KEn/yHqbD8Qk0SkMFVRoPf39wMiC7ve7NeT/xB1A5xrCmGyHo4Gyon+/jf11yIgt9/anHGWLo4GysaJEyd2796tvxYBudOBJkfIUsLV+6yrPQ6DJuPHDz9M02k9+Q9RJ02z5js/ApXGSe5oSZW+YMHCxx5/vLk5nKdbVDp29vV94uPXyvc6qvMflh6J1cYhs0JGtfFEIrF3796PXnYZVD2sVFy3YcPY6JjO/IfFI7H6RmYm5ilhLE387cHBHX19551/fkNDA1QrrGv5zTf93zv79unPfyjcEIzvs9fO/7J16xWXX/7sM89A9cEaNX/z/vv/++Of2L1nT7nyH5xbY6COHBc77XHu3HlrerrXdPeu6V2zcuWqWCwGMxEjiUTf69YdxPbt27ZbdxKjo6Nlz3zASBpbO4jTkdj6KnLkPjhpau2wfzX4MQdy5J45e2+8dGlDjtwXdzoQAlESxLsy7EjA4SBx1FEvpNsdiIpndgBXiWMu1FEvqhs08+wFfgZIHHXUi+gmVzFiLC2yp7S6x8iR++TWROI8YIMhyjoScuS+OHtvvOMp5Mj9ctGBpkIefKOOen7dEA2JeYpFxglBHXUveiRWFxf+kiNkKaijnktnYyD7mHJVrLICoI66F93pQNxO2S5DHfWCuiE8BdxZWRF11AvqpLFlnmMnEK0KOXLP3GCeIsJZjFOJo456YT0Sq2103CQikTjqqBfW+X4goWY4Iaij7kW3xkDZb63m5wHqqBfV2Z5oe12DRc6Fy1BHvbie6UC8K2UDddQL6AbzlHNN41yOqKNeULc7kOwpym/WIHM26qgX0A1nUpEy1f6LQ4ejjnpxnXUg5iaMGEuIhusmjBhLiCTebN2FUfbkenF1Q47cOzccZrsJOXK/PFJTG4fMPCMBacYaddSL6u5qvL2s4XAqcdRRL6RbHah6n0+ICA720kbmLAHkyP1w7ECIQPg3AAAA//+1gn1TAAAABklEQVQDALDrgUxTVb4EAAAAAElFTkSuQmCC";
+      const ICON_512 =
+        "data:image/png;base64,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";
+      const ICON_512_MASKABLE =
+        "data:image/png;base64,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";
+
+      function buildWebManifest() {
+        return {
+          name: "CB App",
+          short_name: "CB App",
+          description:
+            "A browser-based notepad and productivity tool. Works offline.",
+          start_url: ".",
+          scope: ".",
+          display: "standalone",
+          orientation: "any",
+          background_color: "#0c0f16",
+          theme_color: "#0c0f16",
+          icons: [
+            { src: ICON_192, sizes: "192x192", type: "image/png", purpose: "any" },
+            { src: ICON_512, sizes: "512x512", type: "image/png", purpose: "any" },
+            {
+              src: ICON_512_MASKABLE,
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "maskable",
+            },
+          ],
+        };
+      }
+
+      function installWebManifest() {
+        try {
+          const blob = new Blob([JSON.stringify(buildWebManifest())], {
+            type: "application/manifest+json",
+          });
+          const link = document.createElement("link");
+          link.rel = "manifest";
+          link.href = URL.createObjectURL(blob);
+          document.head.appendChild(link);
+        } catch (e) {
+          /* No manifest, no install prompt. Everything else still works. */
+        }
+      }
+
+      /* ==========================================================
          CALENDAR ENGINE (v4.0.0)
          ----------------------------------------------------------
          The store, the occurrence maths and the scheduler. No DOM below this
@@ -11950,7 +12443,22 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         if (targetMode) newWindow.dataset.mode = targetMode;
         newWindow.style.zIndex = nextWindowZ();
         const defaultWidth = 480;
-        const defaultHeight = 640;
+        /* 640 is the height this window wants; the band between the top of the
+           screen and the top of the toolbar is the height it can have. On a
+           1280x720 desktop that band is ~576px, so a flat 640 hung the bottom
+           64px of the window — the add/edit form's Save and Cancel — underneath
+           the floating toolbar, which swallowed the clicks. placeWindow already
+           routes AROUND the toolbar (see canvasBounds); it cannot help with a
+           window taller than the space it is routing into.
+
+           The 420 floor is deliberate: below it the month grid alone fills the
+           window and the agenda has nowhere to go, and a user can always drag
+           the window taller. */
+        const band = canvasBounds();
+        const defaultHeight = Math.max(
+          420,
+          Math.min(640, Math.round(band.bottom - band.top))
+        );
         newWindow.dataset.width = defaultWidth;
         newWindow.dataset.height = defaultHeight;
         newWindow.style.width = `${defaultWidth}px`;
@@ -11976,19 +12484,23 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           <!-- data-lock-exempt: paging the month and searching are reading, not
                editing, so they survive a freeze. Add event does not. -->
           <div class="cal-monthbar">
-            <button type="button" data-lock-exempt="true" onclick="calShiftMonth('${calid}', -1)" title="Previous month" aria-label="Previous month">‹</button>
+            <button type="button" class="cal-nav-btn" data-lock-exempt="true" onclick="calShiftMonth('${calid}', -1)" title="Previous month" aria-label="Previous month">‹</button>
             <span class="cal-month-label" id="cal-month-${calid}" aria-live="polite"></span>
+            <button type="button" class="cal-nav-btn" data-lock-exempt="true" onclick="calShiftMonth('${calid}', 1)" title="Next month" aria-label="Next month">›</button>
             <button type="button" data-lock-exempt="true" onclick="calGoToday('${calid}')">Today</button>
-            <button type="button" data-lock-exempt="true" onclick="calShiftMonth('${calid}', 1)" title="Next month" aria-label="Next month">›</button>
           </div>
           <!-- role="group", not "grid": an ARIA grid requires row/gridcell
                descendants and this is a flat CSS grid of buttons, so the role was
                a promise the markup does not keep (Lighthouse: aria-required-
                children). Each day button carries its own full date label. -->
           <div class="cal-grid" id="cal-grid-${calid}" role="group" aria-label="Days of the month"></div>
-          <div class="cal-section-head">
+          <!-- .cal-toolbar, not .cal-section-head: this is a control row, and
+               it shared a class with the "Saturday, August 15" heading below
+               it until v4.3.0 — so it inherited uppercase dim heading type and
+               could not be changed without moving the heading too. -->
+          <div class="cal-toolbar">
             <input type="text" class="cal-filter" data-lock-exempt="true" id="cal-filter-${calid}" placeholder="Search events..." aria-label="Search events by title or note">
-            <button type="button" id="cal-add-${calid}" onclick="calOpenForm('${calid}')">Add event</button>
+            <button type="button" class="cal-primary" id="cal-add-${calid}" onclick="calOpenForm('${calid}')">Add event</button>
           </div>
           <!-- tabindex, and it is not optional: this is the calendar's one
                scroller, and on a short screen (a phone on its side gives the
@@ -12159,16 +12671,19 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         }
 
         const selected = el.dataset.selected;
+        const onDay = eventsOn(selected);
         lower.appendChild(
           calSectionHeading(
             parseDateKey(selected).toLocaleDateString(undefined, {
               weekday: "long",
               month: "long",
               day: "numeric",
-            })
+            }),
+            onDay.length
+              ? `${onDay.length} event${onDay.length === 1 ? "" : "s"}`
+              : ""
           )
         );
-        const onDay = eventsOn(selected);
         if (!onDay.length) {
           const empty = document.createElement("div");
           empty.className = "cal-empty-note";
@@ -12180,18 +12695,41 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         );
       }
 
-      function calSectionHeading(text) {
+      /* `count` is optional and is a string, not a number, because the two
+         callers count different things: the day pane counts events on the day,
+         the search pane counts matches and says so in its own heading already. */
+      function calSectionHeading(text, count) {
         const head = document.createElement("div");
         head.className = "cal-section-head";
         const span = document.createElement("span");
         span.textContent = text;
         head.appendChild(span);
+        if (count) {
+          const tally = document.createElement("span");
+          tally.className = "cal-count";
+          tally.textContent = count;
+          head.appendChild(tally);
+        }
         return head;
+      }
+
+      /* One chip. Text only, and deliberately: the meta line used to be
+         "⟳ weekly  ⏰ -10m" as a single mono string, and 🗑 sat next to it as
+         the delete button. U+1F5D1 is an astral symbol with TEXT presentation
+         by default — the same class of character as the U+1F5D5 that shipped
+         as an invisible minimise button on every iPhone in v4.2.3. Nothing in
+         this row needs a glyph badly enough to re-take that bet. */
+      function calChip(text, variant) {
+        const chip = document.createElement("span");
+        chip.className = variant ? `cal-chip ${variant}` : "cal-chip";
+        chip.textContent = text;
+        return chip;
       }
 
       function calEventRow(windowId, event, dateStr, showDate) {
         const row = document.createElement("div");
         row.className = "cal-event";
+        if (event.allDay) row.classList.add("cal-event--allday");
 
         const when = document.createElement("span");
         when.className = "cal-event-when";
@@ -12203,6 +12741,9 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             });
         row.appendChild(when);
 
+        /* A flex column now, not a span with <br>s in it. The <br>s were what
+           forced the note to start on a new line, and they also made the whole
+           block one inline run that could not be given its own spacing. */
         const main = document.createElement("span");
         main.className = "cal-event-main";
         const title = document.createElement("span");
@@ -12216,44 +12757,57 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             undefined,
             { weekday: "short", month: "short", day: "numeric", year: "numeric" }
           );
-          main.appendChild(document.createElement("br"));
           main.appendChild(on);
         }
         if (event.note) {
           const note = document.createElement("span");
           note.className = "cal-event-note";
           note.textContent = event.note;
-          main.appendChild(document.createElement("br"));
           main.appendChild(note);
         }
-        row.appendChild(main);
 
         const meta = document.createElement("span");
         meta.className = "cal-event-meta";
-        const bits = [];
-        if (event.repeat !== "none") bits.push(`⟳ ${event.repeat}`);
+        if (event.repeat !== "none") meta.appendChild(calChip(event.repeat));
         if (hasAlert(event)) {
-          bits.push(event.alertMinutes === 0 ? "⏰" : `⏰ -${event.alertMinutes}m`);
+          meta.appendChild(
+            calChip(
+              event.alertMinutes === 0
+                ? "Remind at start"
+                : `Remind ${event.alertMinutes}m before`,
+              "cal-chip--alert"
+            )
+          );
         }
-        meta.textContent = bits.join("  ");
-        row.appendChild(meta);
+        if (meta.childElementCount) main.appendChild(meta);
+        row.appendChild(main);
+
+        /* Bare glyph buttons, like .log-delete one window over — a bordered box
+           per action turned every row into three competing rectangles. × is
+           BMP and ✏️ carries U+FE0F, which is the rule the window controls
+           follow (see the glyph note in the header CSS). */
+        const actions = document.createElement("span");
+        actions.className = "cal-event-actions";
 
         const edit = document.createElement("button");
         edit.type = "button";
+        edit.className = "cal-row-btn";
         edit.textContent = "✏️";
         edit.title = "Edit this event";
         edit.setAttribute("aria-label", `Edit ${event.title || "event"}`);
         edit.addEventListener("click", () => calOpenForm(windowId, event.id));
-        row.appendChild(edit);
+        actions.appendChild(edit);
 
         const del = document.createElement("button");
         del.type = "button";
-        del.textContent = "🗑";
+        del.className = "cal-row-btn cal-row-btn--danger";
+        del.textContent = "×";
         del.title = "Delete this event";
         del.setAttribute("aria-label", `Delete ${event.title || "event"}`);
         del.addEventListener("click", () => calDeleteEvent(windowId, event.id));
-        row.appendChild(del);
+        actions.appendChild(del);
 
+        row.appendChild(actions);
         return row;
       }
 
@@ -12323,18 +12877,24 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
         const form = document.createElement("div");
         form.className = "cal-form";
+        /* Captioned blocks. Every field is <label> wrapping a caption span and
+           its control, so the caption cannot wrap away from what it names —
+           which is exactly what "min before" did next to the number box. The
+           aria-labels stay on the controls: the caption is three words of
+           uppercase mono and the label a screen reader should hear is the
+           sentence, not the abbreviation. */
         form.innerHTML = `
           <div class="cal-section-head"><span>${editing ? "Edit event" : "New event"}</span></div>
           <div class="cal-form-row">
             <input type="text" id="cal-f-title-${windowId}" placeholder="What is it?" maxlength="${MAX_NAME_CHARS}" aria-label="Event title">
           </div>
           <div class="cal-form-row">
-            <label>Date <input type="date" id="cal-f-date-${windowId}" aria-label="Event date"></label>
-            <label>Time <input type="time" id="cal-f-time-${windowId}" aria-label="Event time"></label>
-            <label><input type="checkbox" id="cal-f-allday-${windowId}"> All day</label>
+            <label class="cal-field"><span class="cal-field-label">Date</span><input type="date" id="cal-f-date-${windowId}" aria-label="Event date"></label>
+            <label class="cal-field"><span class="cal-field-label">Time</span><input type="time" id="cal-f-time-${windowId}" aria-label="Event time"></label>
+            <label class="cal-check"><input type="checkbox" id="cal-f-allday-${windowId}"> All day</label>
           </div>
           <div class="cal-form-row">
-            <label>Repeats
+            <label class="cal-field"><span class="cal-field-label">Repeats</span>
               <select id="cal-f-repeat-${windowId}" aria-label="Repeat">
                 <option value="none">Never</option>
                 <option value="daily">Daily</option>
@@ -12343,15 +12903,15 @@ Tip: Use the Download button inside the app to preserve your open windows and no
                 <option value="yearly">Yearly</option>
               </select>
             </label>
-            <label><input type="checkbox" id="cal-f-alert-on-${windowId}"> Remind me</label>
-            <label><input type="number" class="cal-lead-input" id="cal-f-alert-${windowId}" min="0" max="${MAX_ALERT_MINUTES}" step="1" value="0" aria-label="Minutes before the event"> min before</label>
+            <label class="cal-check"><input type="checkbox" id="cal-f-alert-on-${windowId}"> Remind me</label>
+            <label class="cal-field"><span class="cal-field-label">Min before</span><input type="number" class="cal-lead-input" id="cal-f-alert-${windowId}" min="0" max="${MAX_ALERT_MINUTES}" step="1" value="0" aria-label="Minutes before the event"></label>
           </div>
           <div class="cal-form-row">
             <textarea id="cal-f-note-${windowId}" placeholder="Notes (optional)" maxlength="${MAX_EVENT_NOTE_CHARS}" aria-label="Event note"></textarea>
           </div>
-          <div class="cal-form-row">
-            <button type="button" id="cal-f-save-${windowId}">${editing ? "Save" : "Add"}</button>
+          <div class="cal-form-actions">
             <button type="button" id="cal-f-cancel-${windowId}">Cancel</button>
+            <button type="button" class="cal-primary" id="cal-f-save-${windowId}">${editing ? "Save" : "Add"}</button>
           </div>
         `;
         lower.appendChild(form);

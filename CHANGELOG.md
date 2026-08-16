@@ -7,6 +7,123 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.3.0] — 2026-08-16
+
+### Changed — the calendar window looks like the rest of the app now
+
+The engine is untouched: the store, the recurrence maths, the alert scheduler
+and every id in the window are the same. What changed is the surface, which
+had quietly grown its own dialect.
+
+- **Buttons.** Every other button in this app is a pill that lights up on
+  hover. The calendar's nine were 8px boxes with no `:hover` rule anywhere —
+  the whole window was inert under a mouse. They are pills now, Add event
+  wears the accent-dim fill the Log window's Add button wears, and the two
+  month arrows are circles sized to be a hit area rather than a glyph.
+
+- **Row actions were emoji in boxes.** ✏️ and 🗑 each sat inside a bordered
+  button, which made every event row three competing rectangles. They are bare
+  glyphs now, like `.log-delete` one window over: `--text-dim` at rest,
+  `--accent` and `--danger` on hover.
+
+  🗑 also had to go on its own merits. U+1F5D1 is an astral symbol with TEXT
+  presentation by default — the same class of character as the U+1F5D5 that
+  shipped as an invisible minimise button on every iPhone in v4.2.3. Delete is
+  `×` now, and a new test holds the row to the same glyph allowlist the window
+  controls answer to.
+
+- **One class was doing two jobs.** The search + Add row and the "Saturday,
+  August 15" heading were both `.cal-section-head`, so the toolbar inherited
+  11px uppercase dim heading type and neither could be restyled without moving
+  the other. The toolbar is `.cal-toolbar`.
+
+- **The day grid.** Hover tints the cell instead of only ringing it — a ring
+  read as a weak second selection next to the solid accent fill that means
+  selected. Today is the ring *and* the number in `--orange`, because one
+  hairline among six rows of identical cards disappeared the moment a
+  neighbouring cell was hovered.
+
+- **Repeat and reminder were a mono string** pinned to the right edge
+  (`⟳ weekly  ⏰ -10m`), which on a narrow window sat on top of the row's own
+  buttons. They are chips under the title now, on the same line as the text
+  they describe, and they wrap. The reminder chip is `--accent`, not
+  `--orange`: `--orange` is legible on the dark card but measures under 2:1 on
+  the light theme's, and this is 10px text.
+
+- **The event count** ("2 events") is on the day heading, and the empty state
+  is the centred muted line `.log-list:empty::before` already uses instead of
+  the only italic text in the app.
+
+- **The form is captioned blocks**, not label-then-control on one line. The
+  inline version wrapped mid-pair at any width the window can be dragged to:
+  "min before" ended up on the row below the number box it belongs to. Save
+  and Cancel are right-aligned and pinned to the bottom of the pane, so the
+  form can be longer than the window without hiding its own commit button.
+
+- **The scrollbar.** `.cal-lower` was the one scrolling region in the file that
+  never joined the shared accent scrollbar treatment.
+
+- **Phone sizing.** Nothing in this window had ever been measured for a finger:
+  34px cells and 26px buttons on a screen where the floor is a 375x667 iPhone
+  SE. Cells are 42px in portrait, the controls clear 42px, and on a landscape
+  phone — where a month grid and an agenda cannot both fit in 309px of window —
+  the cells drop to 32px and the month bar sticks to the top of the scroll so
+  "which month is this" stays on screen.
+
+### Fixed
+
+- **The calendar opened partly underneath the toolbar.** Its default height was
+  a flat 640px; on a 1280x720 screen the band between the top of the page and
+  the top of the floating toolbar is ~576px. `placeWindow()` already routes
+  *around* the toolbar but cannot shrink a window taller than the space it is
+  routing into, so the bottom ~64px — which is where the add/edit form's Save
+  and Cancel live — sat under it, and the toolbar ate the clicks. The height is
+  clamped to the band it is placed in, with a 420px floor.
+
+### Added
+
+- **A real home-screen icon on iOS and Android.** Saved to a phone's home
+  screen, CB App had no icon of its own: iOS fell back to a screenshot of
+  whatever was on screen when you saved it, and Android drew the 24px SVG
+  pencil favicon scaled up into a mess.
+
+  The icons cannot be files. This app is opened from `file://` on a machine
+  that serves nothing alongside it, so `href="icon-180.png"` resolves to
+  nothing — every icon travels inside the HTML as a base64 PNG. Three
+  `apple-touch-icon` rungs (180/152/120) in `<head>`, and 192/512 plus a
+  512 maskable in the manifest.
+
+  The art is generated, not hand-written: `scripts/make-cbapp-icons.mjs`
+  draws it as SVG and rasterises it with the Chromium the test suite already
+  installs. Edit the script and re-run it; never edit the base64.
+
+  Two details that are not cosmetic. The nib is `--orange`, not paper white —
+  it sits *on* the page in the drawing, and at 120px a near-white wedge on a
+  near-white page made the pencil look snapped off. And the maskable variant
+  is the same drawing at 60%, because Android crops to whatever shape the
+  launcher uses and a circle mask takes the corners of the full-bleed art.
+
+- **A web app manifest, built at runtime.** Same constraint: it cannot be a
+  second file, so the JSON is assembled in the page, turned into a `blob:`
+  URL and linked from `<head>`. That is the one CSP change in this release —
+  `manifest-src 'self' blob:`, in both the meta tag and `vercel.json`.
+  Installing now gives a standalone window named CB App rather than a browser
+  tab named after the file. If the blob is refused, the catch swallows it: an
+  install prompt is the least important thing this file does.
+
+### Changed
+
+- **`theme-color` was `#007bff`** — a stock bootstrap blue that appears
+  nowhere in the palette. It is `--bg` now, and `setThemeClass()` rewrites it
+  when the theme changes, because the theme here is a class the user picks and
+  a `prefers-color-scheme` media attribute would answer the wrong question.
+
+- `toggleTheme()` now goes through `setThemeClass()` instead of adding and
+  removing the classes itself, which is what the invariant on that function
+  already claimed.
+
+---
+
 ## [4.2.4] — 2026-08-16
 
 ### Fixed
