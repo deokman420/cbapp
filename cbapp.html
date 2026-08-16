@@ -60,7 +60,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CB App" />
     <meta name="application-name" content="CB App" />
-    <!-- CB App v4.6.0 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.6.1 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -3895,7 +3895,8 @@
 
          THE SCREEN IS DIVIDED, ONCE, BY TWO VARIABLES
            --stack-top     the window-tab strip, when there is more than one
-                           window to switch between
+                           window to switch between — but never less than the
+                           notch, see below
            --stack-bottom  the standing bottom chrome: the toolbar pill, the
                            lock button and the download chip, all of which
                            already existed and would otherwise sit on top of
@@ -3930,12 +3931,42 @@
         --keyboard-inset: 0px;
       }
 
+      /* THE NOTCH, named once (v4.6.1).
+
+         `apple-mobile-web-app-status-bar-style` is black-translucent and the
+         viewport is `viewport-fit=cover`, which together mean the page owns
+         the pixels behind the status bar on an installed iPhone. That is
+         deliberate — the desk background running to the top edge is the point
+         — but it makes the inset load-bearing rather than decorative.
+
+         Given a name so that the rules below cannot disagree about it, and so
+         the test suite can drive it: no browser automation emulates a safe-area
+         inset, and `env()` is not settable, so a notch bug is otherwise only
+         reachable on a physical phone. Overriding this one property on <body>
+         reproduces it anywhere. */
+      body {
+        --safe-top: env(safe-area-inset-top, 0px);
+        --safe-left: env(safe-area-inset-left, 0px);
+        --safe-right: env(safe-area-inset-right, 0px);
+      }
+
       body.mobile-ui:not(.canvas-on) {
         --stack-bottom: calc(56px + env(safe-area-inset-bottom));
+        /* THE FLOOR, and the whole of the v4.6.1 fix. --stack-top used to be
+           0 unless .has-switcher was on, i.e. unless a SECOND window existed —
+           so with one window open, the only shape a fresh install starts in,
+           the full-bleed window began at y=0 and its title bar, its pencil and
+           its close button were drawn underneath the clock and the battery.
+           Reported from an installed iPhone 13 Pro Max, where the inset is
+           47px and the title bar sat 22px inside it.
+
+           The tab strip is what varies. The notch is not, and it is not the
+           switcher's business. */
+        --stack-top: var(--safe-top);
       }
 
       body.mobile-ui:not(.canvas-on).has-switcher {
-        --stack-top: calc(38px + env(safe-area-inset-top));
+        --stack-top: calc(38px + var(--safe-top));
       }
 
       /* A phone in landscape is ~390px tall, so the two bands that cost 11% of
@@ -3947,7 +3978,7 @@
         }
 
         body.mobile-ui:not(.canvas-on).has-switcher {
-          --stack-top: calc(32px + env(safe-area-inset-top));
+          --stack-top: calc(32px + var(--safe-top));
         }
 
         body.mobile-ui .nav-menu.collapsed,
@@ -4338,9 +4369,14 @@
       body.mobile-ui:not(.canvas-on) #windows > .calculator,
       body.mobile-ui:not(.canvas-on) #windows > .sticky-note-window,
       body.mobile-ui:not(.canvas-on) #windows > .help-window {
-        left: 0 !important;
+        /* The same fix on the other axis (v4.6.1). A notched iPhone in
+           LANDSCAPE puts its inset on the left or the right rather than the
+           top, and a window at `left: 0; width: 100%` ran its own edge under
+           it — on a note that is the line-number gutter, permanently behind
+           the notch. Portrait is unaffected: both are 0 there. */
+        left: var(--safe-left) !important;
         top: var(--stack-top) !important;
-        width: 100% !important;
+        width: calc(100% - var(--safe-left) - var(--safe-right)) !important;
         /* The keyboard is subtracted here and not anywhere else: a full-bleed
            window's own controls live along its BOTTOM edge — the format row
            and the word count on a note, the Log button, the calculator's last
@@ -5048,7 +5084,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.6.0";
+      const CB_APP_VERSION = "4.6.1";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import

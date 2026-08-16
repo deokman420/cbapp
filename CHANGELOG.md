@@ -7,6 +7,48 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.6.1] — 2026-08-16
+
+### Fixed — the top of the app was behind the clock
+
+Reported from an installed iPhone 13 Pro Max: the note's title bar, its pencil
+and its close button were drawn underneath the system clock and the battery.
+
+CB App asks for the pixels behind the status bar on purpose — the viewport is
+`viewport-fit=cover` and the status bar style is `black-translucent`, so the
+desk background runs to the top edge of the phone rather than stopping at a
+grey band. That makes the safe-area inset load-bearing rather than decorative,
+and a full-bleed window is offset from the top by one variable, `--stack-top`.
+
+`--stack-top` was the height of the **window-tab strip**, and the tab strip
+only exists when there is more than one window to switch between. With one
+window open — which is how every fresh install starts — it was zero, and the
+window began at y=0. On a 47px inset the title bar sat 22px inside it.
+
+The inset is a floor under that variable now. The tab strip is what varies; the
+notch is not, and it was never the switcher's business.
+
+**The same bug on the other axis, fixed with it.** Turn a notched iPhone
+sideways and the inset moves to the left or the right. Windows were
+`left: 0; width: 100%`, so a note's line-number gutter sat permanently behind
+it. They are inset on both sides now; on a phone without a notch every one of
+these numbers is zero and the geometry is unchanged.
+
+### Added — a notch can be tested
+
+Nothing emulates a safe-area inset: not Playwright, not the Chrome or WebKit
+device profiles, and `env()` cannot be set from script. This class of bug was
+invisible to all nine projects and reachable only on a physical phone, which is
+exactly how it was found.
+
+So the three insets are named once, in custom properties on `<body>`
+(`--safe-top`, `--safe-left`, `--safe-right`, each `env(…)` with a `0px`
+fallback), and read from there. Overriding them reproduces a notch on any
+device, and the new tests do precisely that — including the "one window, no tab
+strip" shape that was reported.
+
+---
+
 ## [4.6.0] — 2026-08-16
 
 ### Fixed — there are two layouts, not four

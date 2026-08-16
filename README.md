@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.6.0`  
+**Version:** `v4.6.1`  
 **Released:** August 16, 2026  
 **Size:** ~656 KB (single file)  
 **License:** Provided as-is
@@ -90,7 +90,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.0)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.1)
 
 Simply save the file and open it in your browser.
 
@@ -110,7 +110,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.6.0](#whats-new-in-v420--v460)
+- [What's New in v4.2.0 – v4.6.1](#whats-new-in-v420--v461)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -209,7 +209,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.6.0
+## What's New in v4.2.0 – v4.6.1
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -404,6 +404,20 @@ are drawn above it, so between 1001 and about 1318px the download chip had
 been covering **Canvas** and **Reset** outright. iPads are tested from this
 release too, on both sides of the 720px boundary: nine Playwright projects.
 
+**v4.6.1** gets the top of the app out from behind the system clock. On an
+installed iPhone the viewport is `viewport-fit=cover` and the status bar is
+translucent, on purpose — the desk background runs to the top edge rather than
+stopping at a grey band — which makes the safe-area inset load-bearing. A
+full-bleed window is offset by `--stack-top`, and that was the height of the
+window-tab strip, which only exists once there is a second window to switch
+between. With one window open, the shape every fresh install starts in, it was
+zero: the title bar and the close button were drawn under the clock and the
+battery. The inset is a floor under that variable now, and windows are inset
+on the left and right too, for the same notch turned sideways. The three
+insets are named in custom properties so the test suite can fake a notch —
+nothing emulates one, which is why this was only ever findable on a real
+phone.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -426,7 +440,7 @@ release too, on both sides of the 720px boundary: nine Playwright projects.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.6.0)
+├── cbapp.html          # The complete application (v4.6.1)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -439,4 +453,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.6.0** — A self-contained productivity workspace that just works.
+**CB App v4.6.1** — A self-contained productivity workspace that just works.
