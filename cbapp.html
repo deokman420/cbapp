@@ -60,7 +60,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CB App" />
     <meta name="application-name" content="CB App" />
-    <!-- CB App v4.5.2 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.6.0 — 2026-08-16. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -467,7 +467,22 @@
       /* Legacy .calculator-history / .log-list background rules removed - unified in modern phbeks section */
       .nav-menu {
         position: fixed;
-        bottom: 10px;
+        /* 56px, not the 10px this shipped with, and it is the same 56 the
+           mobile section calls --stack-bottom: the height of the band the lock
+           button, the minimised chips and the download chip stand in along the
+           bottom edge. All three are z-index 1001 against this element's 1000,
+           so anything of the toolbar's that reaches into that band is not
+           merely crowded — it is covered by a chip drawn on top of it.
+
+           At 10px it did reach in, at every width. The bar is `max-content`,
+           940px with today's twenty buttons, so its right-hand end ran under
+           the download chip from 1001px (where CANVAS and RESET were flatly
+           unclickable) up to about 1318px, where the chip finally clears the
+           centred bar. On a 1280px laptop — the common case — the chip sat on
+           the toolbar's corner. Lifting the whole bar out of the band fixes
+           every width at once and needs no arithmetic against the chip, whose
+           width is a label and therefore not a number to position against. */
+        bottom: 56px;
         left: 50%;
         transform: translateX(-50%);
         display: flex;
@@ -585,10 +600,15 @@
       .nav-menu.collapsed .nav-toggle {
         display: block;
       }
+      /* The last 40px before the mobile floor at 560: the same bar, tighter.
+         It used to top-anchor as well (`top: 5px; bottom: auto`) — a FOURTH
+         layout, and the one that made the third one hard to see, because from
+         v4.6.0 its `top` and the narrow block's `bottom` were both set and the
+         toolbar stretched to 639px tall, centring its buttons in the middle of
+         the screen. Position belongs to exactly two rules in this file; this
+         one only makes things smaller. */
       @media (max-width: 600px) {
         .nav-menu {
-          top: 5px;
-          bottom: auto;
           padding: 5px;
         }
         .nav-menu button,
@@ -3216,19 +3236,52 @@
         border-color: var(--accent);
       }
 
-      /* --- Small screens ---
-         The nav is width:max-content / flex-wrap:nowrap, so on a phone it ran
-         far past the viewport with no way to reach the right-hand buttons. */
-      @media (max-width: 720px) {
+      /* --- Small screens: a narrow DESKTOP, and nothing else (v4.6.0) ---
+
+         THERE ARE TWO LAYOUTS, NOT THREE. Desktop — free windows, bar at the
+         bottom — and mobile — full-bleed windows, bar as a sheet, also at the
+         bottom. Which one you get is `body.mobile-ui`, written by MOBILE_MQ
+         in the script; nothing else may invent a third.
+
+         Until v4.6.0 this block did invent one. It top-anchored the toolbar
+         at any width under 720px, and MOBILE_MQ needs a coarse pointer under
+         720 (or a width under 560), so a desktop browser at, say, 641px wide
+         got neither shape: a top bar over free-floating windows, with the
+         status toast, the search panel and both banners flipped to the bottom
+         to get out of its way. Three layouts to keep working, and the third
+         one belonged to nobody — a window narrowed on a real machine, which
+         has lost width and nothing else.
+
+         So the bar stays where the desktop puts it and only WRAPS here. That
+         is the whole of the narrow-desktop treatment: the same corner, the
+         same z-order, more rows. Everything this block used to shove to the
+         bottom stays at the top where the desktop leaves it, because the top
+         is empty again.
+
+         Clearing the corner chrome is not this block's job — the base rule
+         lifts the bar out of that band at every width; see the note on
+         `bottom: 56px` there.
+
+         The number here, 1000px, is where the bar stops FITTING. It is
+         `width: max-content` on a desktop and lays out to 940px with today's
+         twenty buttons; centred in anything narrower than about 956 it does
+         not shrink, it overhangs — measured at 721px the toolbar's left edge
+         was at -109px, with the whole Create group off the side of the screen
+         and no way to reach it. That was true above the old 720px breakpoint
+         all the way to ~960px and nothing caught it, because the top-anchored
+         layout below 720 was hiding the band where it happened.
+
+         So the wrap threshold is the bar's own width plus margins rounded up,
+         not a device size: 1000px, and it is deliberately not 720. Between the
+         two the toolbar simply wraps a row earlier than it used to. If a
+         button is ever added, raise this number with it. */
+      @media (max-width: 1000px) {
         .nav-menu {
-          top: 8px;
-          bottom: auto;
           left: 8px;
           right: 8px;
           transform: none;
           width: auto;
           max-width: none;
-          flex-wrap: wrap;
         }
 
         .nav-row {
@@ -3244,18 +3297,12 @@
           border-right: none;
           padding: 0 4px;
         }
+      }
 
-        #status,
-        #search-replace {
-          top: auto;
-          bottom: 18px;
-        }
-
-        #search-replace.active ~ #status {
-          top: auto;
-          bottom: 92px;
-        }
-
+      /* Genuinely about the width rather than about the toolbar: at 720 the
+         search panel stops fitting on one line and the minimised chips start
+         running under the download chip in the opposite corner. */
+      @media (max-width: 720px) {
         #search-replace {
           flex-wrap: wrap;
           justify-content: center;
@@ -3267,18 +3314,10 @@
           width: 100%;
         }
 
-        #empty-state {
-          padding-bottom: 0;
-        }
-
-        /* Keep the minimized chips clear of the download chip in the corner
-           instead of letting the two rows overlap on a narrow screen. */
-        /* The chips clear the lock button by going *above* it here rather than
-           beside it, so they get the corner's left edge back. */
+        /* The chips wrap into their own rows rather than running under the
+           download chip in the opposite corner. */
         #minimized-bar {
-          max-width: calc(100vw - 32px);
-          bottom: 64px;
-          left: 16px;
+          max-width: calc(100vw - 90px);
         }
       }
 
@@ -3505,17 +3544,26 @@
         outline-offset: 2px;
       }
 
-      /* Below 720px the toolbar is top-anchored and full-width, so a badge at
-         top:12px sits on top of it and eats the clicks — the lock banner is a
-         button, which made the toolbar unusable outright. Both badges move
-         above the minimized chips instead, matching #canvas-controls. */
-      @media (max-width: 720px) {
-        #locked-banner,
-        #save-warning {
-          top: auto;
-          bottom: 108px;
-          left: 12px;
-        }
+      /* These used to move to the bottom under `max-width: 720px`, because the
+         toolbar was top-anchored there and a badge at top:12px sat on top of
+         it and ate the clicks — the lock banner is a button, so it made the
+         toolbar unusable outright. From v4.6.0 the narrow-desktop toolbar is
+         bottom-anchored like every other desktop toolbar, so there is nothing
+         at the top to dodge and both badges stay at top:12px.
+
+         On MOBILE they still move, and now they move for the right reason and
+         at the right time. `#stack-tabs` owns the top edge there, and this
+         rule is keyed on body.mobile-ui rather than on a width — the width
+         version never matched a phone in LANDSCAPE (802px), which left the
+         lock banner sitting on the window switcher on exactly the shape that
+         has the least room for it. Same trap as #status below; see the note
+         there. `top: auto` is not tidying: with both offsets set and height
+         auto the box stretches to fill the gap between them. */
+      body.mobile-ui #locked-banner,
+      body.mobile-ui #save-warning {
+        top: auto;
+        bottom: calc(108px + env(safe-area-inset-bottom) + var(--keyboard-inset));
+        left: 12px;
       }
 
       /* --- Lock button (bottom-left) ---
@@ -3587,9 +3635,11 @@
         pointer-events: none;
       }
 
-      /* 720, matching the toolbar's own breakpoint. At 760 the map vanished
-         while the toolbar was still bottom-anchored, so between 721 and 760px
-         you lost the overview for no reason. */
+      /* 720 because that is where a desktop window stops having room to spare,
+         and it is the same number every other narrow rule in this file uses.
+         It used to be justified as "matching the toolbar's own breakpoint" —
+         the toolbar no longer has one (v4.6.0: it is bottom-anchored at every
+         width and only wraps), so this stands on its own now. */
       @media (max-width: 720px) {
         /* A narrow DESKTOP window still loses the map: 168px of it over a
            700px canvas is a poor trade, and a mouse has the scrollbar-free
@@ -3659,15 +3709,12 @@
         letter-spacing: 0.02em;
       }
 
-      /* On a narrow screen the toolbar is top-anchored, so drop the widget
-         below it rather than letting the two stack on top of each other. */
-      @media (max-width: 720px) {
-        #canvas-controls {
-          top: auto;
-          bottom: 108px;
-          right: 12px;
-        }
-      }
+      /* This used to drop to the bottom under `max-width: 720px`, because the
+         toolbar was top-anchored there. From v4.6.0 it is not, at any width
+         that is not a phone — so the widget keeps the top-right corner it has
+         on every other desktop. The phone's own placement (top-LEFT, opposite
+         the map) is in the mobile section and is keyed on body.mobile-ui, so
+         it is unaffected. */
 
       /* In-app dialogs, shared by the passphrase prompt and the confirm box.
          window.prompt() renders the passphrase as plain text on screen — fine
@@ -3961,13 +4008,14 @@
         overflow-y: auto;
         overscroll-behavior: contain;
         padding: 8px 12px 14px;
-        /* TRAP: the 720px block above sets `flex-wrap: wrap` on .nav-menu,
-           from when the toolbar was a top-anchored bar that needed to wrap.
-           Combined with this element's `flex-direction: column` and the
-           max-height below, wrap means wrap into COLUMNS — the second .nav-row
-           was laid out beside the first, off the right edge of the sheet, with
-           only a sliver of "Tools" and "Session" visible. Content taller than
-           the cap must scroll, which is what overflow-y is for. */
+        /* Held explicitly, and worth keeping even though the 720px block no
+           longer sets `flex-wrap: wrap` here (v4.6.0 dropped it along with the
+           top-anchored bar it was for). Combined with this element's
+           `flex-direction: column` and the max-height below, wrap means wrap
+           into COLUMNS — the second .nav-row was laid out beside the first,
+           off the right edge of the sheet, with only a sliver of "Tools" and
+           "Session" visible. Content taller than the cap must scroll, which is
+           what overflow-y is for. */
         flex-wrap: nowrap;
         /* TRAP, and the same rule's second half: .nav-menu is also
            `justify-content: center`, which centres a bar's buttons on a
@@ -4532,24 +4580,38 @@
         bottom: calc(max(12px, env(safe-area-inset-bottom)) + var(--keyboard-inset));
       }
 
-      /* The 720px block above put these just above the screen edge, back when
-         the toolbar was top-anchored. The toolbar is down here now, so they
-         move up to clear it.
+      /* The chips go ABOVE that band rather than beside it: the pill and the
+         lock have taken the corner between them, and the chips' desktop
+         left:62px is now exactly where the lock is standing.
 
-         TRAP: `top: auto` is not tidying, it is the entire fix. Both elements
-         are top-anchored by default (`#status { top: 18px }`), and the rule
-         that flips them to bottom-anchored lives in a `max-width: 720px`
-         block — which a phone in LANDSCAPE (802px) does not match. Setting
-         only `bottom` there left BOTH offsets non-auto, and an absolutely
-         positioned box with both set and `height: auto` is stretched to fill
-         the gap between them. The status toast became 422x302, and since it
-         carries `border-radius: 999px` for its one-line pill shape, it painted
-         as an enormous dark blob across the middle of the screen with two
-         lines of text stranded at the top of it.
+         Only reachable on the canvas desk — in stack mode #stack-tabs lists
+         minimised windows and this bar stands down entirely, a few rules up.
+         Keyed on body.mobile-ui and not on a width, for the landscape reason
+         given at #locked-banner. */
+      body.mobile-ui #minimized-bar {
+        left: max(16px, env(safe-area-inset-left));
+        bottom: calc(64px + env(safe-area-inset-bottom) + var(--keyboard-inset));
+        max-width: calc(100vw - 32px);
+      }
+
+      /* Both are top-anchored on a desktop (`#status { top: 18px }`) and the
+         phone needs them down here, clear of #stack-tabs along the top edge.
+
+         TRAP: `top: auto` is not tidying, it is the entire fix. This rule used
+         to live in a `max-width: 720px` block — which a phone in LANDSCAPE
+         (802px) does not match. Setting only `bottom` there left BOTH offsets
+         non-auto, and an absolutely positioned box with both set and
+         `height: auto` is stretched to fill the gap between them. The status
+         toast became 422x302, and since it carries `border-radius: 999px` for
+         its one-line pill shape, it painted as an enormous dark blob across
+         the middle of the screen with two lines of text stranded at the top
+         of it.
 
          Same trap, third time: a narrow-screen rule keyed on width alone does
          not fire in landscape. Anything in this section that adjusts an offset
-         must set its opposite to auto. */
+         must set its opposite to auto — and must be keyed on body.mobile-ui,
+         never on a width. v4.6.0 moved the last three width-keyed offsets
+         (the two banners, the minimised chips) in here for the same reason. */
       body.mobile-ui #status,
       body.mobile-ui #search-replace {
         top: auto;
@@ -4986,7 +5048,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.5.2";
+      const CB_APP_VERSION = "4.6.0";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import

@@ -7,6 +7,79 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.6.0] — 2026-08-16
+
+### Fixed — there are two layouts, not four
+
+Reported from a 641px-wide window: the toolbar was at the top. It is at the
+bottom on a desktop and at the bottom on a phone, so that was a third place for
+it to be.
+
+CB App has exactly two shapes. **Desktop** — windows you drag, toolbar
+bottom-centre. **Mobile** — windows full-bleed, toolbar a sheet, also at the
+bottom. Which one you get is one boolean, written by one media query:
+`(max-width: 720px) and (pointer: coarse)`, plus a clause for a short landscape
+phone and a floor at 560px for any window that narrow.
+
+The CSS did not agree with it. A `max-width: 720px` block top-anchored the
+toolbar and flipped the status toast, the search panel and both banners to the
+bottom to get out of its way — on **width alone**, with no pointer test. So a
+mouse-driven window between 561 and 720px got neither shape: a top bar over
+free-floating windows. A `max-width: 600px` block did the same thing 40px
+further down, which made a fourth.
+
+The bar stays where the desktop puts it now and only *wraps* when it is narrow.
+Everything those blocks shoved to the bottom stays at the top, because the top
+is empty again. The rules a phone genuinely needs — the banners and the
+minimised chips going above the bottom chrome — moved to `body.mobile-ui`,
+where the rest of the phone layout already lives.
+
+**That last move fixes a phone bug on the way past.** A rule keyed on width
+does not fire on a phone in landscape, which is 802px wide. The lock banner and
+the minimised chips had been sitting on top of the window switcher and the
+toolbar pill in that orientation. Third time this file has been bitten by the
+same thing; the note above the rules now says so.
+
+### Fixed — the toolbar ran off the screen between 721 and 960px
+
+Found while pinning the above down with a width sweep, and older than the bug
+that started it. The desktop toolbar is `width: max-content` — 940px with
+today's twenty buttons — and centred. Below about 956px it does not shrink, it
+overhangs: **measured at 721px, its left edge was at −109px**, with the whole
+Create group off the side of the screen and no way to reach it. The old 720px
+breakpoint stopped one pixel short of the band where this happened, and the
+top-anchored layout under it hid the rest.
+
+The bar wraps below 1000px now — the bar's own width plus margins, rounded up,
+not a device size. Add a button and raise the number with it.
+
+### Fixed — the download chip covered the last two toolbar buttons
+
+Same sweep. The lock button, the minimised chips and the download chip all
+stand in a 56px band along the bottom edge at `z-index: 1001`; the toolbar sat
+at `bottom: 10px` at `z-index: 1000`, reaching into it. At 1280px that showed
+as the chip clipping the toolbar's corner. Between 1001 and about 1318px it
+covered **Canvas** and **Reset** outright.
+
+The bar sits at `bottom: 56px` now, clear of the band at every width, which
+needs no arithmetic against the chip — whose width is a label and therefore not
+a number worth positioning against.
+
+### Added — iPads are tested
+
+They were not, in any orientation. Two projects, because a tablet lands on both
+sides of the 720px boundary depending on which one you pick: **iPad Pro 11** is
+834px in portrait and gets the desktop shape with a touch pointer, and
+**iPad (gen 11)** is 656px in portrait — the phone shape — crossing to desktop
+the moment it is turned. That pair is the only thing in the suite that changes
+layout by rotation alone.
+
+Nine Playwright projects now, and the new layout suite asserts position rather
+than pixels: bottom-anchored at every width, on screen at every width, and no
+toolbar button underneath a corner chip.
+
+---
+
 ## [4.5.2] — 2026-08-16
 
 ### Fixed — the Time Card's clock reads like a clock

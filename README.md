@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.5.2`  
+**Version:** `v4.6.0`  
 **Released:** August 16, 2026  
 **Size:** ~656 KB (single file)  
 **License:** Provided as-is
@@ -74,6 +74,15 @@ pointer test earns its place: a desktop browser with devtools docked is often
 under 720px wide but still has a mouse, and it keeps the desktop layout. So
 does the height clause — a phone in landscape is *wider* than 720px.
 
+**Two, and only two.** Until v4.6.0 the CSS quietly had four. A
+`max-width: 720px` block top-anchored the toolbar on width alone, with no
+pointer test, so a mouse-driven window at 641px got a top bar over
+free-floating windows — neither shape. A `max-width: 600px` block did the same
+thing 40px further down. The toolbar is bottom-anchored at every width now and
+only wraps when it is narrow, and the rules a phone genuinely needs are keyed
+on `body.mobile-ui` rather than on a width — which is also why they work in
+landscape, where a width-keyed rule never fired.
+
 Nothing about the phone layout reaches a desktop, and the test suite has a
 block whose only job is to fail if it ever does.
 
@@ -81,7 +90,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.5.2)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.0)
 
 Simply save the file and open it in your browser.
 
@@ -101,7 +110,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.5.2](#whats-new-in-v420--v452)
+- [What's New in v4.2.0 – v4.6.0](#whats-new-in-v420--v460)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -200,7 +209,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.5.2
+## What's New in v4.2.0 – v4.6.0
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -383,6 +392,18 @@ manifest's own `blob:` URL, where there is no directory to walk up from), and
 from `file://` the manifest is not installed at all, since an install prompt
 needs a secure origin that `file://` can never be.
 
+**v4.6.0** cuts the layouts back to the two there are supposed to be, and
+fixes two things a width sweep turned up on the way. The toolbar is
+`width: max-content` — 940px with today's twenty buttons — and centred, so
+below about 956px it did not shrink, it overhung: at 721px its left edge
+measured −109px, with the whole Create group off the side of the screen. It
+wraps below 1000px now, the bar's own width plus margins rather than a device
+size. And it sits at `bottom: 56px` rather than 10px, clear of the band the
+lock button, the minimised chips and the download chip stand in — all three
+are drawn above it, so between 1001 and about 1318px the download chip had
+been covering **Canvas** and **Reset** outright. iPads are tested from this
+release too, on both sides of the 720px boundary: nine Playwright projects.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -405,7 +426,7 @@ needs a secure origin that `file://` can never be.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.5.2)
+├── cbapp.html          # The complete application (v4.6.0)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -418,4 +439,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.5.2** — A self-contained productivity workspace that just works.
+**CB App v4.6.0** — A self-contained productivity workspace that just works.
