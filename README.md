@@ -2,9 +2,9 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.6.2`  
-**Released:** August 16, 2026  
-**Size:** ~656 KB (single file)  
+**Version:** `v4.6.3`  
+**Released:** August 17, 2026  
+**Size:** ~687 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
@@ -90,7 +90,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.2)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.3)
 
 Simply save the file and open it in your browser.
 
@@ -110,7 +110,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.6.2](#whats-new-in-v420--v462)
+- [What's New in v4.2.0 – v4.6.3](#whats-new-in-v420--v463)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -209,7 +209,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.6.2
+## What's New in v4.2.0 – v4.6.3
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -431,6 +431,21 @@ events for a pinch and will scale the page from those too — so those are
 refused on the canvas layer, and only while the canvas is on. Pinch-zooming
 the page itself, on the windowed desk, is untouched.
 
+**v4.6.3** is three things seen rather than driven, all reported from real
+hardware. The canvas dot grid keeps a fixed 1.5px dot radius while its spacing
+scales with the zoom, so zooming out packs the pattern instead of shrinking it
+and the visible density climbs as 1/zoom² — calm at 100%, stipple at 62%. It
+fades as it packs now, easing to a 0.15 floor at the 25% minimum, because a
+canvas with no grid at all stops reading as a canvas. The collapsed mobile
+toolbar was drawing two 44px boxes edge to edge, the panel around its own ☰
+button, which reads as a square scribbled on the icon; the container gives up
+its skin when collapsed and the button IS the FAB, round to match the lock
+standing beside it. And Safari on iOS and iPadOS draws an empty
+`input[type="time"]` as nothing at all, where Chrome draws greyed `--:--`
+segments — so the Time Card's Start and End were two blank rectangles until
+they were tapped. There is no `::placeholder` for a time input, so the hint is
+ours: laid over the field, and gone the moment it has a value or takes focus.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -453,7 +468,7 @@ the page itself, on the windowed desk, is untouched.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.6.2)
+├── cbapp.html          # The complete application (v4.6.3)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -466,4 +481,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.6.2** — A self-contained productivity workspace that just works.
+**CB App v4.6.3** — A self-contained productivity workspace that just works.

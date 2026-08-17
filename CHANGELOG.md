@@ -7,6 +7,81 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.6.3] — 2026-08-17
+
+Three reports from real hardware, and all three are the same kind of bug: the
+app worked exactly as designed and *looked* wrong. Nothing here changes what a
+control does.
+
+### Fixed — the dot grid turned to noise on the way out
+
+Reported at 62% on a phone: the canvas backdrop was distracting behind the
+empty-desk text.
+
+The grid is a fixed backdrop whose *spacing* is scaled by the zoom
+(`background-size: 48px * zoom`) while its dot *radius* stays a flat 1.5px. So
+zooming out does not shrink the pattern, it packs it — the dots keep their
+weight and halve their distance, and the visible density rises as 1/zoom².
+At 100% it is a calm grid; at 62% it is stipple; at 25% it is a texture.
+
+The grid now fades as it packs. Full strength at 100% and above, easing to a
+0.15 floor at the 25% minimum, on a squared curve — a linear fade was tried
+first and still left 62% reading busier than 1:1, which is the case that was
+reported. The floor is deliberate: a canvas with no grid at all stops reading
+as a canvas.
+
+Applied as an `opacity` on the grid element rather than by re-mixing the
+`--canvas-dot` colour. Opacity is a compositor property, and this element
+already repaints on every transform — the one thing v4.6.0 rebuilt the grid to
+avoid making worse.
+
+### Fixed — a square drawn on the hamburger, on a phone
+
+Collapsed, the mobile toolbar is nothing but its own ☰ button. Both were
+exactly 44px: the `.nav-menu` panel — 14px radius, 1px border, card fill, drop
+shadow — with the `.nav-toggle` button — 8px radius, 1px border, card fill —
+sitting inside it, edge to edge. Two boxes, one inside the other, with the
+inner corners cutting across the outer ones. On a phone it reads as a square
+scribbled onto the icon.
+
+Collapsed on mobile, the container now gives up its skin — no background, no
+border, no shadow, no backdrop blur — and the button *is* the FAB, rounded to
+a circle to match `#session-lock` standing next to it. Scoped to
+`.collapsed`, so opening the sheet puts the panel's chrome straight back.
+
+### Fixed — blank Start and End boxes in the Time Card on iPad
+
+Reported on an iPad: the two time fields showed nothing at all until they were
+tapped.
+
+Chrome draws an unset `input[type="time"]` as greyed `--:-- --` segments, so
+you can see there is a control there and where to aim. **Safari on iOS and
+iPadOS draws nothing** — an empty time input is an empty rectangle. With Start
+and End stacked above a filled-in Break field, the panel looked broken rather
+than blank.
+
+There is no `::placeholder` for a time input and no pseudo-element that can be
+filled in every engine, so the hint is ours: a `--:--` laid over the field and
+hidden the moment it has a value or takes focus (a *focused* time input draws
+its own segments everywhere, and two lots of `--:--` on top of each other is
+worse than none). It is `pointer-events: none`, so the tap still reaches the
+input underneath — that is asserted, because it is the one way this could have
+made the field worse than the blank box it replaces.
+
+The two fields moved into a `.time-shell` wrapper to carry the overlay. The
+row still lines up on the same label column as every other `.calc-field`, and
+that alignment is asserted too.
+
+### Tests
+
+Three gates under *three things seen, not driven* — the grid's opacity across
+six zoom steps, the collapsed toolbar's chrome and corner radius, and the time
+hint including the hit test and the clear-back-to-empty case. All three are
+properties a suite that only drives the app cannot see, which is why all three
+shipped.
+
+---
+
 ## [4.6.2] — 2026-08-16
 
 ### Fixed — pinching the canvas on an iPad zoomed the whole page
