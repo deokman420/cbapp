@@ -7,6 +7,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.6.4] — 2026-09-18
+
+### Added — the clock reads Zulu
+
+The clock's timezone list covered the four US zones and stopped there, which is
+fine until a log entry or a radio schedule is quoted in UTC and the conversion
+has to happen in your head. A fifth row, **Zulu (UTC)**, now sits under Pacific
+and follows the same 12/24 selector as the rest.
+
+It is computed differently from the four above it, on purpose. The US rows go
+through the `new Date(now.toLocaleString("en-US", { timeZone }))` round-trip —
+render the instant as a string in the target zone, then re-parse it as local
+time. Zulu reads straight off the original `Date` with `timeZone: "UTC"` passed
+to `toLocaleTimeString`, so there is no re-parse and no offset arithmetic to get
+wrong, and it stays correct across a DST boundary rather than drifting by an
+hour twice a year. The US rows were left alone — changing them is a bigger
+change than this one and they are not wrong today.
+
+The row is written only when its span exists, so a session restored from a
+pre-4.6.4 layout still ticks the other four instead of throwing on a missing
+element and freezing the whole window.
+
+The clock's default height goes 506 → 526 to pay for the extra row. That number
+is measured, not rounded: the window is sized so WebKit does not get a scrollbar
+where Chromium absorbs one, which is the trap the sizing comment above it has
+carried since v4.0.1.
+
 ## [4.6.3] — 2026-08-17
 
 Three reports from real hardware, and all three are the same kind of bug: the

@@ -60,7 +60,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CB App" />
     <meta name="application-name" content="CB App" />
-    <!-- CB App v4.6.3 — 2026-08-17. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.6.4 — 2026-09-18. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -5170,7 +5170,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.6.3";
+      const CB_APP_VERSION = "4.6.4";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -10297,7 +10297,8 @@ Enterprise browser
            change (39 -> 41, from the 24px minimum pointer target) was
            missed. Re-measure in WebKit if the clock's markup changes. */
         const defaultWidth = 410;
-        const defaultHeight = 506;
+        // +20 over the old 506 for the Zulu row added in v4.6.4.
+        const defaultHeight = 526;
         newWindow.style.zIndex = nextWindowZ();
         newWindow.dataset.width = defaultWidth;
         newWindow.dataset.height = defaultHeight;
@@ -10322,6 +10323,7 @@ Enterprise browser
                 <div>Central: <span id="clock-central-${clkid}"></span></div>
                 <div>Mountain: <span id="clock-mountain-${clkid}"></span></div>
                 <div>Pacific: <span id="clock-pacific-${clkid}"></span></div>
+                <div>Zulu (UTC): <span id="clock-zulu-${clkid}"></span></div>
             </div>
             <div class="format-buttons">
                 <select id="clock-format-${clkid}" aria-label="Time format" onchange="updateClock('${clkid}'); saveSession();">
@@ -10406,6 +10408,7 @@ Enterprise browser
         const centralDiv = instancePart(windowId, "clock-central");
         const mountainDiv = instancePart(windowId, "clock-mountain");
         const pacificDiv = instancePart(windowId, "clock-pacific");
+        const zuluDiv = instancePart(windowId, "clock-zulu");
         if (
           timeDiv &&
           dateDiv &&
@@ -10454,6 +10457,17 @@ Enterprise browser
             undefined,
             timeFormat
           );
+          // Zulu reads straight off `now` with timeZone: "UTC" rather than the
+          // toLocaleString round-trip the US rows use — no offset arithmetic to
+          // get wrong, and it stays right across DST. Guarded on its own so a
+          // session restored from a pre-v4.6.4 layout (no zulu row in the
+          // markup) still ticks the other four.
+          if (zuluDiv) {
+            zuluDiv.textContent = now.toLocaleTimeString(undefined, {
+              ...timeFormat,
+              timeZone: "UTC",
+            });
+          }
         }
       }
       function updateStopwatchDisplay(windowId) {

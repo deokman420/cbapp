@@ -2,7 +2,7 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.6.3`  
+**Version:** `v4.6.4`  
 **Released:** August 17, 2026  
 **Size:** ~687 KB (single file)  
 **License:** Provided as-is
@@ -90,7 +90,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.3)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.4)
 
 Simply save the file and open it in your browser.
 
@@ -110,7 +110,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
-- [What's New in v4.2.0 – v4.6.3](#whats-new-in-v420--v463)
+- [What's New in v4.2.0 – v4.6.4](#whats-new-in-v420--v464)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
 - [Technical Notes](#technical-notes)
@@ -209,7 +209,7 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
-## What's New in v4.2.0 – v4.6.3
+## What's New in v4.2.0 – v4.6.4
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
 shaped for one screen: on a phone the toolbar's twenty buttons wrapped into
@@ -446,6 +446,14 @@ segments — so the Time Card's Start and End were two blank rectangles until
 they were tapped. There is no `::placeholder` for a time input, so the hint is
 ours: laid over the field, and gone the moment it has a value or takes focus.
 
+**v4.6.4** adds a fifth row to the clock's timezone list: **Zulu (UTC)**, under
+Pacific and following the same 12/24 selector as the rest. It is computed
+differently from the four above it — the US rows round-trip through
+`new Date(now.toLocaleString(...))`, while Zulu reads straight off the instant
+with `timeZone: "UTC"`, so there is no offset arithmetic to get wrong and it
+stays right across a DST boundary. The clock's default height goes 506 → 526 to
+pay for the row without handing WebKit a scrollbar Chromium would absorb.
+
 > **Between v3.1 and v4.2.0**, the Calendar returned (v4.0.0, rebuilt so its
 > events ride Protect and Backup), Backup became always-encrypted, and the
 > corner lock button and first axe-core pass landed in v4.1. See
@@ -468,7 +476,7 @@ ours: laid over the field, and gone the moment it has a value or takes focus.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.6.3)
+├── cbapp.html          # The complete application (v4.6.4)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -481,4 +489,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.6.3** — A self-contained productivity workspace that just works.
+**CB App v4.6.4** — A self-contained productivity workspace that just works.
