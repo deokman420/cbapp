@@ -3,8 +3,8 @@
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
 **Version:** `v4.6.4`  
-**Released:** August 17, 2026  
-**Size:** ~687 KB (single file)  
+**Released:** September 18, 2026  
+**Size:** ~688 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
