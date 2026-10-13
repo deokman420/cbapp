@@ -2,9 +2,9 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.6.4`  
-**Released:** September 18, 2026  
-**Size:** ~688 KB (single file)  
+**Version:** `v4.7.0`  
+**Released:** October 13, 2026  
+**Size:** ~698 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
@@ -90,7 +90,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.6.4)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.7.0)
 
 Simply save the file and open it in your browser.
 
@@ -110,6 +110,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
+- [What's New in v4.7.0](#whats-new-in-v470)
 - [What's New in v4.2.0 – v4.6.4](#whats-new-in-v420--v464)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
@@ -209,6 +210,20 @@ See [CHANGELOG.md](CHANGELOG.md) for the full list.
 
 ---
 
+## What's New in v4.7.0
+
+**Your session is encrypted even without a passphrase.** With Protect off, the
+session used to sit in `localStorage` as plain JSON. Now the browser generates
+a random AES-GCM device key once, keeps it in IndexedDB (`cbappDeviceKey`) as
+non-extractable (page scripts can use it but can't read it out), and every
+save is encrypted with it, in the same envelope the passphrase path uses.
+Setting a passphrase works exactly as before, and a session saved by an older
+version is encrypted on its first save. Without a passphrase this protects the
+stored data from anyone reading the profile's files, not from someone using the
+same browser profile. If browser data is partly cleared and the key is lost,
+the saved session can't be decrypted, so keep a Backup.
+
+---
 ## What's New in v4.2.0 – v4.6.4
 
 **A phone layout** — see [Two shapes](#two-shapes). Until now the app was
@@ -463,8 +478,8 @@ pay for the row without handing WebKit a scrollbar Chromium would absorb.
 
 ## Technical Notes
 
-- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~525KB` file, with no build step.
-- **Persistence** — Uses `localStorage` under the key `notepadSession`.
+- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~698KB` file, with no build step.
+- **Persistence** — Uses `localStorage` under the key `notepadSession`, always encrypted: with a non-extractable device key kept in IndexedDB (`cbappDeviceKey`) by default, or with your passphrase when Protect is on.
 - **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
 - **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 (210,000 iteration) key, with a fresh salt and IV per file. There is no plaintext backup path.
 - **Window limit** — 25 windows. A session containing more restores what fits and reports what was skipped.
@@ -476,7 +491,7 @@ pay for the row without handing WebKit a scrollbar Chromium would absorb.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.6.4)
+├── cbapp.html          # The complete application (v4.7.0)
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -489,4 +504,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.6.4** — A self-contained productivity workspace that just works.
+**CB App v4.7.0** — A self-contained productivity workspace that just works.

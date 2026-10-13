@@ -60,7 +60,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CB App" />
     <meta name="application-name" content="CB App" />
-    <!-- CB App v4.6.4 — 2026-09-18. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.7.0 — 2026-10-13. See CBAPP-CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -5170,7 +5170,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.6.4";
+      const CB_APP_VERSION = "4.7.0";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -5212,6 +5212,209 @@
       // reload. In memory only; the ciphertext also stays in localStorage.
       let lockedEnvelope = null;
 
+      // --- Device key (v4.7.0) ------------------------------------------------
+      // With no passphrase the session is still never stored as plaintext: it
+      // is sealed with a random AES-GCM-256 key that WebCrypto generates as
+      // NON-EXTRACTABLE and that lives in IndexedDB (a CryptoKey cannot go in
+      // localStorage). Page script can use the key but never read its bytes.
+      //
+      // WHY a separate envelope shape (`mode: "device"`, no salt, no kdf):
+      // isEncryptedEnvelope() means "passphrase envelope" everywhere — the
+      // lock banner, Unlock and Reset's passphrase gate all key off it. A
+      // device envelope must never be mistaken for one, or the app would ask
+      // for a passphrase that does not exist.
+      //
+      // INVARIANT: if the stored session is a device envelope that this tab
+      // cannot open (key missing after site data was cleared, IndexedDB
+      // blocked, WebCrypto absent), `deviceSessionUnreadable` is true and
+      // persistSessionPayload() refuses every write until Reset. The
+      // ciphertext is the user's only copy.
+      //
+      // TRAP: this protects the saved files from casual reading only. Anyone
+      // using this same browser profile can open CB App and see everything.
+      // A passphrase is still the real protection.
+      const DEVICE_KEY_DB = "cbappDeviceKey";
+      const DEVICE_KEY_STORE = "keys";
+      const DEVICE_KEY_ID = "session-v1";
+      let deviceKeyPromise = null; // cached Promise<CryptoKey|null>
+      // Bumped whenever the device key is destroyed, so a save that started
+      // with the old key cannot land ciphertext nobody can open any more.
+      let deviceKeyEpoch = 0;
+      let deviceSessionUnreadable = false;
+      // Latest-write-wins across overlapping async saves.
+      let _writeSeq = 0;
+
+      function isDeviceEnvelope(obj) {
+        return (
+          !!obj &&
+          typeof obj === "object" &&
+          !Array.isArray(obj) &&
+          obj.enc === true &&
+          obj._cbapp === SESSION_FORMAT_VERSION &&
+          obj.mode === "device" &&
+          obj.alg === "AES-GCM-256" &&
+          typeof obj.iv === "string" &&
+          typeof obj.ct === "string" &&
+          !("kdf" in obj) &&
+          !("salt" in obj)
+        );
+      }
+
+      function deviceCryptoAvailable() {
+        try {
+          return !!(window.crypto && crypto.subtle && window.indexedDB);
+        } catch (e) {
+          return false; // indexedDB getter throws where site data is blocked
+        }
+      }
+
+      function idbRequest(req) {
+        return new Promise((resolve, reject) => {
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      }
+
+      function openDeviceKeyDb() {
+        return new Promise((resolve, reject) => {
+          let req;
+          try {
+            req = indexedDB.open(DEVICE_KEY_DB, 1);
+          } catch (e) {
+            reject(e);
+            return;
+          }
+          req.onupgradeneeded = () => {
+            if (!req.result.objectStoreNames.contains(DEVICE_KEY_STORE)) {
+              req.result.createObjectStore(DEVICE_KEY_STORE);
+            }
+          };
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+          req.onblocked = () => reject(new Error("Device key store blocked"));
+        });
+      }
+
+      async function readDeviceKeyFromDb() {
+        const db = await openDeviceKeyDb();
+        try {
+          const tx = db.transaction(DEVICE_KEY_STORE, "readonly");
+          const key = await idbRequest(tx.objectStore(DEVICE_KEY_STORE).get(DEVICE_KEY_ID));
+          return key instanceof CryptoKey ? key : null;
+        } finally {
+          db.close();
+        }
+      }
+
+      // Generate, then get-or-put inside ONE readwrite transaction so two tabs
+      // racing on first save converge on whichever key landed first.
+      async function createDeviceKeyInDb() {
+        const fresh = await crypto.subtle.generateKey(
+          { name: "AES-GCM", length: 256 },
+          false, // non-extractable
+          ["encrypt", "decrypt"]
+        );
+        const db = await openDeviceKeyDb();
+        try {
+          return await new Promise((resolve, reject) => {
+            const tx = db.transaction(DEVICE_KEY_STORE, "readwrite");
+            const store = tx.objectStore(DEVICE_KEY_STORE);
+            let result = null;
+            const getReq = store.get(DEVICE_KEY_ID);
+            getReq.onsuccess = () => {
+              if (getReq.result instanceof CryptoKey) {
+                result = getReq.result;
+              } else {
+                result = fresh;
+                store.put(fresh, DEVICE_KEY_ID);
+              }
+            };
+            tx.oncomplete = () => resolve(result);
+            tx.onerror = () => reject(tx.error);
+            tx.onabort = () => reject(tx.error || new Error("Device key write aborted"));
+          });
+        } finally {
+          db.close();
+        }
+      }
+
+      /** Resolves the device key, or null if none exists and !create. Throws
+       *  if IndexedDB / WebCrypto are unavailable. */
+      async function getDeviceKey({ create }) {
+        if (!deviceCryptoAvailable()) {
+          throw new Error("IndexedDB or Web Crypto is not available");
+        }
+        if (!deviceKeyPromise) {
+          const p = readDeviceKeyFromDb();
+          deviceKeyPromise = p;
+          p.catch(() => {
+            if (deviceKeyPromise === p) deviceKeyPromise = null;
+          });
+        }
+        let key = await deviceKeyPromise;
+        if (!key && create) {
+          const p = createDeviceKeyInDb();
+          deviceKeyPromise = p;
+          p.catch(() => {
+            if (deviceKeyPromise === p) deviceKeyPromise = null;
+          });
+          key = await p;
+        }
+        if (!key) deviceKeyPromise = null; // look again next time
+        return key;
+      }
+
+      async function encryptWithDeviceKey(session) {
+        const key = await getDeviceKey({ create: true });
+        if (!key) throw new Error("Device key could not be created");
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const plain = new TextEncoder().encode(JSON.stringify(session));
+        const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plain);
+        return {
+          _cbapp: SESSION_FORMAT_VERSION,
+          enc: true,
+          mode: "device",
+          alg: "AES-GCM-256",
+          iv: bufToB64(iv),
+          ct: bufToB64(ct),
+        };
+      }
+
+      async function decryptDeviceEnvelope(envelope) {
+        const iv = b64ToBytes(envelope.iv);
+        if (iv.length !== 12) throw new Error("Invalid envelope parameters");
+        const key = await getDeviceKey({ create: false });
+        if (!key) {
+          throw new Error(
+            "this browser's device key is missing (site data cleared?)"
+          );
+        }
+        let plainBuf;
+        try {
+          plainBuf = await crypto.subtle.decrypt(
+            { name: "AES-GCM", iv },
+            key,
+            b64ToBytes(envelope.ct)
+          );
+        } catch (e) {
+          throw new Error("this browser's device key does not open it", { cause: e });
+        }
+        return validateSessionObject(JSON.parse(new TextDecoder().decode(plainBuf)));
+      }
+
+      // Best-effort; Reset must stay synchronous (see performReset()).
+      function destroyDeviceKey() {
+        deviceKeyEpoch++;
+        deviceKeyPromise = null;
+        try {
+          if (!window.indexedDB) return;
+          const req = indexedDB.deleteDatabase(DEVICE_KEY_DB);
+          req.onerror = () => console.warn("Could not delete device key:", req.error);
+        } catch (e) {
+          /* storage denied — nothing stored there to remove */
+        }
+      }
+
       function clearSessionSecrets() {
         sessionPassphrase = null;
         sessionCryptoKey = null;
@@ -5226,6 +5429,10 @@
             /* ignore */
           }
         });
+        // The device key is session storage too: Reset must not leave a key
+        // behind, and with the ciphertext gone there is nothing left to guard.
+        destroyDeviceKey();
+        deviceSessionUnreadable = false;
       }
 
       function purgeRetiredExportKeys() {
@@ -5958,11 +6165,18 @@
         // Second gate behind saveSession(): nothing may overwrite a locked
         // session's ciphertext, whatever the caller.
         if (sessionLocked) return false;
+        // A device envelope we could not open is still in storage. Writing
+        // would replace the user's only copy with whatever is on screen.
+        if (deviceSessionUnreadable) return false;
+        const seq = ++_writeSeq;
+        const epoch = deviceKeyEpoch;
         let payload;
         if (sessionPassphrase) {
           payload = await encryptSessionObject(session, sessionPassphrase);
         } else {
-          payload = session;
+          // Never plaintext. If the device key cannot be had this throws, and
+          // nothing at all is written — callers report the failure.
+          payload = await encryptWithDeviceKey(session);
         }
         const serialized = JSON.stringify(payload);
         if (serialized.length > MAX_SESSION_CHARS) {
@@ -5977,7 +6191,11 @@
            here would then do exactly what the gate exists to prevent: overwrite
            a locked session's ciphertext with a snapshot from before the lock.
            An await is not a fence; the state has to be re-read after it. */
-        if (sessionLocked) return false;
+        if (sessionLocked || deviceSessionUnreadable) return false;
+        // Reset destroyed the key this payload was sealed with.
+        if (payload.mode === "device" && epoch !== deviceKeyEpoch) return false;
+        // A newer save started while this one was encrypting; it will land.
+        if (seq !== _writeSeq) return true;
         localStorage.setItem(SESSION_KEY, serialized);
         clearSaveFailure();
         return true;
@@ -6456,7 +6674,7 @@
           const protectedNow = await protectSessionWithNewPassphrase({
             title: "Lock this session",
             message:
-              "Locking needs a passphrase — without one your notes are stored in this browser in plaintext and hiding them from the screen hides them from nobody.\n\nChoose one now and the session locks straight after. You will need it every time you open CB App on this origin. It is never stored — only you know it.",
+              "Locking needs a passphrase — without one your notes open for anyone using this browser, and hiding them from the screen hides them from nobody.\n\nChoose one now and the session locks straight after. You will need it every time you open CB App on this origin. It is never stored — only you know it.",
             okLabel: "Lock",
             successStatus: "Session encrypted with your passphrase.",
           });
@@ -6507,7 +6725,7 @@
        * Parse a raw localStorage / file string into a validated session object.
        * Handles plaintext JSON sessions and encrypted envelopes.
        */
-      async function parseAndUnlockSession(raw, { promptReason } = {}) {
+      async function parseAndUnlockSession(raw, { promptReason, allowDevice = false } = {}) {
         if (typeof raw !== "string" || !raw || raw.length > MAX_SESSION_CHARS + 1000) {
           throw new Error("Session payload missing or too large");
         }
@@ -6528,7 +6746,15 @@
           if (!unlocked) return null;
           return unlocked;
         }
-        // Legacy / plaintext
+        if (isDeviceEnvelope(parsed)) {
+          // Only this browser's own storage can hold one; Backup never writes
+          // them. A file carrying one is sealed to some other browser's key.
+          if (!allowDevice) {
+            throw new Error("this file is sealed to another browser's device key");
+          }
+          return decryptDeviceEnvelope(parsed);
+        }
+        // Legacy / plaintext — re-sealed by the first save after restore.
         return validateSessionObject(parsed);
       }
 
@@ -6564,8 +6790,8 @@
         if (sessionPassphrase) {
           label(
             "Unprotect",
-            "Remove passphrase protection (saves notes in plaintext again)",
-            "remove passphrase protection (saves notes in plaintext again)"
+            "Remove passphrase protection (falls back to this browser's device key)",
+            "remove passphrase protection (falls back to this browser's device key)"
           );
           btn.classList.add("active");
         } else {
@@ -6594,8 +6820,8 @@
             !(await requireSessionPassphrase({
               title: "Remove passphrase protection?",
               message:
-                "Your session will be saved in plaintext in this browser again, " +
-                "readable by anyone who opens CB App here.\n\nBackups stay " +
+                "Your session will be encrypted with this browser's device key " +
+                "instead — readable by anyone who opens CB App here.\n\nBackups stay " +
                 "encrypted either way — Backup will ask for a passphrase each " +
                 "time instead of reusing this one.",
               okLabel: "Remove protection",
@@ -6607,9 +6833,13 @@
           clearSessionSecrets();
           try {
             const snap = buildSessionSnapshot();
-            await persistSessionPayload(snap);
+            const ok = await persistSessionPayload(snap);
             updateProtectButton();
-            showStatus("Passphrase protection removed — session is plaintext.");
+            showStatus(
+              ok
+                ? "Passphrase protection removed — session uses this browser's device key."
+                : "Protection removed, but the session could not be saved with the device key."
+            );
           } catch (e) {
             showStatus("Failed to remove protection.");
           }
@@ -8725,19 +8955,9 @@
         if (sessionLocked) return;
         try {
           const session = buildSessionSnapshot();
-          if (!sessionPassphrase) {
-            const serialized = JSON.stringify(session);
-            if (serialized.length > MAX_SESSION_CHARS) {
-              console.warn("Session too large to save safely, skipping write.");
-              reportSaveFailure(
-                "Session too large to save — save a Backup, then close or trim a window."
-              );
-              return;
-            }
-            localStorage.setItem(SESSION_KEY, serialized);
-            clearSaveFailure();
-            return;
-          }
+          // v4.7.0: no plaintext path. Without a passphrase the session is
+          // sealed with the device key, which is async like the passphrase
+          // path, so both go through persistSessionPayload().
           const seq = ++_persistSeq;
           persistSessionPayload(session)
             .then((ok) => {
@@ -8748,7 +8968,9 @@
               if (seq !== _persistSeq) return;
               console.error("Failed to save encrypted session:", e);
               reportSaveFailure(
-                "Failed to save encrypted session — save a Backup before closing this tab."
+                sessionPassphrase
+                  ? "Failed to save encrypted session — save a Backup before closing this tab."
+                  : "Could not encrypt with this browser's device key (IndexedDB or Web Crypto unavailable) — nothing was saved. Save a Backup, or use Protect."
               );
             });
         } catch (e) {
@@ -9181,7 +9403,9 @@ Keyboard
 Saving & security
 - Everything is saved to this browser automatically as you type, and
   restored the next time you open the file.
-- By default storage is plaintext in this browser profile. Protect
+- By default storage is encrypted with a random key kept in this
+  browser (IndexedDB), so nothing is stored as plaintext — but anyone
+  using this browser profile can still open it. Protect
   encrypts it with a passphrase (AES-GCM) so localStorage needs that
   passphrase to open. The passphrase is never stored.
 - The 🔒 button in the bottom-left corner locks the session on the spot:
@@ -10319,11 +10543,11 @@ Enterprise browser
             <div class="clock-time" id="clock-time-${clkid}"></div>
             <div class="clock-date" id="clock-date-${clkid}"></div>
             <div class="timezone-times">
-                <div>Eastern: <span id="clock-eastern-${clkid}"></span></div>
-                <div>Central: <span id="clock-central-${clkid}"></span></div>
-                <div>Mountain: <span id="clock-mountain-${clkid}"></span></div>
-                <div>Pacific: <span id="clock-pacific-${clkid}"></span></div>
                 <div>Zulu (UTC): <span id="clock-zulu-${clkid}"></span></div>
+                <div>Eastern (EST): <span id="clock-eastern-${clkid}"></span></div>
+                <div>Central (CST): <span id="clock-central-${clkid}"></span></div>
+                <div>Mountain (MST): <span id="clock-mountain-${clkid}"></span></div>
+                <div>Pacific (PST): <span id="clock-pacific-${clkid}"></span></div>
             </div>
             <div class="format-buttons">
                 <select id="clock-format-${clkid}" aria-label="Time format" onchange="updateClock('${clkid}'); saveSession();">
@@ -12320,6 +12544,7 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             const session = await parseAndUnlockSession(rawToLoad, {
               promptReason:
                 "Your CB App session is passphrase-protected. Enter the passphrase:",
+              allowDevice: true,
             });
             if (!session) {
               // Wrong passphrase or cancelled. The ciphertext in localStorage
@@ -12372,6 +12597,30 @@ Tip: Use the Download button inside the app to preserve your open windows and no
             }
           } catch (e) {
             console.error("Failed to load session:", e);
+            let storedIsDevice = false;
+            try {
+              storedIsDevice = isDeviceEnvelope(JSON.parse(rawToLoad));
+            } catch (err) {
+              /* not JSON — the generic message below covers it */
+            }
+            if (storedIsDevice) {
+              // Belt and braces with booted=false: also refuse the direct
+              // persistSessionPayload() callers (Protect, Backup, Import).
+              deviceSessionUnreadable = true;
+              showStatus(
+                "Saved session could not be opened: " +
+                  (e && e.message ? e.message : "device key unavailable") +
+                  ". Nothing was overwritten."
+              );
+              reportSaveFailure(
+                "Saved session is encrypted with a device key this browser no longer has — saving is off so it is not overwritten. Reset to start fresh."
+              );
+              refreshChrome();
+              updateProtectButton();
+              startAlertScheduler();
+              sweepDueEvents();
+              return;
+            }
             // booted stays false: the stored copy is unreadable to us but it is
             // still the user's only copy. Refuse to write over it.
             showStatus(
@@ -14990,4 +15239,4 @@ Tip: Use the Download button inside the app to preserve your open windows and no
 
     </script>
   </body>
-</html>
+</html>

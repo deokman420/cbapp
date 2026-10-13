@@ -7,6 +7,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.7.0] - 2026-10-13
+
+### Changed - sessions are encrypted even without a passphrase
+
+With no passphrase set, the session used to be saved to the `notepadSession`
+localStorage key as plain JSON. It is now encrypted with AES-GCM under a
+random, non-extractable device key that the browser generates once and keeps
+in IndexedDB (`cbappDeviceKey`), using the same envelope format as the
+passphrase path. Page scripts can use the key but cannot read or export it.
+
+Setting a passphrase works exactly as before: the PBKDF2-derived key takes
+over. Sessions saved as plain JSON by older builds still load and are
+encrypted on their first save. Without a passphrase this protects the stored
+data from anyone reading the profile's files, not from someone using the same
+browser profile; if the device key is lost (browser data partly cleared) the
+saved session can't be decrypted, so keep a Backup.
+
+---
 ## [4.6.4] — 2026-09-18
 
 ### Added — the clock reads Zulu
