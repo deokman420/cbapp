@@ -910,7 +910,7 @@
         font-size: 10px;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        opacity: 0.8;
+        color: var(--text);
       }
       .nav-tooltip-list {
         display: flex;
@@ -14790,6 +14790,10 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       // --- Nav Tooltips ---
       const navTooltip = document.createElement("div");
       navTooltip.id = "nav-tooltip";
+      // The buttons already expose their names. This tip is a mouse preview,
+      // and it fades out through partial opacity; leaving it in the
+      // accessibility tree made that fade look like low-contrast text.
+      navTooltip.setAttribute("aria-hidden", "true");
       document.body.appendChild(navTooltip);
       let tooltipHideTimer = null;
 
@@ -14941,13 +14945,15 @@ Tip: Use the Download button inside the app to preserve your open windows and no
          TRAP: using the tooltip alone. It reads fine ("Tasks" becomes "New
          Task List") and breaks speech control, because "click Theme" then
          matches nothing. Lighthouse flags it as label-content-name-mismatch.
-         Buttons whose tooltip already contains their label ("Calendar" in
-         "Toggle Calendar") are left alone rather than made to stutter. */
+         Buttons whose tooltip already contains their label as a whole word
+         ("Calendar" in "Toggle Calendar") are left alone rather than made to
+         stutter. A substring is not enough: "Calc" sits inside "Calculator"
+         and speech control still cannot find a button named Calc. */
       document.querySelectorAll(".nav-menu [data-tooltip]").forEach((el) => {
         const tip = el.getAttribute("data-tooltip") || "";
         const visible = (el.textContent || "").trim();
-        const covered =
-          !visible || tip.toLowerCase().includes(visible.toLowerCase());
+        const words = tip.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+        const covered = !visible || words.includes(visible.toLowerCase());
         el.setAttribute("aria-label", covered ? tip : `${visible} — ${tip}`);
         if (el.tagName === "BUTTON") el.setAttribute("type", "button");
       });

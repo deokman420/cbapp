@@ -7,7 +7,9 @@ description: Release CB App from this repository — bump the version in both pl
 
 This repository is the only home for CB App. `cbapp.html` at the repo root is the app. There is no second copy to mirror, no site build, and no homepage version token.
 
-The planned public host is `cbapp.phbeks.com`. Philip is setting that name up in Cloudflare and Nginx. This skill does not create DNS records, Nginx config, or a hosting project. `vercel.json` in this repo is the header set for a deploy of *this* repository. It does not publish the subdomain, and it does not apply to phbeks.com's `/cbapp.html`, which is a different project.
+The public host for this repository is the Vercel project `cbapp` (production branch `main`, domain `cbapp.phbeks.com`). DNS for that name is Philip's. This skill does not create DNS records.
+
+`vercel.json` is what that project deploys. `framework` is null, `installCommand` and `buildCommand` are empty strings (empty skips the step; `null` means "detect", which would go looking for a build), and `outputDirectory` is `.`. `/` rewrites to `/cbapp.html`. Do not add a `build` script to `package.json`. `npm run lint` and the Playwright scripts are local only. This file's headers do not apply to phbeks.com's `/cbapp.html`, which is a different project.
 
 ## Preconditions
 
@@ -63,6 +65,8 @@ ESLint's report locations are remapped to `cbapp.html` lines. A line number quot
 ```bash
 npx playwright test tests/cbapp.spec.ts --reporter=line
 ```
+
+The config serves the repo with `python` on Windows and `python3` everywhere else. `python -m http.server` is single-threaded and is not what this suite uses.
 
 Nine projects: `desktop`, `mobile`, `mobile-landscape`, `iphone`, `iphone-se`, `ipad`, `ipad-small`, `firefox`, `webkit`. All of them are gates. A green desktop run means very little on its own.
 

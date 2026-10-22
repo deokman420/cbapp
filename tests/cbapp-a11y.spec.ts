@@ -30,7 +30,7 @@ type Row = {
 
 const collected: Row[] = [];
 
-async function openFresh(page: Page) {
+async function openFresh(page: Page, options?: { keepNotice?: boolean }) {
   await page.goto(URL);
   /* Boot is done once the toolbar is wired. The aria-label, not visibility:
      from v4.2.0 the toolbar rests collapsed on a phone, so every button but
@@ -39,6 +39,15 @@ async function openFresh(page: Page) {
     'aria-label',
     /New Note/i
   );
+  /* v4.8.0's passphrase notice sits on top of the phone toolbar sheet.
+     Leave it up only for the landing scan, which is the state that includes it. */
+  if (!options?.keepNotice) {
+    const notice = page.locator('#origin-notice');
+    if (await notice.isVisible().catch(() => false)) {
+      await page.locator('#origin-notice-dismiss').click();
+      await expect(notice).toBeHidden();
+    }
+  }
 }
 
 /** Open the mobile toolbar sheet if it is closed. A no-op on desktop. */
@@ -53,8 +62,21 @@ async function nav(page: Page, tooltip: string) {
   await page.locator(`nav.nav-menu [data-tooltip="${tooltip}"]`).first().click();
 }
 
-/** Scan the current page state, record every violation, return them. */
+/**
+ * Scan the current page state, record every violation, return them.
+ * The nav tip fades out over 150ms. Mid-fade, axe composites the text with
+ * whatever is behind it and reports a contrast failure that is gone once the
+ * tip is either fully shown or fully gone. Wait for that before scanning.
+ */
 async function scan(page: Page, state: string) {
+  await expect
+    .poll(async () =>
+      page.locator('#nav-tooltip').evaluate((el) => {
+        const opacity = parseFloat(getComputedStyle(el).opacity);
+        return opacity === 0 || opacity === 1;
+      })
+    )
+    .toBe(true);
   const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
   for (const v of results.violations) {
     collected.push({
@@ -96,7 +118,7 @@ test.afterAll(async ({}, testInfo) => {
 
 test.describe('CB App — axe-core accessibility', () => {
   test('landing state (empty canvas + toolbar)', async ({ page }) => {
-    await openFresh(page);
+    await openFresh(page, { keepNotice: true });
     // v4.8.0: on http(s) the passphrase notice is part of this state.
     await expect(page.locator('#origin-notice')).toBeVisible();
     const v = await scan(page, 'landing');

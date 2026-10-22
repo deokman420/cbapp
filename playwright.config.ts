@@ -29,8 +29,10 @@ export default defineConfig({
      suite a morning; the fix is one line and the module is in the standard
      library. */
   webServer: {
+    // Windows installs expose `python`. Debian and most CI images expose
+    // `python3` and do not ship a `python` shim.
     command:
-      `python -c "from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler;` +
+      `${process.platform === 'win32' ? 'python' : 'python3'} -c "from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler;` +
       ` ThreadingHTTPServer(('127.0.0.1', ${PORT}), SimpleHTTPRequestHandler).serve_forever()"`,
     port: PORT,
     reuseExistingServer: true,

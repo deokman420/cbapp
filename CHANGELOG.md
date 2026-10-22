@@ -31,6 +31,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   gets deployed. phbeks.com serves `/cbapp.html` from a different project.
 - Toolbar tooltips are built with DOM text APIs. The locked empty-state hint
   is restored from an in-memory clone instead of assigning HTML.
+- The Calc button's accessible name leads with the visible word. A tooltip
+  that merely contains those letters ("Calculator") is not the same as
+  containing the label. The tooltip title uses the normal text colour
+  instead of 80% opacity. The tip itself is hidden from the accessibility
+  tree: the buttons already carry the name, and the tip fades out through
+  partial opacity.
 - Importing a file that is not an encrypted backup asks before it replaces
   the saved session. Opening an older plaintext value already in this
   browser still loads quietly and is sealed on the next save.
@@ -38,8 +44,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   the tree was a secret.
 - The Playwright suite, ESLint config, security check, and icon script now
   live in this repo. This file is the only changelog. The planned public
-  host is cbapp.phbeks.com. DNS and the web server for that name are set up
-  outside this repository.
+  host is cbapp.phbeks.com.
+- `vercel.json` deploys this directory with no install and no build
+  (`buildCommand` and `installCommand` are empty, `outputDirectory` is `.`).
+  `/` rewrites to `/cbapp.html`. `package.json` has no `build` script, so
+  Vercel does not try to compile the app.
 
 ---
 

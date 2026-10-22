@@ -220,7 +220,7 @@ With Protect off, notes are still encrypted with the browser's device key. On a 
 
 A new passphrase has to be at least 12 characters. One you already use still unlocks, even if it is shorter. New backups and saves use PBKDF2-SHA256 at 600,000 iterations. An older envelope marked 210,000 iterations still opens and is re-sealed at 600,000 the next time it saves.
 
-`vercel.json` in this repo sends the Content-Security-Policy (including `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, and a Permissions-Policy for camera, microphone, and geolocation. Deploying this repository is what applies them. The copy served at phbeks.com comes from a different project, so those headers have to be set there too.
+`vercel.json` in this repo sends the Content-Security-Policy (including `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, and a Permissions-Policy for camera, microphone, and geolocation. Deploying this repository is what applies them. The project is static: Vercel does not install or build, and the site root serves `cbapp.html`. The copy served at phbeks.com comes from a different project, so those headers have to be set there too.
 
 Importing a file that is not an encrypted backup asks before it replaces the session.
 
@@ -500,7 +500,7 @@ pay for the row without handing WebKit a scrollbar Chromium would absorb.
 - **Persistence** — Uses `localStorage` under the key `notepadSession`, always encrypted: with a non-extractable device key kept in IndexedDB (`cbappDeviceKey`) by default, or with your passphrase when Protect is on. On a shared website the device key does not stop other pages on that site from reading the session; a passphrase does, and setting one deletes the device key.
 - **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
 - **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 key (600,000 iterations; 210,000-iteration files from older builds still open), with a fresh salt and IV per file. There is no plaintext backup path.
-- **HTTP headers** — `vercel.json` sets CSP (the meta policy plus `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. A meta tag cannot set `frame-ancestors`. Those headers apply when this repository is what gets deployed. phbeks.com's `/cbapp.html` is a different project. cbapp.phbeks.com is the planned separate origin; this repo does not configure its DNS or its web server.
+- **HTTP headers and deploy** — `vercel.json` sets CSP (the meta policy plus `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. A meta tag cannot set `frame-ancestors`. The same file tells Vercel this is a static directory: no framework, no install, no build, output `.`. `/` rewrites to `/cbapp.html`, which stays at the repo root. phbeks.com's `/cbapp.html` is a different project. DNS for cbapp.phbeks.com is set up outside this repository.
 - **Window limit** — 25 windows. A session containing more restores what fits and reports what was skipped.
 - **Browser support** — Works in any modern Chromium-based browser. Best experience in Chrome/Edge.
 
@@ -532,7 +532,7 @@ The release notes for doing that work are in `.claude/skills/deploy-cbapp/SKILL.
 ```
 cbapp/
 ├── cbapp.html                 # The complete application (v4.8.0)
-├── vercel.json                # Security headers for a deploy of this repo
+├── vercel.json                # Static deploy (no build) and security headers
 ├── package.json               # Lint and Playwright scripts
 ├── playwright.config.ts
 ├── eslint.config.mjs

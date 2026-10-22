@@ -175,10 +175,26 @@ check(
 const vercel = JSON.parse(
   fs.readFileSync(path.join(root, "vercel.json"), "utf8")
 );
+const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 check("vercel headers for cbapp", Array.isArray(vercel.headers));
 const hdrBlob = JSON.stringify(vercel.headers || []);
 check("vercel frame-ancestors none", hdrBlob.includes("frame-ancestors 'none'"));
 check("vercel X-Frame-Options DENY", hdrBlob.includes("DENY"));
+/* package.json is the test toolchain. An empty buildCommand overrides any
+   detected build, and outputDirectory "." serves this repo as-is, including
+   cbapp.html at the root. null would mean "detect", which is the opposite. */
+check("vercel does not run a build", vercel.buildCommand === "");
+check("vercel output is the repo root", vercel.outputDirectory === ".");
+check("vercel framework is unset", vercel.framework === null);
+check("vercel skips install", vercel.installCommand === "");
+check(
+  "vercel serves cbapp.html at /",
+  Array.isArray(vercel.rewrites) &&
+    vercel.rewrites.some(
+      (r) => r.source === "/" && r.destination === "/cbapp.html"
+    )
+);
+check("package.json has no build script", !pkg.scripts || !pkg.scripts.build);
 
 // --- Functional crypto + validation (mirror key algorithms) ---
 const SESSION_FORMAT_VERSION = 1;

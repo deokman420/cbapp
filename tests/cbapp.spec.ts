@@ -754,7 +754,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
   async function canvasGeometry(page: Page) {
     return page.evaluate(() => {
       const layer = document.getElementById('windows') as HTMLElement;
-      const s = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const s = buildSessionSnapshot() as any;
       return {
         worldW: layer.offsetWidth,
         worldH: layer.offsetHeight,
@@ -797,7 +797,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
     await openFresh(page);
     await forceSave(page);
     expect(await page.evaluate(() => {
-      const s = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const s = buildSessionSnapshot() as any;
       return s.canvas.seen;
     })).toBe(false);
 
@@ -818,7 +818,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).saveSession = () => {};
-      const raw = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const raw = buildSessionSnapshot() as any;
       raw.canvas = { on: true, x: 0, y: 0, zoom: 1 };
       localStorage.setItem('notepadSession', JSON.stringify(raw));
     });
@@ -840,7 +840,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).saveSession = () => {};
-      const raw = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const raw = buildSessionSnapshot() as any;
       raw.canvas = { on: true, x: -512, y: -384, zoom: 1 };
       localStorage.setItem('notepadSession', JSON.stringify(raw));
     });
@@ -927,7 +927,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).saveSession = () => {};
-      const raw = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const raw = buildSessionSnapshot() as any;
       delete raw.canvas.worldW;
       delete raw.canvas.worldH;
       localStorage.setItem('notepadSession', JSON.stringify(raw));
@@ -1181,7 +1181,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
     await page.locator('#' + id + ' .minimize-window').click();
     await forceSave(page);
     const saved = await page.evaluate((id) => {
-      const s = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const s = buildSessionSnapshot() as any;
       return s[id!].width;
     }, id);
     expect(saved).toBe(before);
@@ -1213,7 +1213,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
     // And the size that reaches storage is the real one, not the collapsed one.
     await forceSave(page);
     const saved = await page.evaluate((id) => {
-      const s = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const s = buildSessionSnapshot() as any;
       return s[id!].width;
     }, id);
     expect(saved).toBe(before);
@@ -1231,7 +1231,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).saveSession = () => {};
-      const raw = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const raw = buildSessionSnapshot() as any;
       raw.calculator = {
         visible: true,
         mode: 'canvas',
@@ -1296,7 +1296,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).saveSession = () => {};
-      const raw = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const raw = buildSessionSnapshot() as any;
       for (const k of Object.keys(raw)) {
         if (raw[k] && typeof raw[k] === 'object') delete raw[k].mode;
       }
@@ -1322,7 +1322,7 @@ test.describe('CB App — windows belong to the mode they were created in', () =
       // payload we are planting before the reload picks it up.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).saveSession = () => {};
-      const raw = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const raw = buildSessionSnapshot() as any;
       const key = Object.keys(raw).find((k) => k.startsWith('window'));
       raw[key as string].mode = { evil: true };
       localStorage.setItem('notepadSession', JSON.stringify(raw));
@@ -2631,10 +2631,10 @@ test.describe('CB App — session persistence & security edits', () => {
     await page.locator('.window textarea').fill('my-real-work');
     await forceSave(page);
 
+    await expectDeviceEnvelope(page, 'my-real-work');
     const before = await page.evaluate(() =>
       localStorage.getItem('notepadSession')
     );
-    expect(before).toContain('my-real-work');
 
     // Serve the document with the payload an old export shipped. It has to
     // arrive in the HTML — a DOM injection would not survive the reload —
@@ -2656,13 +2656,20 @@ test.describe('CB App — session persistence & security edits', () => {
     // The payload really is in the served document.
     expect(await page.content()).toContain('cbapp-embedded-session');
 
-    // The browser's own session still wins, untouched.
+    // The browser's own session still wins. A device-key save uses a fresh
+    // IV, so a boot that re-seals the same desk is not byte-identical, and
+    // the note text is not in the JSON. The note on screen is the proof the
+    // embedded payload did not replace it.
     const after = await page.evaluate(() => ({
       session: localStorage.getItem('notepadSession'),
       prev: localStorage.getItem('notepadSession.prev'),
       consumed: localStorage.getItem('cbappConsumedExport'),
     }));
-    expect(after.session).toContain('my-real-work');
+    const afterEnv = JSON.parse(after.session!);
+    expect(afterEnv.enc).toBe(true);
+    expect(afterEnv.mode).toBe('device');
+    expect(after.session).not.toContain('my-real-work');
+    expect(after.session).not.toContain('1785422357922');
     // Boot purges the retired keys rather than writing them.
     expect(after.prev).toBeNull();
     expect(after.consumed).toBeNull();
@@ -4403,7 +4410,7 @@ test.describe('CB App — the phone layout', () => {
     const id = await page.locator('#windows > .window').first().getAttribute('id');
     await forceSave(page);
     const saved = await page.evaluate((id) => {
-      const s = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const s = buildSessionSnapshot() as any;
       return {
         width: s[id!].width as number,
         rendered: document.getElementById(id!)!.offsetWidth,
@@ -5945,7 +5952,7 @@ test.describe('CB App — the calculator type dropdown (v4.5.0)', () => {
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).saveSession = () => {};
-      const raw = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const raw = buildSessionSnapshot() as any;
       raw.calculator.history = [{ expression: '2+2', result: '4' }];
       localStorage.setItem('notepadSession', JSON.stringify(raw));
     });
@@ -5977,7 +5984,7 @@ test.describe('CB App — the calculator type dropdown (v4.5.0)', () => {
     await page.evaluate(() => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window as any).saveSession = () => {};
-      const raw = JSON.parse(localStorage.getItem('notepadSession') as string);
+      const raw = buildSessionSnapshot() as any;
       raw.calculator.calcMode = 'tachyon-flux';
       raw.calculator.shifts = [
         { start: '09:00', end: '17:00', brk: 0 },
