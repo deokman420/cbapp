@@ -25,8 +25,11 @@
       CSP (meta): split by directive so data: cannot load scripts; unused CDN
       allowlists removed; fonts are system-only (no third-party network).
       'unsafe-inline' remains because this single-file app uses inline script
-      and onclick handlers. frame-ancestors is not enforced by meta CSP —
-      set it via HTTP headers when hosting (see vercel.json).
+      and onclick handlers. frame-ancestors is not enforced by meta CSP.
+      vercel.json in this repo sets frame-ancestors 'none' plus
+      X-Frame-Options, nosniff, Referrer-Policy and a locked-down
+      Permissions-Policy. phbeks.com serves this file from a different
+      project, so those headers have to be copied there as well.
     -->
     <meta
       http-equiv="Content-Security-Policy"
@@ -60,7 +63,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="CB App" />
     <meta name="application-name" content="CB App" />
-    <!-- CB App v4.7.0 — 2026-10-13. See CBAPP-CHANGELOG.md for release history. -->
+    <!-- CB App v4.8.0 — 2026-10-22. See CHANGELOG.md for release history. -->
 
     <!-- ORIENTATION — read this before editing. Written for whoever opens this
          file with no memory of it, which is usually an AI agent starting cold.
@@ -907,7 +910,7 @@
         font-size: 10px;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        opacity: 0.8;
+        color: var(--text);
       }
       .nav-tooltip-list {
         display: flex;
@@ -3600,10 +3603,50 @@
          there. `top: auto` is not tidying: with both offsets set and height
          auto the box stretches to fill the gap between them. */
       body.mobile-ui #locked-banner,
-      body.mobile-ui #save-warning {
+      body.mobile-ui #save-warning,
+      body.mobile-ui #origin-notice {
         top: auto;
         bottom: calc(108px + env(safe-area-inset-bottom) + var(--keyboard-inset));
         left: 12px;
+        right: auto;
+      }
+
+      /* Same corner as the lock banner. The two never show together: this one
+         is for an open session with no passphrase, that one is for a locked
+         session. [hidden] has to beat the display rule below — see .calc-panel. */
+      #origin-notice {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        position: fixed;
+        top: 12px;
+        left: 12px;
+        z-index: 1200;
+        max-width: min(36rem, calc(100% - 24px));
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--orange);
+        background: var(--bg-card);
+        color: var(--text);
+        font-family: var(--font);
+        font-size: 0.82rem;
+        line-height: 1.45;
+        box-sizing: border-box;
+      }
+
+      #origin-notice[hidden] {
+        display: none;
+      }
+
+      #origin-notice p {
+        margin: 0;
+      }
+
+      #origin-notice .origin-notice-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
       }
 
       /* --- Lock button (bottom-left) ---
@@ -4989,15 +5032,11 @@
       <div id="empty-state">
         <div class="empty-title">CB App</div>
         <!-- INVARIANT: exactly one .empty-hint. The locked-session message
-             swaps this element's innerHTML wholesale, stashing the original
-             on a dataset key it removes again on unlock, so the two wordings
-             have to be spans INSIDE it and not two paragraphs. A second
-             .empty-hint would leave half the hint un-swapped, still on screen
-             next to "your session is encrypted".
-
-             TRAP: do not name that dataset key in a comment. The download
-             test asserts the saved copy carries no trace of it by searching
-             the file as text, and a comment is text. -->
+             replaces this element's children, and unlock puts the original
+             children back from an in-memory clone taken before the swap.
+             The two wordings have to be spans INSIDE it and not two
+             paragraphs. A second .empty-hint would leave half the hint
+             un-swapped, still on screen next to "your session is encrypted". -->
         <p class="empty-hint">
           <span class="empty-hint--desktop">
             Nothing open yet. Start with <strong>Note</strong>, <strong>Tasks</strong>
@@ -5069,6 +5108,13 @@
       >
         🔒 Session locked — click to unlock
       </button>
+      <div id="origin-notice" role="status" hidden>
+        <p>Other pages on this website can read notes saved here. A passphrase stops that.</p>
+        <div class="origin-notice-actions">
+          <button type="button" id="origin-notice-protect" onclick="protectFromOriginNotice()">Set a passphrase</button>
+          <button type="button" id="origin-notice-dismiss" onclick="dismissOriginNotice()">Not now</button>
+        </div>
+      </div>
       <!-- The counterpart to that banner: this one puts the session INTO the
            locked state on purpose. Hidden by lockSessionNow()'s own state
            update while the banner is up, so only one of the two is ever
@@ -5170,7 +5216,7 @@
 
          Stamped into the chip at boot rather than written straight into the
          markup, so the constant is the only place a release has to change. */
-      const CB_APP_VERSION = "4.7.0";
+      const CB_APP_VERSION = "4.8.0";
 
       // --- Session security (v3.2.0) -----------------------------------------
       // Storage keys, optional AES-GCM passphrase wrap, and strict import
@@ -5192,7 +5238,16 @@
       // Set by validateSessionObject, read by the import and restore messages.
       let eventsDroppedOnValidate = 0;
       const MAX_EVENT_NOTE_CHARS = 2000;
-      const PBKDF2_ITERATIONS = 210000;
+      // New seals use 600,000. OWASP's password-storage guidance (2023) asks for
+      // at least that many rounds of PBKDF2-HMAC-SHA256. Envelopes written by
+      // v4.7.x and earlier say PBKDF2-SHA256-210000 and must still open — the
+      // count is read off the envelope, not assumed. A successful unlock
+      // re-seals at the current count on the next save.
+      const PBKDF2_ITERATIONS = 600000;
+      const LEGACY_PBKDF2_ITERATIONS = 210000;
+      // New passphrases only. Unlock never checks length, so a passphrase
+      // chosen under the old 6-character floor still opens its envelope.
+      const MIN_NEW_PASSPHRASE_CHARS = 12;
 
       // In-memory only — never written to localStorage or to any file.
       // sessionCryptoKey is derived once per unlock/protect so saves do not
@@ -5200,6 +5255,7 @@
       let sessionPassphrase = null;
       let sessionCryptoKey = null;
       let sessionKeySalt = null; // Uint8Array, paired with sessionCryptoKey
+      let sessionKeyIterations = null; // rounds that sessionCryptoKey was derived with
 
       // Set when boot found an encrypted session it could not open (wrong
       // passphrase, or the prompt was cancelled). The stored ciphertext is
@@ -5230,9 +5286,13 @@
       // persistSessionPayload() refuses every write until Reset. The
       // ciphertext is the user's only copy.
       //
-      // TRAP: this protects the saved files from casual reading only. Anyone
-      // using this same browser profile can open CB App and see everything.
-      // A passphrase is still the real protection.
+      // TRAP: this protects the saved files from casual reading only. The key
+      // is non-extractable, but it still lives in IndexedDB on this origin, so
+      // any script on the same website can call crypto.subtle.decrypt with it.
+      // Anyone using this same browser profile can open CB App and see
+      // everything. A passphrase is still the real protection — once one is
+      // set, the device key is deleted so a copied envelope cannot be opened
+      // with the leftover key.
       const DEVICE_KEY_DB = "cbappDeviceKey";
       const DEVICE_KEY_STORE = "keys";
       const DEVICE_KEY_ID = "session-v1";
@@ -5240,6 +5300,10 @@
       // Bumped whenever the device key is destroyed, so a save that started
       // with the old key cannot land ciphertext nobody can open any more.
       let deviceKeyEpoch = 0;
+      // True after the key has been deleted because a passphrase envelope is
+      // what is stored. Stops every later save from calling deleteDatabase.
+      // Cleared when a device key is actually resolved again (Unprotect).
+      let deviceKeyRetired = false;
       let deviceSessionUnreadable = false;
       // Latest-write-wins across overlapping async saves.
       let _writeSeq = 0;
@@ -5344,6 +5408,7 @@
         if (!deviceCryptoAvailable()) {
           throw new Error("IndexedDB or Web Crypto is not available");
         }
+        const epoch = deviceKeyEpoch;
         if (!deviceKeyPromise) {
           const p = readDeviceKeyFromDb();
           deviceKeyPromise = p;
@@ -5360,6 +5425,17 @@
           });
           key = await p;
         }
+        if (epoch !== deviceKeyEpoch) {
+          // Destroyed while this lookup was in flight. A create that landed
+          // after deleteDatabase would otherwise leave a usable key behind.
+          try {
+            if (window.indexedDB) indexedDB.deleteDatabase(DEVICE_KEY_DB);
+          } catch (e) {
+            /* storage denied */
+          }
+          return key;
+        }
+        if (key) deviceKeyRetired = false;
         if (!key) deviceKeyPromise = null; // look again next time
         return key;
       }
@@ -5406,6 +5482,7 @@
       function destroyDeviceKey() {
         deviceKeyEpoch++;
         deviceKeyPromise = null;
+        deviceKeyRetired = true;
         try {
           if (!window.indexedDB) return;
           const req = indexedDB.deleteDatabase(DEVICE_KEY_DB);
@@ -5419,6 +5496,7 @@
         sessionPassphrase = null;
         sessionCryptoKey = null;
         sessionKeySalt = null;
+        sessionKeyIterations = null;
       }
 
       function clearAllSessionStorage() {
@@ -5445,6 +5523,13 @@
         });
       }
 
+      function iterationsFromEnvelope(obj) {
+        if (!obj || typeof obj.kdf !== "string") return null;
+        if (obj.kdf === "PBKDF2-SHA256-210000") return LEGACY_PBKDF2_ITERATIONS;
+        if (obj.kdf === "PBKDF2-SHA256-600000") return PBKDF2_ITERATIONS;
+        return null;
+      }
+
       function isEncryptedEnvelope(obj) {
         return (
           !!obj &&
@@ -5456,7 +5541,7 @@
           typeof obj.iv === "string" &&
           typeof obj.ct === "string" &&
           obj.alg === "AES-GCM-256" &&
-          obj.kdf === "PBKDF2-SHA256-210000"
+          iterationsFromEnvelope(obj) !== null
         );
       }
 
@@ -5477,7 +5562,8 @@
         return bytes;
       }
 
-      async function deriveAesKey(passphrase, saltBytes) {
+      async function deriveAesKey(passphrase, saltBytes, iterations) {
+        const rounds = iterations || PBKDF2_ITERATIONS;
         const enc = new TextEncoder();
         const material = await crypto.subtle.importKey(
           "raw",
@@ -5490,7 +5576,7 @@
           {
             name: "PBKDF2",
             salt: saltBytes,
-            iterations: PBKDF2_ITERATIONS,
+            iterations: rounds,
             hash: "SHA-256",
           },
           material,
@@ -5500,10 +5586,12 @@
         );
       }
 
-      async function ensureSessionKey(passphrase, saltBytes) {
+      async function ensureSessionKey(passphrase, saltBytes, iterations) {
+        const rounds = iterations || PBKDF2_ITERATIONS;
         if (
           sessionCryptoKey &&
           sessionPassphrase === passphrase &&
+          sessionKeyIterations === rounds &&
           sessionKeySalt &&
           saltBytes &&
           sessionKeySalt.length === saltBytes.length &&
@@ -5511,14 +5599,16 @@
         ) {
           return sessionCryptoKey;
         }
-        const key = await deriveAesKey(passphrase, saltBytes);
+        const key = await deriveAesKey(passphrase, saltBytes, rounds);
         sessionPassphrase = passphrase;
         sessionCryptoKey = key;
         sessionKeySalt = new Uint8Array(saltBytes);
+        sessionKeyIterations = rounds;
         return key;
       }
 
-      async function sealEnvelope(session, key, salt, iv) {
+      async function sealEnvelope(session, key, salt, iv, iterations) {
+        const rounds = iterations || PBKDF2_ITERATIONS;
         const plain = new TextEncoder().encode(JSON.stringify(session));
         const ct = await crypto.subtle.encrypt(
           { name: "AES-GCM", iv },
@@ -5529,7 +5619,7 @@
           _cbapp: SESSION_FORMAT_VERSION,
           enc: true,
           alg: "AES-GCM-256",
-          kdf: "PBKDF2-SHA256-210000",
+          kdf: "PBKDF2-SHA256-" + rounds,
           salt: bufToB64(salt),
           iv: bufToB64(iv),
           ct: bufToB64(ct),
@@ -5538,13 +5628,18 @@
 
       async function encryptSessionObject(session, passphrase) {
         // Reuse salt+key across saves in this tab; new IV every encrypt.
-        const salt =
-          sessionKeySalt && sessionPassphrase === passphrase
-            ? sessionKeySalt
-            : crypto.getRandomValues(new Uint8Array(16));
+        // A key derived at the old iteration count must not be reused under
+        // the new kdf label — new salt, current rounds.
+        const reuse =
+          sessionKeySalt &&
+          sessionPassphrase === passphrase &&
+          sessionKeyIterations === PBKDF2_ITERATIONS;
+        const salt = reuse
+          ? sessionKeySalt
+          : crypto.getRandomValues(new Uint8Array(16));
         const iv = crypto.getRandomValues(new Uint8Array(12));
-        const key = await ensureSessionKey(passphrase, salt);
-        return sealEnvelope(session, key, salt, iv);
+        const key = await ensureSessionKey(passphrase, salt, PBKDF2_ITERATIONS);
+        return sealEnvelope(session, key, salt, iv, PBKDF2_ITERATIONS);
       }
 
       // Deliberately does NOT go through ensureSessionKey(): that caches into
@@ -5554,8 +5649,8 @@
       async function encryptForExport(session, passphrase) {
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const iv = crypto.getRandomValues(new Uint8Array(12));
-        const key = await deriveAesKey(passphrase, salt);
-        return sealEnvelope(session, key, salt, iv);
+        const key = await deriveAesKey(passphrase, salt, PBKDF2_ITERATIONS);
+        return sealEnvelope(session, key, salt, iv, PBKDF2_ITERATIONS);
       }
 
       /**
@@ -5572,8 +5667,9 @@
         try {
           const salt = b64ToBytes(envelope.salt);
           const iv = b64ToBytes(envelope.iv);
-          if (salt.length !== 16 || iv.length !== 12) return false;
-          const key = await deriveAesKey(passphrase, salt);
+          const rounds = iterationsFromEnvelope(envelope);
+          if (!rounds || salt.length !== 16 || iv.length !== 12) return false;
+          const key = await deriveAesKey(passphrase, salt, rounds);
           await crypto.subtle.decrypt(
             { name: "AES-GCM", iv },
             key,
@@ -5588,10 +5684,11 @@
       async function decryptSessionEnvelope(envelope, passphrase) {
         const salt = b64ToBytes(envelope.salt);
         const iv = b64ToBytes(envelope.iv);
-        if (salt.length !== 16 || iv.length !== 12) {
+        const rounds = iterationsFromEnvelope(envelope);
+        if (!rounds || salt.length !== 16 || iv.length !== 12) {
           throw new Error("Invalid envelope parameters");
         }
-        const key = await ensureSessionKey(passphrase, salt);
+        const key = await ensureSessionKey(passphrase, salt, rounds);
         const plainBuf = await crypto.subtle.decrypt(
           { name: "AES-GCM", iv },
           key,
@@ -6198,6 +6295,14 @@
         if (seq !== _writeSeq) return true;
         localStorage.setItem(SESSION_KEY, serialized);
         clearSaveFailure();
+        // A passphrase envelope is now what's stored. Drop the device key so
+        // a copy of the previous envelope cannot be opened by another script
+        // on this origin. Only the write that landed does this — a superseded
+        // save returns above without reaching setItem, and must not delete
+        // the key that still opens the envelope on disk.
+        if (isEncryptedEnvelope(payload) && !deviceKeyRetired) {
+          destroyDeviceKey();
+        }
         return true;
       }
 
@@ -6409,12 +6514,14 @@
         const pass = await promptPassphrase({
           title,
           message,
-          label: "New passphrase (6+ characters)",
+          label: "New passphrase (12+ characters)",
           okLabel: "Continue",
         });
         if (pass === null) return null;
-        if (!pass || pass.length < 6) {
-          window.alert("Use a passphrase of at least 6 characters.");
+        if (!pass || pass.length < MIN_NEW_PASSPHRASE_CHARS) {
+          window.alert(
+            "Use a passphrase of at least " + MIN_NEW_PASSPHRASE_CHARS + " characters."
+          );
           return null;
         }
         const again = await promptPassphrase({
@@ -6535,6 +6642,23 @@
        * survives, and the user gets an unlimited number of further tries via
        * the banner — three per round, as many rounds as they want.
        */
+      /* Original empty-state hint, cloned before a lock replaces its children.
+         Held in memory so unlock and Download can put the wording back without
+         round-tripping markup through an attribute. */
+      let emptyHintTemplate = null;
+
+      function captureEmptyHintTemplate() {
+        if (emptyHintTemplate) return;
+        const hint = document.querySelector("#empty-state .empty-hint");
+        if (hint) emptyHintTemplate = hint.cloneNode(true);
+      }
+
+      function restoreEmptyHint(hint) {
+        if (!hint || !emptyHintTemplate) return;
+        const copy = emptyHintTemplate.cloneNode(true);
+        hint.replaceChildren(...Array.from(copy.childNodes));
+      }
+
       /* `hintText` is for the deliberate lock, which arrives at the same state
          by a different road: nothing failed, the user asked for this, and the
          boot-time wording ("was not opened") would read as an error. */
@@ -6548,7 +6672,7 @@
         // automatically", which is exactly false right now.
         const hint = document.querySelector("#empty-state .empty-hint");
         if (hint) {
-          hint.dataset.unlockedText = hint.dataset.unlockedText || hint.innerHTML;
+          captureEmptyHintTemplate();
           hint.textContent =
             hintText ||
             "Your saved session is encrypted and was not opened. Nothing is being saved until you unlock it — click the 🔒 banner to try the passphrase again.";
@@ -6562,10 +6686,7 @@
         const banner = document.getElementById("locked-banner");
         if (banner) banner.style.display = "none";
         const hint = document.querySelector("#empty-state .empty-hint");
-        if (hint && hint.dataset.unlockedText) {
-          hint.innerHTML = hint.dataset.unlockedText;
-          delete hint.dataset.unlockedText;
-        }
+        restoreEmptyHint(hint);
         updateProtectButton();
       }
 
@@ -6758,6 +6879,59 @@
         return validateSessionObject(parsed);
       }
 
+      /* Shown on http(s) while no passphrase is set. file:// is the enterprise
+         case and is not a shared website, so it stays quiet. Dismiss lasts for
+         this tab only — the nudge comes back on the next visit until Protect
+         is on. A same-origin script can still use the device key while this
+         is up; the notice is the practical limit of a client-only app. */
+      const ORIGIN_NOTICE_DISMISS_KEY = "cbappOriginNoticeDismissed";
+
+      function sharedWebsiteOrigin() {
+        try {
+          return location.protocol === "http:" || location.protocol === "https:";
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function originNoticeDismissed() {
+        try {
+          return sessionStorage.getItem(ORIGIN_NOTICE_DISMISS_KEY) === "1";
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function syncOriginNotice() {
+        const el = document.getElementById("origin-notice");
+        if (!el) return;
+        const show =
+          sharedWebsiteOrigin() &&
+          !sessionPassphrase &&
+          !sessionLocked &&
+          !originNoticeDismissed();
+        el.hidden = !show;
+      }
+
+      function dismissOriginNotice() {
+        try {
+          sessionStorage.setItem(ORIGIN_NOTICE_DISMISS_KEY, "1");
+        } catch (e) {
+          /* private mode — hiding for this paint is the best we can do */
+        }
+        const el = document.getElementById("origin-notice");
+        if (el) el.hidden = true;
+      }
+
+      async function protectFromOriginNotice() {
+        await protectSessionWithNewPassphrase({
+          title: "Set a passphrase",
+          message:
+            "Other pages on this website can read notes saved with this browser's device key. A passphrase stops that.\n\nYou will need it every time you open CB App on this origin. It is never stored — only you know it.",
+          okLabel: "Protect",
+        });
+      }
+
       /* This is the one toolbar button whose label changes at runtime, so the
          boot-time pass that folds the visible word into the accessible name
          cannot help it — it runs before there is any text to read. Each branch
@@ -6769,6 +6943,7 @@
         // Above the early return: the two buttons are independent elements and
         // a missing toolbar must not strand the lock in the wrong state.
         updateSessionLockButton();
+        syncOriginNotice();
         const btn = document.getElementById("protect-toggle");
         if (!btn) return;
         const label = (text, tip, aria) => {
@@ -6790,15 +6965,15 @@
         if (sessionPassphrase) {
           label(
             "Unprotect",
-            "Remove passphrase protection (falls back to this browser's device key)",
-            "remove passphrase protection (falls back to this browser's device key)"
+            "Remove passphrase protection (other pages on this website could then read notes saved here)",
+            "remove passphrase protection (other pages on this website could then read notes saved here)"
           );
           btn.classList.add("active");
         } else {
           label(
             "Protect",
-            "Encrypt this browser's session with a passphrase",
-            "encrypt this browser's session with a passphrase"
+            "Encrypt this browser's session with a passphrase so other pages on this website cannot read it",
+            "encrypt this browser's session with a passphrase so other pages on this website cannot read it"
           );
           btn.classList.remove("active");
         }
@@ -6821,7 +6996,8 @@
               title: "Remove passphrase protection?",
               message:
                 "Your session will be encrypted with this browser's device key " +
-                "instead — readable by anyone who opens CB App here.\n\nBackups stay " +
+                "instead. Other pages on this website can read notes saved that " +
+                "way, and anyone who opens CB App in this browser can too.\n\nBackups stay " +
                 "encrypted either way — Backup will ask for a passphrase each " +
                 "time instead of reusing this one.",
               okLabel: "Remove protection",
@@ -6875,6 +7051,7 @@
           // Fresh salt for a newly protected session.
           sessionCryptoKey = null;
           sessionKeySalt = null;
+          sessionKeyIterations = null;
           sessionPassphrase = pass;
           const snap = buildSessionSnapshot();
           const ok = await persistSessionPayload(snap);
@@ -9404,15 +9581,19 @@ Saving & security
 - Everything is saved to this browser automatically as you type, and
   restored the next time you open the file.
 - By default storage is encrypted with a random key kept in this
-  browser (IndexedDB), so nothing is stored as plaintext — but anyone
-  using this browser profile can still open it. Protect
-  encrypts it with a passphrase (AES-GCM) so localStorage needs that
-  passphrase to open. The passphrase is never stored.
+  browser (IndexedDB), so nothing is stored as plaintext. That key
+  lives on this website: other pages on the same site can use it, and
+  anyone using this browser profile can still open the notes. Protect
+  encrypts the session with a passphrase (AES-GCM, PBKDF2-SHA256) so
+  opening it needs that passphrase. A new passphrase is 12 characters
+  or more; one you already chose still opens, including a shorter one.
+  The passphrase is never stored. After Protect is on, the device key
+  is removed.
 - The 🔒 button in the bottom-left corner locks the session on the spot:
   it saves and seals what is open, clears the screen, and stops saving
   until you enter the passphrase again. Use it when you step away. If the
   session is not protected yet it asks for a passphrase first, because a
-  blank screen over a plaintext session hides nothing from the browser.
+  blank screen over a device-key session hides nothing from this website.
 - Freeze (🔓) only stops accidental edits — it is not a password.
 - Get the passphrase wrong (three tries a go) or cancel, and the session
   stays locked rather than being lost: nothing is saved over it, and the
@@ -12475,7 +12656,8 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       }
 
       // Boot: restore this browser's session. Nothing else can write to it.
-      window.onload = async () => {
+        window.onload = async () => {
+        captureEmptyHintTemplate();
         // Ahead of everything else, and unconditional: a session that fails to
         // load leaves the app in a state the user has to reason about, and the
         // build they are reasoning about is the first thing worth knowing.
@@ -12815,13 +12997,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
              about a session that copy has never had. Worse than cosmetic: the
              sentence goes on to say nothing is being saved, which is false in
              the fresh copy and would send someone hunting for a lock that is
-             not there. The original text is already parked on the element by
-             enterLockedState for the unlock path; put it back. */
+             not there. The original children live in memory; put them back. */
           const cloneHint = clone.querySelector("#empty-state .empty-hint");
-          if (cloneHint && cloneHint.dataset.unlockedText) {
-            cloneHint.innerHTML = cloneHint.dataset.unlockedText;
-            delete cloneHint.dataset.unlockedText;
-          }
+          if (cloneHint) restoreEmptyHint(cloneHint);
+          const cloneNotice = clone.querySelector("#origin-notice");
+          if (cloneNotice) cloneNotice.hidden = true;
           // The canvas view is state, not markup. Leaving the pan/zoom
           // transform and the mode class baked into the file would make the
           // copy open on a stale viewport that nothing later corrects.
@@ -12917,6 +13097,32 @@ Tip: Use the Download button inside the app to preserve your open windows and no
               // into sessionPassphrase, which is the very thing the protected
               // case has to compare against.
               if (!(await confirmImportOverCurrent())) return;
+              let parsedForKind;
+              try {
+                parsedForKind = JSON.parse(text);
+              } catch (parseErr) {
+                showStatus("Import failed: file is not valid JSON.");
+                return;
+              }
+              // Boot still accepts an old plaintext localStorage value with no
+              // prompt. A file the user picked is different: say so before it
+              // replaces what is saved here. Cancel leaves storage untouched.
+              if (
+                !isEncryptedEnvelope(parsedForKind) &&
+                !isDeviceEnvelope(parsedForKind)
+              ) {
+                const allowPlain = await confirmDialog({
+                  title: "Import an unencrypted file?",
+                  message:
+                    "This file is not an encrypted CB App backup. Importing it replaces the session saved in this browser. Only continue if you trust the file.",
+                  okLabel: "Import it",
+                  danger: true,
+                });
+                if (!allowPlain) {
+                  showStatus("Import cancelled — nothing was changed.");
+                  return;
+                }
+              }
               const session = await parseAndUnlockSession(text, {
                 promptReason:
                   "This backup is passphrase-protected. Enter the passphrase:",
@@ -14584,6 +14790,10 @@ Tip: Use the Download button inside the app to preserve your open windows and no
       // --- Nav Tooltips ---
       const navTooltip = document.createElement("div");
       navTooltip.id = "nav-tooltip";
+      // The buttons already expose their names. This tip is a mouse preview,
+      // and it fades out through partial opacity; leaving it in the
+      // accessibility tree made that fade look like low-contrast text.
+      navTooltip.setAttribute("aria-hidden", "true");
       document.body.appendChild(navTooltip);
       let tooltipHideTimer = null;
 
@@ -14596,7 +14806,11 @@ Tip: Use the Download button inside the app to preserve your open windows and no
         const text = target.getAttribute("data-tooltip");
         if (!text) return;
         const type = target.getAttribute("data-tooltip-type");
-        let html = `<div class="nav-tooltip-title">${text}</div>`;
+        navTooltip.replaceChildren();
+        const titleEl = document.createElement("div");
+        titleEl.className = "nav-tooltip-title";
+        titleEl.textContent = text;
+        navTooltip.appendChild(titleEl);
         let pendingEntries = [];
         // Calc, Clock and Help can only ever have one window, so their list was
         // always a single entry restating the title above it ("Toggle Clock" /
@@ -14663,30 +14877,26 @@ Tip: Use the Download button inside the app to preserve your open windows and no
           // script sink that fired on nothing more than a hover.
           if (entries.length > 0) {
             pendingEntries = entries;
-            html += '<div class="nav-tooltip-list"></div>';
           }
         }
-        navTooltip.innerHTML = html;
-        const list = navTooltip.querySelector(".nav-tooltip-list");
-        if (list) {
+        if (pendingEntries.length > 0) {
+          const list = document.createElement("div");
+          list.className = "nav-tooltip-list";
           pendingEntries.forEach((e) => {
             const link = document.createElement("button");
             link.className = "nav-tooltip-link";
             link.setAttribute("data-target-id", e.id);
             link.textContent = `- ${e.name}${e.hidden ? " (minimized)" : ""}`;
-            list.appendChild(link);
-          });
-        }
-        navTooltip
-          .querySelectorAll(".nav-tooltip-link")
-          .forEach((link) => {
             link.addEventListener("click", (event) => {
               event.preventDefault();
               event.stopPropagation();
               restoreWindow(link.getAttribute("data-target-id"));
               hideNavTooltip();
             });
+            list.appendChild(link);
           });
+          navTooltip.appendChild(list);
+        }
         // Anchoring to the button's own top edge meant a bottom-row tooltip
         // rendered straight over the top row's buttons. Clear the whole
         // toolbar instead, and flip below it when the toolbar is top-anchored.
@@ -14735,13 +14945,15 @@ Tip: Use the Download button inside the app to preserve your open windows and no
          TRAP: using the tooltip alone. It reads fine ("Tasks" becomes "New
          Task List") and breaks speech control, because "click Theme" then
          matches nothing. Lighthouse flags it as label-content-name-mismatch.
-         Buttons whose tooltip already contains their label ("Calendar" in
-         "Toggle Calendar") are left alone rather than made to stutter. */
+         Buttons whose tooltip already contains their label as a whole word
+         ("Calendar" in "Toggle Calendar") are left alone rather than made to
+         stutter. A substring is not enough: "Calc" sits inside "Calculator"
+         and speech control still cannot find a button named Calc. */
       document.querySelectorAll(".nav-menu [data-tooltip]").forEach((el) => {
         const tip = el.getAttribute("data-tooltip") || "";
         const visible = (el.textContent || "").trim();
-        const covered =
-          !visible || tip.toLowerCase().includes(visible.toLowerCase());
+        const words = tip.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+        const covered = !visible || words.includes(visible.toLowerCase());
         el.setAttribute("aria-label", covered ? tip : `${visible} — ${tip}`);
         if (el.tagName === "BUTTON") el.setAttribute("type", "button");
       });

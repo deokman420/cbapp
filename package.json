@@ -1,0 +1,24 @@
+{
+  "name": "cbapp",
+  "private": true,
+  "description": "CB App — a single offline HTML file, plus the lint and test tooling that used to live beside it in the phbeks site.",
+  "scripts": {
+    "lint": "eslint cbapp.html --max-warnings=0",
+    "lint:fix": "eslint cbapp.html --fix --max-warnings=0",
+    "test:cbapp-security": "node scripts/cbapp-security-check.mjs",
+    "test:cbapp": "playwright test tests/cbapp.spec.ts --project=desktop",
+    "test:cbapp:mobile": "playwright test tests/cbapp.spec.ts --project=mobile --project=mobile-landscape --project=iphone --project=iphone-se",
+    "test:cbapp:cross": "playwright test tests/cbapp.spec.ts --project=desktop --project=firefox --project=webkit",
+    "test:cbapp:all": "playwright test tests/cbapp.spec.ts",
+    "test:cbapp:visual": "playwright test tests/cbapp-visual.spec.ts --project=desktop --project=mobile --project=mobile-landscape --project=iphone --project=iphone-se",
+    "test:cbapp:a11y": "playwright test tests/cbapp-a11y.spec.ts"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.0",
+    "eslint": "^10.8.1",
+    "eslint-plugin-html": "^8.1.4",
+    "globals": "^17.11.0"
+  }
+}
