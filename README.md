@@ -220,11 +220,11 @@ With Protect off, notes are still encrypted with the browser's device key. On a 
 
 A new passphrase has to be at least 12 characters. One you already use still unlocks, even if it is shorter. New backups and saves use PBKDF2-SHA256 at 600,000 iterations. An older envelope marked 210,000 iterations still opens and is re-sealed at 600,000 the next time it saves.
 
-`vercel.json` in this repo sends the Content-Security-Policy (including `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, and a Permissions-Policy for camera, microphone, and geolocation. Deploying this repository is what applies them. The project is static: Vercel does not install or build, and the site root serves `cbapp.html`. The copy served at phbeks.com comes from a different project, so those headers have to be set there too.
+`vercel.json` in this repo sends the Content-Security-Policy (including `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, and a Permissions-Policy for camera, microphone, and geolocation. Those headers apply to `/` and to `/cbapp.html`. The project is static: Vercel does not install or build, and `/` serves `cbapp.html`. The site is live at https://cbapp.phbeks.com. https://phbeks.com/cbapp.html redirects to https://cbapp.phbeks.com/cbapp.html.
 
 Importing a file that is not an encrypted backup asks before it replaces the session.
 
-The planned public host is **cbapp.phbeks.com**. DNS and the web server for that name are set up outside this repository.
+The public host is **https://cbapp.phbeks.com**.
 
 ---
 
@@ -500,7 +500,7 @@ pay for the row without handing WebKit a scrollbar Chromium would absorb.
 - **Persistence** — Uses `localStorage` under the key `notepadSession`, always encrypted: with a non-extractable device key kept in IndexedDB (`cbappDeviceKey`) by default, or with your passphrase when Protect is on. On a shared website the device key does not stop other pages on that site from reading the session; a passphrase does, and setting one deletes the device key.
 - **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
 - **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 key (600,000 iterations; 210,000-iteration files from older builds still open), with a fresh salt and IV per file. There is no plaintext backup path.
-- **HTTP headers and deploy** — `vercel.json` sets CSP (the meta policy plus `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. A meta tag cannot set `frame-ancestors`. The same file tells Vercel this is a static directory: no framework, no install, no build, output `.`. `/` rewrites to `/cbapp.html`, which stays at the repo root. phbeks.com's `/cbapp.html` is a different project. DNS for cbapp.phbeks.com is set up outside this repository.
+- **HTTP headers and deploy** — `vercel.json` sets CSP (the meta policy plus `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. A meta tag cannot set `frame-ancestors`. The same headers are on the `/` route and on `/(.*)`, so `/` and `/cbapp.html` both get them. The file tells Vercel this is a static directory: no framework, no install, no build, output `.`. `/` serves `cbapp.html`, which stays at the repo root. The site is https://cbapp.phbeks.com. https://phbeks.com/cbapp.html redirects to https://cbapp.phbeks.com/cbapp.html.
 - **Window limit** — 25 windows. A session containing more restores what fits and reports what was skipped.
 - **Browser support** — Works in any modern Chromium-based browser. Best experience in Chrome/Edge.
 
@@ -525,7 +525,7 @@ npm run test:cbapp:visual   # win32 baselines; see tests/cbapp-visual.spec.ts
 
 The pixel baselines under `tests/cbapp-visual.spec.ts-snapshots/` were recorded on Windows (`*-win32.png`). A run on another operating system looks for its own snapshot names and does not replace those files. Do not pass `--update-snapshots` from Linux or macOS.
 
-The release notes for doing that work are in `.claude/skills/deploy-cbapp/SKILL.md`. Publishing to cbapp.phbeks.com is not part of it: that name is being set up in Cloudflare and Nginx separately.
+The release notes for doing that work are in `.claude/skills/deploy-cbapp/SKILL.md`. Merging to `main` publishes to https://cbapp.phbeks.com.
 
 ## File Structure
 

@@ -187,12 +187,27 @@ check("vercel does not run a build", vercel.buildCommand === "");
 check("vercel output is the repo root", vercel.outputDirectory === ".");
 check("vercel framework is unset", vercel.framework === null);
 check("vercel skips install", vercel.installCommand === "");
+const rootRoute = Array.isArray(vercel.routes)
+  ? vercel.routes.find((r) => r.src === "^/$" && r.dest === "/cbapp.html")
+  : null;
+const rootHeaders = (rootRoute && rootRoute.headers) || {};
 check(
   "vercel serves cbapp.html at /",
   Array.isArray(vercel.rewrites) &&
     vercel.rewrites.some(
       (r) => r.source === "/" && r.destination === "/cbapp.html"
-    )
+    ) &&
+    !!rootRoute
+);
+check(
+  "vercel root route keeps the security headers",
+  String(rootHeaders["Content-Security-Policy"] || "").includes(
+    "frame-ancestors 'none'"
+  ) &&
+    rootHeaders["X-Frame-Options"] === "DENY" &&
+    rootHeaders["X-Content-Type-Options"] === "nosniff" &&
+    rootHeaders["Referrer-Policy"] === "no-referrer" &&
+    String(rootHeaders["Permissions-Policy"] || "").includes("camera=()")
 );
 check("package.json has no build script", !pkg.scripts || !pkg.scripts.build);
 

@@ -7,9 +7,9 @@ description: Release CB App from this repository — bump the version in both pl
 
 This repository is the only home for CB App. `cbapp.html` at the repo root is the app. There is no second copy to mirror, no site build, and no homepage version token.
 
-The public host for this repository is the Vercel project `cbapp` (production branch `main`, domain `cbapp.phbeks.com`). DNS for that name is Philip's. This skill does not create DNS records.
+The public host is live: Vercel project `cbapp`, production branch `main`, https://cbapp.phbeks.com. https://phbeks.com/cbapp.html redirects to https://cbapp.phbeks.com/cbapp.html. This skill does not create DNS records.
 
-`vercel.json` is what that project deploys. `framework` is null, `installCommand` and `buildCommand` are empty strings (empty skips the step; `null` means "detect", which would go looking for a build), and `outputDirectory` is `.`. `/` rewrites to `/cbapp.html`. Do not add a `build` script to `package.json`. `npm run lint` and the Playwright scripts are local only. This file's headers do not apply to phbeks.com's `/cbapp.html`, which is a different project.
+`vercel.json` is what that project deploys. `framework` is null, `installCommand` and `buildCommand` are empty strings (empty skips the step; `null` means "detect", which would go looking for a build), and `outputDirectory` is `.`. A `routes` entry for `^/$` serves `/cbapp.html` before the filesystem check, because `/` is the project directory and otherwise 404s. The same security headers are on that route and on `/(.*)`. A `rewrites` entry also maps `/` to `/cbapp.html`. Do not add a `build` script to `package.json`. `npm run lint` and the Playwright scripts are local only.
 
 ## Preconditions
 
@@ -106,4 +106,4 @@ The PNGs in `tests/cbapp-visual.spec.ts-snapshots/` are Windows (`win32`) baseli
 
 Commit the files this release touched (`cbapp.html`, `CHANGELOG.md`, `README.md`, tests, and tooling when those changed). Push the branch. Do not merge unless the user asked.
 
-Do not configure Cloudflare, Nginx, or DNS for `cbapp.phbeks.com`. Say that the file is ready and that the host is Philip's to point at this build.
+Do not configure Cloudflare, Nginx, or DNS. https://cbapp.phbeks.com is already the public host. Say that the file is ready to merge to `main`.

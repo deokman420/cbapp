@@ -43,12 +43,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `.gitignore` ignores `.env` files and private-key filenames. Nothing in
   the tree was a secret.
 - The Playwright suite, ESLint config, security check, and icon script now
-  live in this repo. This file is the only changelog. The planned public
-  host is cbapp.phbeks.com.
+  live in this repo. This file is the only changelog. The public host
+  is https://cbapp.phbeks.com. https://phbeks.com/cbapp.html redirects there.
 - `vercel.json` deploys this directory with no install and no build
   (`buildCommand` and `installCommand` are empty, `outputDirectory` is `.`).
-  `/` rewrites to `/cbapp.html`. `package.json` has no `build` script, so
-  Vercel does not try to compile the app.
+  `/` serves `cbapp.html` (a route checked before the filesystem, plus a
+  rewrite). The security headers apply to `/` and to `/cbapp.html`.
+  `package.json` has no `build` script, so Vercel does not try to compile
+  the app.
 
 ---
 
