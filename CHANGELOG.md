@@ -36,6 +36,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   browser still loads quietly and is sealed on the next save.
 - `.gitignore` ignores `.env` files and private-key filenames. Nothing in
   the tree was a secret.
+- The Playwright suite, ESLint config, security check, and icon script now
+  live in this repo. This file is the only changelog. The planned public
+  host is cbapp.phbeks.com. DNS and the web server for that name are set up
+  outside this repository.
 
 ---
 

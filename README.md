@@ -115,6 +115,7 @@ No installation or server required.
 - [What's New in v4.2.0 – v4.6.4](#whats-new-in-v420--v464)
 - [What's New in v3.1](#whats-new-in-v31)
 - [What's New in v3.0](#whats-new-in-v30)
+- [Developing](#developing)
 - [Technical Notes](#technical-notes)
 
 ---
@@ -222,6 +223,8 @@ A new passphrase has to be at least 12 characters. One you already use still unl
 `vercel.json` in this repo sends the Content-Security-Policy (including `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, and a Permissions-Policy for camera, microphone, and geolocation. Deploying this repository is what applies them. The copy served at phbeks.com comes from a different project, so those headers have to be set there too.
 
 Importing a file that is not an encrypted backup asks before it replaces the session.
+
+The planned public host is **cbapp.phbeks.com**. DNS and the web server for that name are set up outside this repository.
 
 ---
 
@@ -497,20 +500,54 @@ pay for the row without handing WebKit a scrollbar Chromium would absorb.
 - **Persistence** — Uses `localStorage` under the key `notepadSession`, always encrypted: with a non-extractable device key kept in IndexedDB (`cbappDeviceKey`) by default, or with your passphrase when Protect is on. On a shared website the device key does not stop other pages on that site from reading the session; a passphrase does, and setting one deletes the device key.
 - **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
 - **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 key (600,000 iterations; 210,000-iteration files from older builds still open), with a fresh salt and IV per file. There is no plaintext backup path.
-- **HTTP headers** — `vercel.json` sets CSP (the meta policy plus `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. A meta tag cannot set `frame-ancestors`. phbeks.com does not deploy this file's `vercel.json` unless that project's headers are updated to match.
+- **HTTP headers** — `vercel.json` sets CSP (the meta policy plus `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. A meta tag cannot set `frame-ancestors`. Those headers apply when this repository is what gets deployed. phbeks.com's `/cbapp.html` is a different project. cbapp.phbeks.com is the planned separate origin; this repo does not configure its DNS or its web server.
 - **Window limit** — 25 windows. A session containing more restores what fits and reports what was skipped.
 - **Browser support** — Works in any modern Chromium-based browser. Best experience in Chrome/Edge.
 
 ---
 
+## Developing
+
+This repository is the home for CB App. Lint and tests run against `cbapp.html` at the repo root. There is no site build.
+
+```bash
+npm install
+npx playwright install
+npm run lint
+npm run test:cbapp-security
+npm run test:cbapp          # desktop Chromium
+npm run test:cbapp:all      # every Playwright project
+npm run test:cbapp:a11y
+npm run test:cbapp:visual   # win32 baselines; see tests/cbapp-visual.spec.ts
+```
+
+`npm run test:cbapp:all` is the release gate: desktop, mobile, mobile-landscape, iphone, iphone-se, ipad, ipad-small, firefox, and webkit. Read the summary counts. With the line reporter, a failure and a skip can look alike in the tail.
+
+The pixel baselines under `tests/cbapp-visual.spec.ts-snapshots/` were recorded on Windows (`*-win32.png`). A run on another operating system looks for its own snapshot names and does not replace those files. Do not pass `--update-snapshots` from Linux or macOS.
+
+The release notes for doing that work are in `.claude/skills/deploy-cbapp/SKILL.md`. Publishing to cbapp.phbeks.com is not part of it: that name is being set up in Cloudflare and Nginx separately.
+
 ## File Structure
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.8.0)
-├── vercel.json         # Security headers for a deploy of this repo
-├── CHANGELOG.md        # Release history
-└── README.md           # This file
+├── cbapp.html                 # The complete application (v4.8.0)
+├── vercel.json                # Security headers for a deploy of this repo
+├── package.json               # Lint and Playwright scripts
+├── playwright.config.ts
+├── eslint.config.mjs
+├── CHANGELOG.md               # The only changelog
+├── README.md
+├── scripts/
+│   ├── cbapp-security-check.mjs
+│   ├── make-cbapp-icons.mjs
+│   └── cbapp-icons.json
+├── tests/
+│   ├── cbapp.spec.ts
+│   ├── cbapp-a11y.spec.ts
+│   ├── cbapp-visual.spec.ts
+│   └── cbapp-visual.spec.ts-snapshots/   # Windows (win32) baselines
+└── .claude/skills/deploy-cbapp/SKILL.md
 ```
 
 ---
