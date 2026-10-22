@@ -2,9 +2,9 @@
 
 > A self-contained, offline-first multi-window productivity app that runs as a single HTML file.
 
-**Version:** `v4.7.0`  
-**Released:** October 13, 2026  
-**Size:** ~698 KB (single file)  
+**Version:** `v4.8.0`  
+**Released:** October 22, 2026  
+**Size:** ~707 KB (single file)  
 **License:** Provided as-is
 
 ![HTML](https://img.shields.io/badge/HTML-5-E34F26?logo=html5&logoColor=white)
@@ -90,7 +90,7 @@ block whose only job is to fail if it ever does.
 
 ## Getting Started
 
-- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.7.0)
+- **Primary file:** [`cbapp.html`](cbapp.html) — The complete application (v4.8.0)
 
 Simply save the file and open it in your browser.
 
@@ -110,6 +110,7 @@ No installation or server required.
 - [Getting Started](#getting-started)
 - [Keyboard Shortcuts](#keyboard-shortcuts)
 - [Recommended Usage](#recommended-usage-enterprise-browser)
+- [What's New in v4.8.0](#whats-new-in-v480)
 - [What's New in v4.7.0](#whats-new-in-v470)
 - [What's New in v4.2.0 – v4.6.4](#whats-new-in-v420--v464)
 - [What's New in v3.1](#whats-new-in-v31)
@@ -207,6 +208,20 @@ resizing on touch devices, which never had it — the native corner is unusable
 with a finger and was already disabled there.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list.
+
+---
+
+## What's New in v4.8.0
+
+**Same-origin exposure, stronger new passphrases, and the headers the docs already described.**
+
+With Protect off, notes are still encrypted with the browser's device key. On a normal website that key sits in IndexedDB for the whole origin, so other pages on that site can decrypt the session. CB App now says so and offers a passphrase. Choosing one deletes the device key after the passphrase envelope is saved. Opening the file from disk (`file://`) does not show that notice. Sessions saved by v4.7.0 still open.
+
+A new passphrase has to be at least 12 characters. One you already use still unlocks, even if it is shorter. New backups and saves use PBKDF2-SHA256 at 600,000 iterations. An older envelope marked 210,000 iterations still opens and is re-sealed at 600,000 the next time it saves.
+
+`vercel.json` in this repo sends the Content-Security-Policy (including `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy: no-referrer`, and a Permissions-Policy for camera, microphone, and geolocation. Deploying this repository is what applies them. The copy served at phbeks.com comes from a different project, so those headers have to be set there too.
+
+Importing a file that is not an encrypted backup asks before it replaces the session.
 
 ---
 
@@ -478,10 +493,11 @@ pay for the row without handing WebKit a scrollbar Chromium would absorb.
 
 ## Technical Notes
 
-- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~698KB` file, with no build step.
-- **Persistence** — Uses `localStorage` under the key `notepadSession`, always encrypted: with a non-extractable device key kept in IndexedDB (`cbappDeviceKey`) by default, or with your passphrase when Protect is on.
+- **Single file** — The entire application (HTML + CSS + JavaScript) lives in one `~707KB` file, with no build step.
+- **Persistence** — Uses `localStorage` under the key `notepadSession`, always encrypted: with a non-extractable device key kept in IndexedDB (`cbappDeviceKey`) by default, or with your passphrase when Protect is on. On a shared website the device key does not stop other pages on that site from reading the session; a passphrase does, and setting one deletes the device key.
 - **Download behavior** — "Download CB App" writes a pristine, *blank* copy of the app. It carries no session, so opening a copy can never touch what is already saved in your browser. Use Backup + Import to move content.
-- **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 (210,000 iteration) key, with a fresh salt and IV per file. There is no plaintext backup path.
+- **Backup format** — AES-GCM-256 over a PBKDF2-SHA256 key (600,000 iterations; 210,000-iteration files from older builds still open), with a fresh salt and IV per file. There is no plaintext backup path.
+- **HTTP headers** — `vercel.json` sets CSP (the meta policy plus `frame-ancestors 'none'`), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and `Permissions-Policy: camera=(), microphone=(), geolocation=()`. A meta tag cannot set `frame-ancestors`. phbeks.com does not deploy this file's `vercel.json` unless that project's headers are updated to match.
 - **Window limit** — 25 windows. A session containing more restores what fits and reports what was skipped.
 - **Browser support** — Works in any modern Chromium-based browser. Best experience in Chrome/Edge.
 
@@ -491,7 +507,8 @@ pay for the row without handing WebKit a scrollbar Chromium would absorb.
 
 ```
 cbapp/
-├── cbapp.html          # The complete application (v4.7.0)
+├── cbapp.html          # The complete application (v4.8.0)
+├── vercel.json         # Security headers for a deploy of this repo
 ├── CHANGELOG.md        # Release history
 └── README.md           # This file
 ```
@@ -504,4 +521,4 @@ This project is provided as-is for internal and personal use.
 
 ---
 
-**CB App v4.7.0** — A self-contained productivity workspace that just works.
+**CB App v4.8.0** — A self-contained productivity workspace that just works.

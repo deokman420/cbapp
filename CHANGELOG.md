@@ -7,6 +7,38 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.8.0] - 2026-10-22
+
+### Security
+
+- With no passphrase, the session is still sealed with the non-extractable
+  device key in IndexedDB. On a normal website (`http:` or `https:`) the app
+  now says that other pages on that site can read notes saved this way, and
+  offers Protect. "Not now" hides the notice for the rest of the tab.
+  `file://` is unchanged. After a passphrase envelope is actually written,
+  the device key is deleted so a copied device envelope cannot be opened
+  with the leftover key. Existing device-key sessions still open.
+- New passphrases must be at least 12 characters. Unlock does not check
+  length, so a passphrase chosen before this release still opens its data.
+  New seals use PBKDF2-SHA256 with 600,000 iterations. Envelopes marked
+  `PBKDF2-SHA256-210000` still open, and the next successful save re-seals
+  them at 600,000 with a new salt.
+- `vercel.json` now sends the documented headers: the meta Content-Security-Policy
+  plus `frame-ancestors 'none'`, `X-Frame-Options: DENY`,
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and a
+  Permissions-Policy that blocks camera, microphone, and geolocation.
+  Clipboard is left alone. These headers apply only where this repo is what
+  gets deployed. phbeks.com serves `/cbapp.html` from a different project.
+- Toolbar tooltips are built with DOM text APIs. The locked empty-state hint
+  is restored from an in-memory clone instead of assigning HTML.
+- Importing a file that is not an encrypted backup asks before it replaces
+  the saved session. Opening an older plaintext value already in this
+  browser still loads quietly and is sealed on the next save.
+- `.gitignore` ignores `.env` files and private-key filenames. Nothing in
+  the tree was a secret.
+
+---
+
 ## [4.7.0] - 2026-10-13
 
 ### Changed - sessions are encrypted even without a passphrase
